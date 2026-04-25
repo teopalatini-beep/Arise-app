@@ -32,6 +32,7 @@ export const COLORS = {
   mente:         '#4FC3F7',
   bienestar:     '#68D391',
   productividad: '#F6E05E',
+  motivacion:    '#C084FC',
 };
 
 export const GRADIENTS = {
