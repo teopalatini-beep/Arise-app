@@ -19,9 +19,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 9,
           fontWeight: '600',
-          letterSpacing: 0.3,
+          letterSpacing: 0.2,
         },
       }}
     >
@@ -30,7 +30,7 @@ export default function TabsLayout() {
         options={{
           title: 'Hoy',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="sunny" size={size} color={color} />
+            <Ionicons name="sunny" size={size - 2} color={color} />
           ),
         }}
       />
@@ -39,7 +39,7 @@ export default function TabsLayout() {
         options={{
           title: 'Programa',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid" size={size} color={color} />
+            <Ionicons name="grid" size={size - 2} color={color} />
           ),
         }}
       />
@@ -48,7 +48,16 @@ export default function TabsLayout() {
         options={{
           title: 'Progreso',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={size} color={color} />
+            <Ionicons name="stats-chart" size={size - 2} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="discovery"
+        options={{
+          title: 'Discovery',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="compass" size={size - 2} color={color} />
           ),
         }}
       />
@@ -57,7 +66,7 @@ export default function TabsLayout() {
         options={{
           title: 'Diario',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="journal" size={size} color={color} />
+            <Ionicons name="journal" size={size - 2} color={color} />
           ),
         }}
       />
@@ -66,7 +75,7 @@ export default function TabsLayout() {
         options={{
           title: 'Config',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+            <Ionicons name="settings" size={size - 2} color={color} />
           ),
         }}
       />
