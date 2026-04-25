@@ -1,94 +1,77 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const AUTH_KEY = 'arise_auth_v1';
-const SESSION_KEY = 'arise_session_v1';
-
-interface AuthData {
-  name: string;
-  passwordHash: string;
-}
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
+  session: Session | null;
   userName: string;
-  register: (name: string, password: string) => Promise<void>;
-  login: (password: string) => Promise<boolean>;
+  userEmail: string;
+  register: (name: string, email: string, password: string) => Promise<string | null>;
+  login: (email: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
-  hasAccount: boolean;
-}
-
-function simpleHash(str: string): string {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) + str.charCodeAt(i);
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(16);
+  resetPassword: (email: string) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authData, setAuthData] = useState<AuthData | null>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [rawAuth, session] = await Promise.all([
-          AsyncStorage.getItem(AUTH_KEY),
-          AsyncStorage.getItem(SESSION_KEY),
-        ]);
-        if (rawAuth) {
-          const parsed: AuthData = JSON.parse(rawAuth);
-          setAuthData(parsed);
-          if (session === 'active') {
-            setIsAuthenticated(true);
-          }
-        }
-      } catch (e) {
-        console.error('Auth load error', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  async function register(name: string, password: string) {
-    const data: AuthData = { name: name.trim(), passwordHash: simpleHash(password) };
-    await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(data));
-    await AsyncStorage.setItem(SESSION_KEY, 'active');
-    setAuthData(data);
-    setIsAuthenticated(true);
+  async function register(name: string, email: string, password: string): Promise<string | null> {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+      },
+    });
+    return error ? error.message : null;
   }
 
-  async function login(password: string): Promise<boolean> {
-    if (!authData) return false;
-    const match = simpleHash(password) === authData.passwordHash;
-    if (match) {
-      await AsyncStorage.setItem(SESSION_KEY, 'active');
-      setIsAuthenticated(true);
-    }
-    return match;
+  async function login(email: string, password: string): Promise<string | null> {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return error ? error.message : null;
   }
 
   async function logout() {
-    await AsyncStorage.removeItem(SESSION_KEY);
-    setIsAuthenticated(false);
+    await supabase.auth.signOut();
   }
+
+  async function resetPassword(email: string): Promise<string | null> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    return error ? error.message : null;
+  }
+
+  const userName = session?.user?.user_metadata?.name ?? '';
+  const userEmail = session?.user?.email ?? '';
 
   return (
     <AuthContext.Provider value={{
-      isAuthenticated,
+      isAuthenticated: !!session,
       loading,
-      userName: authData?.name ?? '',
+      session,
+      userName,
+      userEmail,
       register,
       login,
       logout,
-      hasAccount: authData !== null,
+      resetPassword,
     }}>
       {children}
     </AuthContext.Provider>
