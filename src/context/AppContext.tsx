@@ -3,18 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
 import { AppData, UserProfile, DayRecord, TaskState, DayMetrics } from '../types';
 import { PROGRAM } from '../data/program';
+import { supabase } from '../lib/supabase';
+import {
+  fetchProfile, upsertProfile,
+  fetchDayRecords, upsertDayRecord,
+  fetchMetrics, upsertMetrics,
+  fetchJournal, upsertJournal,
+} from '../lib/db';
 
 const STORAGE_KEY = 'arise_data_v1';
-
 const TODAY = () => format(new Date(), 'yyyy-MM-dd');
 const MONTH_REF = () => format(new Date(), 'yyyy-MM');
 
-// ─── Default initial state ────────────────────────────────────────────────────
-function createInitialData(): AppData {
+function createInitialData(name: string): AppData {
   const today = TODAY();
   return {
     user: {
-      name: 'Teo',
+      name,
       startDate: today,
       currentDay: 1,
       streak: 0,
@@ -31,7 +36,6 @@ function createInitialData(): AppData {
   };
 }
 
-// ─── XP & Level helpers ───────────────────────────────────────────────────────
 export function xpForLevel(level: number): number {
   return level * level * 100;
 }
@@ -43,78 +47,138 @@ export function levelFromXP(xp: number): number {
 }
 
 function xpForDay(dayNumber: number): number {
-  // Base 50 XP + bonus por día avanzado
   return 50 + Math.floor(dayNumber / 10) * 10;
 }
 
-// ─── Context types ────────────────────────────────────────────────────────────
 interface AppContextType {
   data: AppData | null;
   loading: boolean;
-
-  // Today's operations
+  syncing: boolean;
   todayRecord: DayRecord | null;
   todayDefinition: typeof PROGRAM[0] | null;
   completeTask: (taskId: string) => void;
   uncompleteTask: (taskId: string) => void;
   markDayComplete: () => void;
-
-  // Journal & metrics
   saveJournal: (text: string) => void;
   saveMetrics: (metrics: DayMetrics) => void;
-
-  // Grace day
   useGraceDay: () => void;
   canUseGrace: boolean;
-
-  // Program
   getDayRecord: (dayNumber: number) => DayRecord | undefined;
   resetProgram: () => void;
-
-  // Penalty
   hasPenalty: boolean;
   completePenalty: () => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  // Load data from storage
+  // ── Load & sync on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    (async () => {
-      try {
+    loadData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') loadData();
+      if (event === 'SIGNED_OUT') {
+        setData(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // Try Supabase first
+        const [profile, dayRecords, metricsData, journalData] = await Promise.all([
+          fetchProfile(user.id),
+          fetchDayRecords(user.id),
+          fetchMetrics(user.id),
+          fetchJournal(user.id),
+        ]);
+
+        if (profile) {
+          // Merge metrics and journal into day records
+          const enrichedDays = dayRecords.map(dr => {
+            const m = metricsData.find(m => m.dayNumber === dr.dayNumber);
+            const j = journalData.find(j => j.dayNumber === dr.dayNumber);
+            return {
+              ...dr,
+              metrics: m?.metrics,
+              journal: j?.content,
+            };
+          });
+
+          const today = TODAY();
+          const appData: AppData = {
+            user: profile,
+            days: enrichedDays,
+            lastOpenedDate: today,
+          };
+
+          const updated = handleDayTransition(appData);
+          setData(updated);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          setLoading(false);
+          return;
+        }
+
+        // No profile in Supabase — check AsyncStorage
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           const stored: AppData = JSON.parse(raw);
-          // Handle day transition on app open
           const updated = handleDayTransition(stored);
           setData(updated);
-          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          // Migrate to Supabase
+          await syncAllToSupabase(user.id, updated);
         } else {
-          const initial = createInitialData();
+          // Brand new user
+          const userName = user.user_metadata?.name ?? 'Usuario';
+          const initial = createInitialData(userName);
           setData(initial);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+          await upsertProfile(user.id, initial.user);
         }
-      } catch (e) {
-        console.error('Failed to load data', e);
-        setData(createInitialData());
-      } finally {
-        setLoading(false);
+      } else {
+        // Not logged in — load from AsyncStorage
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const stored: AppData = JSON.parse(raw);
+          setData(handleDayTransition(stored));
+        }
       }
-    })();
-  }, []);
+    } catch (e) {
+      console.error('Failed to load data', e);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  // Persist data changes
-  const persist = useCallback(async (newData: AppData) => {
-    setData(newData);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
-  }, []);
+  async function syncAllToSupabase(userId: string, appData: AppData) {
+    setSyncing(true);
+    try {
+      await upsertProfile(userId, appData.user);
+      await Promise.all(appData.days.map(async (dr) => {
+        await upsertDayRecord(userId, dr);
+        if (dr.metrics) await upsertMetrics(userId, dr.dayNumber, dr.metrics);
+        if (dr.journal) await upsertJournal(userId, dr.dayNumber, dr.journal);
+      }));
+    } catch (e) {
+      console.error('Sync error', e);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
-  // ── Day transition logic ──────────────────────────────────────────────────
+  // ── Day transition ───────────────────────────────────────────────────────
   function handleDayTransition(stored: AppData): AppData {
     const today = TODAY();
     if (stored.lastOpenedDate === today) return stored;
@@ -128,19 +192,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let updated = { ...stored, lastOpenedDate: today };
     const user = { ...updated.user };
 
-    if (daysDiff === 1) {
-      // Normal progression — check if yesterday was completed
-      const yesterdayRecord = stored.days.find(
-        d => d.dayNumber === user.currentDay - 1
-      );
-      // If yesterday exists and was completed, streak continues
-      // Otherwise it'll be handled when marking missed
-    } else if (daysDiff > 1) {
-      // Missed days
-      user.streak = 0;
-    }
+    if (daysDiff > 1) user.streak = 0;
 
-    // Reset grace day if new month
     const currentMonth = MONTH_REF();
     if (user.graceMonthRef !== currentMonth) {
       user.graceUsedThisMonth = false;
@@ -151,7 +204,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return updated;
   }
 
-  // ── Derived state ─────────────────────────────────────────────────────────
+  // ── Persist (local + Supabase) ───────────────────────────────────────────
+  const persist = useCallback(async (newData: AppData) => {
+    setData(newData);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await upsertProfile(user.id, newData.user);
+    } catch (e) {
+      console.error('Profile sync error', e);
+    }
+  }, []);
+
+  const persistWithRecord = useCallback(async (newData: AppData, record: DayRecord) => {
+    setData(newData);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await Promise.all([
+          upsertProfile(user.id, newData.user),
+          upsertDayRecord(user.id, record),
+        ]);
+      }
+    } catch (e) {
+      console.error('Record sync error', e);
+    }
+  }, []);
+
+  // ── Derived state ────────────────────────────────────────────────────────
   const todayDefinition = data
     ? (PROGRAM[data.user.currentDay - 1] ?? null)
     : null;
@@ -165,27 +248,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return todayRecord.missed && !todayRecord.penaltyCompleted;
   })();
 
-  const canUseGrace = data
-    ? !data.user.graceUsedThisMonth
-    : false;
+  const canUseGrace = data ? !data.user.graceUsedThisMonth : false;
 
-  // ── Task operations ───────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────
   function ensureTodayRecord(d: AppData): DayRecord {
     const existing = d.days.find(r => r.dayNumber === d.user.currentDay);
     if (existing) return existing;
-
-    const today = TODAY();
     const def = PROGRAM[d.user.currentDay - 1];
-    const newRecord: DayRecord = {
+    return {
       dayNumber: d.user.currentDay,
-      date: today,
+      date: TODAY(),
       taskStates: def.tasks.map(t => ({ taskId: t.id, completed: false })),
       completed: false,
       missed: false,
     };
-    return newRecord;
   }
 
+  // ── Task operations ──────────────────────────────────────────────────────
   const completeTask = useCallback((taskId: string) => {
     if (!data) return;
     const newData = { ...data };
@@ -198,7 +277,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ),
     };
 
-    // Check if all tasks done
     const allDone = updatedRecord.taskStates.every(ts => ts.completed);
     updatedRecord.completed = allDone;
 
@@ -208,7 +286,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ];
 
     if (allDone) {
-      // Auto-complete the day
       const user = { ...newData.user };
       const earned = xpForDay(user.currentDay);
       user.xp += earned;
@@ -220,8 +297,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       newData.user = user;
     }
 
-    persist(newData);
-  }, [data, persist]);
+    persistWithRecord(newData, updatedRecord);
+  }, [data, persistWithRecord]);
 
   const uncompleteTask = useCallback((taskId: string) => {
     if (!data) return;
@@ -240,8 +317,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
       updatedRecord,
     ];
-    persist(newData);
-  }, [data, persist]);
+    persistWithRecord(newData, updatedRecord);
+  }, [data, persistWithRecord]);
 
   const markDayComplete = useCallback(() => {
     if (!data) return;
@@ -268,10 +345,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (user.currentDay >= 90) user.programCompleted = true;
     newData.user = user;
 
-    persist(newData);
-  }, [data, persist]);
+    persistWithRecord(newData, updatedRecord);
+  }, [data, persistWithRecord]);
 
-  // ── Journal & Metrics ─────────────────────────────────────────────────────
+  // ── Journal ──────────────────────────────────────────────────────────────
   const saveJournal = useCallback((text: string) => {
     if (!data) return;
     const newData = { ...data };
@@ -281,9 +358,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
       updatedRecord,
     ];
-    persist(newData);
-  }, [data, persist]);
+    setData(newData);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) upsertJournal(user.id, record.dayNumber, text);
+    });
+  }, [data]);
+
+  // ── Metrics ──────────────────────────────────────────────────────────────
   const saveMetrics = useCallback((metrics: DayMetrics) => {
     if (!data) return;
     const newData = { ...data };
@@ -293,22 +376,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
       updatedRecord,
     ];
-    persist(newData);
-  }, [data, persist]);
+    setData(newData);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
-  // ── Grace day ─────────────────────────────────────────────────────────────
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) upsertMetrics(user.id, record.dayNumber, metrics);
+    });
+  }, [data]);
+
+  // ── Grace day ────────────────────────────────────────────────────────────
   const useGraceDay = useCallback(() => {
     if (!data || data.user.graceUsedThisMonth) return;
     const newData = { ...data };
     const user = { ...newData.user };
     user.graceUsedThisMonth = true;
-    // Grace = no reset, but streak resets to 0
     user.streak = 0;
     newData.user = user;
     persist(newData);
   }, [data, persist]);
 
-  // ── Penalty ───────────────────────────────────────────────────────────────
+  // ── Penalty ──────────────────────────────────────────────────────────────
   const completePenalty = useCallback(() => {
     if (!data) return;
     const newData = { ...data };
@@ -318,23 +405,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
       updatedRecord,
     ];
-    persist(newData);
-  }, [data, persist]);
+    persistWithRecord(newData, updatedRecord);
+  }, [data, persistWithRecord]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Reset ────────────────────────────────────────────────────────────────
+  const resetProgram = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const name = user?.user_metadata?.name ?? data?.user.name ?? 'Usuario';
+    const initial = createInitialData(name);
+    setData(initial);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    if (user) {
+      await upsertProfile(user.id, initial.user);
+    }
+  }, [data]);
+
   const getDayRecord = useCallback((dayNumber: number) => {
     return data?.days.find(d => d.dayNumber === dayNumber);
   }, [data]);
-
-  const resetProgram = useCallback(async () => {
-    const initial = createInitialData();
-    persist(initial);
-  }, [persist]);
 
   return (
     <AppContext.Provider value={{
       data,
       loading,
+      syncing,
       todayRecord,
       todayDefinition,
       completeTask,
