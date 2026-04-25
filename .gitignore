@@ -34,3 +34,4 @@ yarn-error.*
 
 # Claude
 .claude/
+node_modules
