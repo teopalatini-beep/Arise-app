@@ -469,7 +469,7 @@ function DetailModal({ item, onClose }: { item: Exercise | Book | MindsetItem | 
             <View style={[modalStyles.header, { borderColor: (item as any).color + '40' }]}>
               <Text style={modalStyles.emoji}>{item.emoji}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={modalStyles.title}>{isBook ? (item as Book).title : item.name}</Text>
+                <Text style={modalStyles.title}>{isBook ? (item as Book).title : isExercise ? (item as Exercise).name : (item as MindsetItem).title}</Text>
                 {isBook && <Text style={modalStyles.author}>{(item as Book).author}</Text>}
                 {isExercise && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>

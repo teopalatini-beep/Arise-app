@@ -86,7 +86,7 @@ export async function upsertMetrics(userId: string, dayNumber: number, metrics: 
     weight: metrics.weight ?? null,
     training_minutes: metrics.trainingMinutes ?? null,
     reading_pages: metrics.readingPages ?? null,
-    meditation_minutes: metrics.meditationMinutes ?? null,
+    meditation_minutes: metrics.breathingMinutes ?? null,
     notes: metrics.notes ?? null,
   }, { onConflict: 'user_id,day_number' });
 }
