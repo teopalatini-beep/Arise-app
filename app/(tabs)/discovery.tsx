@@ -826,7 +826,7 @@ export default function DiscoveryScreen() {
     { key: 'ejercicios', label: 'Ejercicios', icon: 'barbell' },
     { key: 'libros', label: 'Libros', icon: 'book' },
     { key: 'mentalidad', label: 'Mentalidad', icon: 'brain' },
-    { key: 'herramientas', label: 'Herramientas', icon: 'heart' },
+    { key: 'herramientas', label: 'Tools', icon: 'heart' },
   ];
 
   return (
@@ -989,10 +989,10 @@ const styles = StyleSheet.create({
   phaseBarBg: { height: 4, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: SPACING.xs },
   phaseBarFill: { height: '100%', borderRadius: RADIUS.full },
   phaseProgress: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.lg },
-  tabRow: { flexDirection: 'row', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 4, gap: 4, marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: SPACING.sm, borderRadius: RADIUS.md },
+  tabRow: { flexDirection: 'row', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 4, gap: 2, marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
+  tab: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 6, borderRadius: RADIUS.md },
   tabActive: { backgroundColor: 'rgba(72,149,239,0.15)' },
-  tabLabel: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '600' },
+  tabLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '600' },
   tabLabelActive: { color: COLORS.accent },
   phaseHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md, marginBottom: SPACING.sm },
   phaseTitle: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1.5 },
