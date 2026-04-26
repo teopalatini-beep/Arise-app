@@ -27,7 +27,17 @@ export interface DayMetrics {
   trainingMinutes?: number;
   readingPages?: number;
   breathingMinutes?: number;
+  sleepHours?: number;
+  energyLevel?: number;   // 1-10
+  mood?: number;          // 1-5
   notes?: string;
+}
+
+export interface OnboardingData {
+  completed: boolean;
+  goal: 'fitness' | 'mental' | 'discipline' | 'all';
+  fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
+  wakeUpHour: number;
 }
 
 export interface DayRecord {

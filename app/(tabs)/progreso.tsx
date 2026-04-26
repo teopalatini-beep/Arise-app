@@ -213,8 +213,12 @@ export default function ProgresoScreen() {
   const [trainMin, setTrainMin] = useState(todayRecord?.metrics?.trainingMinutes?.toString() ?? '');
   const [readPages, setReadPages] = useState(todayRecord?.metrics?.readingPages?.toString() ?? '');
   const [breathMin, setBreathMin] = useState(todayRecord?.metrics?.breathingMinutes?.toString() ?? '');
+  const [sleepHours, setSleepHours] = useState(todayRecord?.metrics?.sleepHours?.toString() ?? '');
+  const [energyLevel, setEnergyLevel] = useState(todayRecord?.metrics?.energyLevel ?? 0);
+  const [mood, setMood] = useState(todayRecord?.metrics?.mood ?? 0);
   const [metricNotes, setMetricNotes] = useState(todayRecord?.metrics?.notes ?? '');
   const [saved, setSaved] = useState(false);
+  const [showWeeklyReview, setShowWeeklyReview] = useState(false);
 
   if (!data) return null;
   const { user, days } = data;
@@ -227,12 +231,23 @@ export default function ProgresoScreen() {
       trainingMinutes: trainMin ? parseInt(trainMin) : undefined,
       readingPages: readPages ? parseInt(readPages) : undefined,
       breathingMinutes: breathMin ? parseInt(breathMin) : undefined,
+      sleepHours: sleepHours ? parseFloat(sleepHours) : undefined,
+      energyLevel: energyLevel || undefined,
+      mood: mood || undefined,
       notes: metricNotes || undefined,
     };
     saveMetrics(metrics);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
+
+  // Calcular semana actual para revisión
+  const currentWeek = Math.ceil(user.currentDay / 7);
+  const weekStart = (currentWeek - 1) * 7 + 1;
+  const weekEnd = Math.min(currentWeek * 7, user.currentDay);
+  const weekDays = days.filter(d => d.dayNumber >= weekStart && d.dayNumber <= weekEnd);
+  const weekCompleted = weekDays.filter(d => d.completed).length;
+  const weekMissed = weekDays.filter(d => d.missed).length;
 
   const completedDays = days.filter(d => d.completed).length;
   const missedDays = days.filter(d => d.missed).length;
@@ -338,6 +353,32 @@ export default function ProgresoScreen() {
               <TotalBox icon="flash" color={COLORS.productividad} label="XP ganado" value={`${user.xp}`} />
             </View>
 
+            {/* Weekly Review button */}
+            {user.currentDay > 7 && (
+              <>
+                <Text style={styles.sectionTitle}>SEMANA {currentWeek}</Text>
+                <TouchableOpacity
+                  style={weekStyles.reviewBtn}
+                  onPress={() => setShowWeeklyReview(true)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['rgba(232,70,10,0.15)', 'rgba(124,58,237,0.10)']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={weekStyles.reviewBtnInner}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={weekStyles.reviewTitle}>📊 Revisión Semanal</Text>
+                      <Text style={weekStyles.reviewSub}>
+                        Sem. {currentWeek} · {weekCompleted}/{weekDays.length} días completados
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={COLORS.accent} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            )}
+
             {/* Metrics input */}
             <Text style={styles.sectionTitle}>MÉTRICAS DE HOY — DÍA {user.currentDay}</Text>
             <View style={styles.metricsCard}>
@@ -345,9 +386,42 @@ export default function ProgresoScreen() {
               <MetricInput icon="barbell" label="Entrenamiento" value={trainMin} onChangeText={setTrainMin} suffix="min" placeholder="ej: 65" keyboardType="numeric" />
               <MetricInput icon="book" label="Páginas leídas" value={readPages} onChangeText={setReadPages} suffix="págs" placeholder="ej: 25" keyboardType="numeric" />
               <MetricInput icon="leaf" label="Respiración" value={breathMin} onChangeText={setBreathMin} suffix="min" placeholder="ej: 10" keyboardType="numeric" />
+              <MetricInput icon="moon" label="Horas de sueño" value={sleepHours} onChangeText={setSleepHours} suffix="hs" placeholder="ej: 7.5" keyboardType="decimal-pad" />
+
+              {/* Energy level 1-10 */}
+              <View style={styles.ratingSection}>
+                <Text style={styles.metricLabel}>⚡ Nivel de energía</Text>
+                <View style={styles.ratingRow}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                    <TouchableOpacity
+                      key={n}
+                      style={[styles.ratingChip, energyLevel === n && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }]}
+                      onPress={() => setEnergyLevel(n)}
+                    >
+                      <Text style={[styles.ratingText, energyLevel === n && { color: '#fff' }]}>{n}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Mood 1-5 */}
+              <View style={styles.ratingSection}>
+                <Text style={styles.metricLabel}>😊 Estado de ánimo</Text>
+                <View style={styles.ratingRow}>
+                  {(['😞','😕','😐','🙂','😄'] as const).map((emoji, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[styles.moodChip, mood === i + 1 && { backgroundColor: 'rgba(232,70,10,0.2)', borderColor: COLORS.accent }]}
+                      onPress={() => setMood(i + 1)}
+                    >
+                      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
 
               <View style={styles.notesSection}>
-                <Text style={styles.metricLabel}>Notas del día</Text>
+                <Text style={styles.metricLabel}>📝 Notas del día</Text>
                 <TextInput
                   style={styles.notesInput}
                   value={metricNotes}
@@ -375,7 +449,148 @@ export default function ProgresoScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Weekly Review Modal */}
+      <WeeklyReviewModal
+        visible={showWeeklyReview}
+        onClose={() => setShowWeeklyReview(false)}
+        weekNumber={currentWeek}
+        weekDays={weekDays}
+        weekCompleted={weekCompleted}
+        weekMissed={weekMissed}
+        user={user}
+      />
     </LinearGradient>
+  );
+}
+
+// ─── Weekly Review Modal ──────────────────────────────────────────────────────
+import { Modal, Pressable } from 'react-native';
+
+function WeeklyReviewModal({ visible, onClose, weekNumber, weekDays, weekCompleted, weekMissed, user }: {
+  visible: boolean; onClose: () => void; weekNumber: number;
+  weekDays: any[]; weekCompleted: number; weekMissed: number; user: any;
+}) {
+  const rate = weekDays.length > 0 ? Math.round((weekCompleted / weekDays.length) * 100) : 0;
+  const avgEnergy = weekDays.filter(d => d.metrics?.energyLevel).length > 0
+    ? (weekDays.reduce((s, d) => s + (d.metrics?.energyLevel ?? 0), 0) / weekDays.filter(d => d.metrics?.energyLevel).length).toFixed(1)
+    : null;
+  const avgMood = weekDays.filter(d => d.metrics?.mood).length > 0
+    ? (weekDays.reduce((s, d) => s + (d.metrics?.mood ?? 0), 0) / weekDays.filter(d => d.metrics?.mood).length).toFixed(1)
+    : null;
+  const avgSleep = weekDays.filter(d => d.metrics?.sleepHours).length > 0
+    ? (weekDays.reduce((s, d) => s + (d.metrics?.sleepHours ?? 0), 0) / weekDays.filter(d => d.metrics?.sleepHours).length).toFixed(1)
+    : null;
+  const totalTrain = weekDays.reduce((s, d) => s + (d.metrics?.trainingMinutes ?? 0), 0);
+  const totalRead = weekDays.reduce((s, d) => s + (d.metrics?.readingPages ?? 0), 0);
+
+  const message = rate === 100
+    ? '🏆 Semana perfecta. Sos un guerrero de élite.'
+    : rate >= 71
+    ? '⚡ Semana sólida. Seguí construyendo momentum.'
+    : rate >= 43
+    ? '🔥 Semana regular. La siguiente la terminás al 100%.'
+    : '⚔️ Semana difícil. Aprendé de ella y volvé más fuerte.';
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={weekStyles.backdrop} onPress={onClose}>
+        <View style={{ flex: 1 }} />
+        <LinearGradient colors={['#0A0A14', '#0F0F1E']} style={weekStyles.sheet}>
+          <ScrollView contentContainerStyle={weekStyles.content} showsVerticalScrollIndicator={false}>
+            <View style={weekStyles.handle} />
+
+            <Text style={weekStyles.modalTitle}>SEMANA {weekNumber}</Text>
+            <Text style={weekStyles.modalSub}>Días {(weekNumber-1)*7+1} – {Math.min(weekNumber*7, 90)}</Text>
+
+            {/* Rate */}
+            <View style={weekStyles.rateBox}>
+              <Text style={[weekStyles.rateNum, { color: rate === 100 ? COLORS.success : rate >= 71 ? COLORS.accent : rate >= 43 ? COLORS.warning : COLORS.danger }]}>
+                {rate}%
+              </Text>
+              <Text style={weekStyles.rateLabel}>completado</Text>
+            </View>
+
+            <Text style={weekStyles.messageText}>{message}</Text>
+
+            {/* Stats grid */}
+            <View style={weekStyles.statsGrid}>
+              <View style={weekStyles.statBox}>
+                <Text style={[weekStyles.statNum, { color: COLORS.success }]}>{weekCompleted}</Text>
+                <Text style={weekStyles.statLabel}>Días OK</Text>
+              </View>
+              <View style={weekStyles.statBox}>
+                <Text style={[weekStyles.statNum, { color: COLORS.danger }]}>{weekMissed}</Text>
+                <Text style={weekStyles.statLabel}>Fallados</Text>
+              </View>
+              <View style={weekStyles.statBox}>
+                <Text style={[weekStyles.statNum, { color: COLORS.cuerpo }]}>
+                  {totalTrain > 0 ? `${Math.floor(totalTrain/60)}h${totalTrain%60}m` : '—'}
+                </Text>
+                <Text style={weekStyles.statLabel}>Entrenado</Text>
+              </View>
+              <View style={weekStyles.statBox}>
+                <Text style={[weekStyles.statNum, { color: COLORS.mente }]}>
+                  {totalRead > 0 ? `${totalRead}p` : '—'}
+                </Text>
+                <Text style={weekStyles.statLabel}>Leído</Text>
+              </View>
+            </View>
+
+            {/* Wellness stats */}
+            {(avgEnergy || avgMood || avgSleep) && (
+              <>
+                <Text style={weekStyles.subSection}>BIENESTAR DE LA SEMANA</Text>
+                <View style={weekStyles.wellnessRow}>
+                  {avgSleep && (
+                    <View style={weekStyles.wellnessBox}>
+                      <Text style={weekStyles.wellnessEmoji}>😴</Text>
+                      <Text style={weekStyles.wellnessNum}>{avgSleep}h</Text>
+                      <Text style={weekStyles.wellnessLabel}>Sueño prom.</Text>
+                    </View>
+                  )}
+                  {avgEnergy && (
+                    <View style={weekStyles.wellnessBox}>
+                      <Text style={weekStyles.wellnessEmoji}>⚡</Text>
+                      <Text style={weekStyles.wellnessNum}>{avgEnergy}/10</Text>
+                      <Text style={weekStyles.wellnessLabel}>Energía prom.</Text>
+                    </View>
+                  )}
+                  {avgMood && (
+                    <View style={weekStyles.wellnessBox}>
+                      <Text style={weekStyles.wellnessEmoji}>
+                        {['😞','😕','😐','🙂','😄'][Math.round(parseFloat(avgMood)) - 1]}
+                      </Text>
+                      <Text style={weekStyles.wellnessNum}>{avgMood}/5</Text>
+                      <Text style={weekStyles.wellnessLabel}>Ánimo prom.</Text>
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* Day by day */}
+            <Text style={weekStyles.subSection}>DÍA A DÍA</Text>
+            <View style={weekStyles.daysRow}>
+              {weekDays.map(d => (
+                <View key={d.dayNumber} style={[
+                  weekStyles.dayDot,
+                  { backgroundColor: d.completed ? COLORS.success : d.missed ? COLORS.danger : COLORS.textMuted + '30' }
+                ]}>
+                  <Text style={weekStyles.dayDotText}>{d.dayNumber}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Pressable style={weekStyles.closeBtn} onPress={onClose}>
+              <LinearGradient colors={['#E8460A', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={weekStyles.closeBtnInner}>
+                <Text style={weekStyles.closeBtnText}>Cerrar</Text>
+              </LinearGradient>
+            </Pressable>
+          </ScrollView>
+        </LinearGradient>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -445,6 +660,11 @@ const styles = StyleSheet.create({
   saveButton: { marginTop: SPACING.md, borderRadius: RADIUS.md, overflow: 'hidden' },
   saveGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md, gap: 8 },
   saveText: { color: '#fff', fontWeight: '700', fontSize: FONT.base },
+  ratingSection: { marginTop: SPACING.sm, marginBottom: SPACING.sm },
+  ratingRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  ratingChip: { width: 30, height: 30, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
+  ratingText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
+  moodChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
 });
 
 const heatStyles = StyleSheet.create({
@@ -484,4 +704,38 @@ const inputStyles = StyleSheet.create({
   label: { flex: 1, fontSize: FONT.base, color: COLORS.textSecondary, fontWeight: '500' },
   input: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 6, color: COLORS.textPrimary, fontSize: FONT.base, minWidth: 70, textAlign: 'right', borderWidth: 1, borderColor: COLORS.border },
   suffix: { fontSize: FONT.sm, color: COLORS.textMuted, minWidth: 30 },
+});
+
+const weekStyles = StyleSheet.create({
+  reviewBtn: { borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: SPACING.lg, borderWidth: 1, borderColor: 'rgba(232,70,10,0.25)' },
+  reviewBtnInner: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md },
+  reviewTitle: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary },
+  reviewSub: { fontSize: FONT.xs, color: COLORS.textSecondary, marginTop: 2 },
+
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sheet: { maxHeight: '88%', borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  content: { padding: SPACING.lg },
+  handle: { width: 36, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.lg },
+  modalTitle: { fontSize: FONT.xl, fontWeight: '900', color: COLORS.textPrimary, textAlign: 'center' },
+  modalSub: { fontSize: FONT.sm, color: COLORS.textMuted, textAlign: 'center', marginBottom: SPACING.lg },
+  rateBox: { alignItems: 'center', marginBottom: SPACING.sm },
+  rateNum: { fontSize: 64, fontWeight: '900' },
+  rateLabel: { fontSize: FONT.sm, color: COLORS.textMuted },
+  messageText: { fontSize: FONT.base, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: SPACING.lg },
+  statsGrid: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+  statBox: { flex: 1, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  statNum: { fontSize: FONT.lg, fontWeight: '900' },
+  statLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '600', marginTop: 2 },
+  subSection: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.sm },
+  wellnessRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+  wellnessBox: { flex: 1, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, gap: 2 },
+  wellnessEmoji: { fontSize: 22 },
+  wellnessNum: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary },
+  wellnessLabel: { fontSize: 9, color: COLORS.textMuted },
+  daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: SPACING.lg },
+  dayDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  dayDotText: { fontSize: FONT.xs, color: '#fff', fontWeight: '700' },
+  closeBtn: { borderRadius: RADIUS.xl, overflow: 'hidden' },
+  closeBtnInner: { paddingVertical: 14, alignItems: 'center' },
+  closeBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.base, letterSpacing: 1 },
 });

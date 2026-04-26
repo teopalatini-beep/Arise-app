@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
+import { ONBOARDING_KEY } from './onboarding';
 
 function RootNavigator() {
   const { isAuthenticated, loading } = useAuth();
@@ -16,33 +17,37 @@ function RootNavigator() {
     if (loading || handled.current) return;
 
     const inLogin = segments[0] === 'login';
+    const inOnboarding = segments[0] === 'onboarding';
     const inWelcome = segments[0] === 'welcome';
 
     if (!isAuthenticated && !inLogin) {
       handled.current = true;
       router.replace('/login');
-    } else if (isAuthenticated && inLogin) {
+      return;
+    }
+
+    if (isAuthenticated && (inLogin || (!inOnboarding && !inWelcome))) {
       handled.current = true;
-      // Check if welcome was shown today
-      AsyncStorage.getItem('arise_welcome_date').then(saved => {
+      Promise.all([
+        AsyncStorage.getItem(ONBOARDING_KEY),
+        AsyncStorage.getItem('arise_welcome_date'),
+      ]).then(([onboarding, welcomeDate]) => {
         const today = format(new Date(), 'yyyy-MM-dd');
-        if (saved !== today) {
+
+        // First time ever — go to onboarding
+        if (!onboarding) {
+          router.replace('/onboarding');
+          return;
+        }
+
+        // Show welcome once per day
+        if (welcomeDate !== today) {
           AsyncStorage.setItem('arise_welcome_date', today);
           router.replace('/welcome');
-        } else {
-          router.replace('/(tabs)');
+          return;
         }
-      });
-    } else if (isAuthenticated && !inLogin && !inWelcome) {
-      // Fresh authenticated open — show welcome once per day
-      handled.current = true;
-      AsyncStorage.getItem('arise_welcome_date').then(saved => {
-        const today = format(new Date(), 'yyyy-MM-dd');
-        if (saved !== today) {
-          AsyncStorage.setItem('arise_welcome_date', today);
-          router.replace('/welcome');
-        }
-        // else stay on current screen
+
+        if (inLogin) router.replace('/(tabs)');
       });
     }
   }, [isAuthenticated, loading, segments]);
@@ -52,6 +57,7 @@ function RootNavigator() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ animation: 'fade' }} />
+        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       </Stack>
