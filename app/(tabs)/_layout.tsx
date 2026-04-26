@@ -1,7 +1,33 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/theme';
-import { Platform } from 'react-native';
+import { Platform, Text, View } from 'react-native';
+
+// Emoji icons para el tema anime
+const ANIME_ICONS: Record<string, string> = {
+  index:     '🔥',   // chakra / fuego Naruto
+  programa:  '⚔️',   // espadas Demon Slayer
+  progreso:  '⚡',   // rayo Super Saiyan
+  discovery: '🎯',   // sharingan / foco
+  diario:    '📜',   // pergamino ninja
+  config:    '⚙️',   // engranaje
+};
+
+function AnimeTabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{
+        fontSize: focused ? 20 : 17,
+        opacity: focused ? 1 : 0.5,
+        textShadowColor: focused ? color : 'transparent',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: focused ? 8 : 0,
+      }}>
+        {ANIME_ICONS[name]}
+      </Text>
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   return (
@@ -9,8 +35,8 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0A0F1E',
-          borderTopColor: COLORS.border,
+          backgroundColor: '#05050A',
+          borderTopColor: 'rgba(232,70,10,0.2)',
           borderTopWidth: 1,
           height: Platform.OS === 'ios' ? 84 : 64,
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
@@ -20,53 +46,53 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: {
           fontSize: 9,
-          fontWeight: '600',
-          letterSpacing: 0.2,
+          fontWeight: '700',
+          letterSpacing: 0.3,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Hoy',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="sunny" size={size - 2} color={color} />
+          title: 'Chakra',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimeTabIcon name="index" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="programa"
         options={{
-          title: 'Programa',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid" size={size - 2} color={color} />
+          title: 'Misión',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimeTabIcon name="programa" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="progreso"
         options={{
-          title: 'Progreso',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={size - 2} color={color} />
+          title: 'Poder',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimeTabIcon name="progreso" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="discovery"
         options={{
-          title: 'Discovery',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="compass" size={size - 2} color={color} />
+          title: 'Sharingan',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimeTabIcon name="discovery" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="diario"
         options={{
-          title: 'Diario',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="journal" size={size - 2} color={color} />
+          title: 'Pergamino',
+          tabBarIcon: ({ color, focused }) => (
+            <AnimeTabIcon name="diario" color={color} focused={focused} />
           ),
         }}
       />
@@ -74,8 +100,8 @@ export default function TabsLayout() {
         name="config"
         options={{
           title: 'Config',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size - 2} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <AnimeTabIcon name="config" color={color} focused={focused} />
           ),
         }}
       />

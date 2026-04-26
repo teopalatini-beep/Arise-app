@@ -1,47 +1,54 @@
 export const COLORS = {
-  // Fondos — gradiente oscuro azul/índigo
-  bg0:        '#080C14',   // negro azulado profundo
-  bg1:        '#0D1628',   // azul muy oscuro
-  bg2:        '#111E35',   // azul oscuro
-  bgCard:     'rgba(255,255,255,0.06)',
-  bgCardHover:'rgba(255,255,255,0.10)',
+  // Fondos — negro absoluto con toque carmesí/índigo (estilo anime)
+  bg0:        '#05050A',   // negro absoluto
+  bg1:        '#0A0A14',   // negro profundo azulado
+  bg2:        '#0F0F1E',   // índigo oscuro
+  bgCard:     'rgba(255,255,255,0.05)',
+  bgCardHover:'rgba(255,255,255,0.09)',
 
-  // Acentos principales
-  accent:     '#4895EF',   // azul brillante
-  accentDark: '#2563EB',
-  purple:     '#9B59B6',
-  purpleLight:'#C084FC',
+  // Acentos principales — naranja fuego (chakra) + rojo carmesí
+  accent:     '#E8460A',   // naranja fuego — chakra naruto
+  accentDark: '#B53508',
+  accentGlow: 'rgba(232,70,10,0.35)',
+  purple:     '#7C3AED',   // índigo oscuro
+  purpleLight:'#A855F7',
+  gold:       '#F59E0B',   // dorado super saiyan
+  goldLight:  '#FCD34D',
 
   // Colores de estado
-  success:    '#34D399',   // verde turquesa
-  warning:    '#FBBF24',   // amarillo
-  danger:     '#F87171',   // rojo suave
-  streak:     '#FB923C',   // naranja (racha)
+  success:    '#10B981',   // verde esmeralda
+  warning:    '#F59E0B',   // ámbar
+  danger:     '#EF4444',   // rojo sangre
+  streak:     '#F97316',   // naranja llama
 
   // Textos
-  textPrimary:   '#F0F4FF',
-  textSecondary: '#8899BB',
-  textMuted:     '#4A5568',
+  textPrimary:   '#F5F0FF',
+  textSecondary: '#9490A8',
+  textMuted:     '#3D3A50',
 
   // Separadores
-  border:     'rgba(255,255,255,0.08)',
-  borderFocus:'rgba(72,149,239,0.5)',
+  border:     'rgba(255,255,255,0.07)',
+  borderFocus:'rgba(232,70,10,0.6)',
+  borderGold: 'rgba(245,158,11,0.4)',
 
-  // Categorías de tareas
-  cuerpo:        '#FF6B6B',
-  mente:         '#4FC3F7',
-  bienestar:     '#68D391',
-  productividad: '#F6E05E',
-  motivacion:    '#C084FC',
+  // Categorías — temática anime
+  cuerpo:        '#EF4444',   // rojo — taijutsu / fuerza
+  mente:         '#3B82F6',   // azul — ninjutsu / mente
+  bienestar:     '#10B981',   // verde — naturaleza / respiración
+  productividad: '#F59E0B',   // dorado — super saiyan / enfoque
+  motivacion:    '#A855F7',   // púrpura — sharingan / espíritu
 };
 
 export const GRADIENTS = {
-  background:  ['#080C14', '#0D1628', '#111E35'] as string[],
-  accent:      ['#4895EF', '#9B59B6'] as string[],
-  card:        ['rgba(72,149,239,0.15)', 'rgba(155,89,182,0.08)'] as string[],
-  streak:      ['#FB923C', '#EF4444'] as string[],
-  success:     ['#34D399', '#059669'] as string[],
-  header:      ['rgba(8,12,20,0)', 'rgba(8,12,20,0.95)'] as string[],
+  background:  ['#05050A', '#0A0A14', '#0F0F1E'] as string[],
+  accent:      ['#E8460A', '#7C3AED'] as string[],
+  fire:        ['#F97316', '#E8460A', '#B53508'] as string[],
+  gold:        ['#FCD34D', '#F59E0B'] as string[],
+  card:        ['rgba(232,70,10,0.12)', 'rgba(124,58,237,0.06)'] as string[],
+  streak:      ['#F97316', '#EF4444'] as string[],
+  success:     ['#10B981', '#059669'] as string[],
+  header:      ['rgba(5,5,10,0)', 'rgba(5,5,10,0.97)'] as string[],
+  sharingan:   ['#EF4444', '#7C3AED'] as string[],
 };
 
 export const FONT = {
