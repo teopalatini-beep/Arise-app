@@ -253,8 +253,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Helpers ──────────────────────────────────────────────────────────────
   function ensureTodayRecord(d: AppData): DayRecord {
     const existing = d.days.find(r => r.dayNumber === d.user.currentDay);
-    if (existing) return existing;
     const def = PROGRAM[d.user.currentDay - 1];
+    if (existing) {
+      // Migrate: keep completed states for matching IDs, initialise new ones
+      const migratedStates = def.tasks.map(t => {
+        const match = existing.taskStates.find(ts => ts.taskId === t.id);
+        return match ?? { taskId: t.id, completed: false };
+      });
+      return { ...existing, taskStates: migratedStates };
+    }
     return {
       dayNumber: d.user.currentDay,
       date: TODAY(),
