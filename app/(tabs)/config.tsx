@@ -1,18 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  SafeAreaView, Alert, Switch, TextInput,
+  SafeAreaView, Alert, Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp, xpForLevel, levelFromXP } from '../../src/context/AppContext';
+import { useApp, xpForLevel } from '../../src/context/AppContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { COLORS, GRADIENTS, FONT, RADIUS, SPACING } from '../../src/theme';
+import {
+  NotifSettings, DEFAULT_SETTINGS,
+  loadNotifSettings, saveNotifSettings,
+  scheduleAllNotifications, requestPermissions,
+} from '../../src/lib/notifications';
 
 export default function ConfigScreen() {
   const { data, resetProgram, canUseGrace } = useApp();
   const { logout } = useAuth();
-  const [darkMode] = useState(true);
+  const [notif, setNotif] = useState<NotifSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    loadNotifSettings().then(setNotif);
+  }, []);
+
+  async function updateNotif(patch: Partial<NotifSettings>) {
+    const next = { ...notif, ...patch };
+    setNotif(next);
+    await saveNotifSettings(next);
+    await scheduleAllNotifications(next);
+  }
+
+  async function handleEnableToggle(value: boolean) {
+    if (value) {
+      const granted = await requestPermissions();
+      if (!granted) {
+        Alert.alert(
+          'Permisos requeridos',
+          'Activá los permisos de notificaciones en Configuración del sistema para recibir alertas de ARISE.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+    await updateNotif({ enabled: value });
+  }
 
   if (!data) return null;
   const { user } = data;
@@ -145,13 +176,124 @@ export default function ConfigScreen() {
             <InfoRow icon="flash" label="Trabajo profundo" value="45-180 min/día" />
           </View>
 
+          {/* Notificaciones */}
+          <Text style={styles.sectionTitle}>🔔 NOTIFICACIONES</Text>
+          <View style={styles.card}>
+            {/* Master switch */}
+            <View style={[styles.toggleRow, { marginBottom: SPACING.sm }]}>
+              <Text style={{ fontSize: 20 }}>⚡</Text>
+              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                <Text style={styles.toggleLabel}>Activar notificaciones</Text>
+                <Text style={styles.toggleSub}>Recordatorios diarios de ARISE</Text>
+              </View>
+              <Switch
+                value={notif.enabled}
+                onValueChange={handleEnableToggle}
+                trackColor={{ true: COLORS.accent, false: COLORS.textMuted }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            {notif.enabled && (
+              <>
+                <View style={styles.notifDivider} />
+
+                {/* Mañana */}
+                <View style={styles.notifRow}>
+                  <View style={[styles.notifIcon, { backgroundColor: '#F59E0B20' }]}>
+                    <Text style={{ fontSize: 18 }}>🌅</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>Mañana · {notif.morningHour}:00 hs</Text>
+                    <Text style={styles.notifDesc}>Activación chakra, frases de guerrero</Text>
+                  </View>
+                  <Switch
+                    value={notif.morning}
+                    onValueChange={v => updateNotif({ morning: v })}
+                    trackColor={{ true: '#F59E0B', false: COLORS.textMuted }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                {/* Tarde */}
+                <View style={styles.notifRow}>
+                  <View style={[styles.notifIcon, { backgroundColor: '#E8460A20' }]}>
+                    <Text style={{ fontSize: 18 }}>🔥</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>Tarde · {notif.afternoonHour}:00 hs</Text>
+                    <Text style={styles.notifDesc}>Check de tareas, empuje de mediodia</Text>
+                  </View>
+                  <Switch
+                    value={notif.afternoon}
+                    onValueChange={v => updateNotif({ afternoon: v })}
+                    trackColor={{ true: COLORS.accent, false: COLORS.textMuted }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                {/* Noche */}
+                <View style={styles.notifRow}>
+                  <View style={[styles.notifIcon, { backgroundColor: '#7C3AED20' }]}>
+                    <Text style={{ fontSize: 18 }}>🌙</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>Noche · {notif.nightHour}:00 hs</Text>
+                    <Text style={styles.notifDesc}>Reflexión, diario, cierre del día</Text>
+                  </View>
+                  <Switch
+                    value={notif.night}
+                    onValueChange={v => updateNotif({ night: v })}
+                    trackColor={{ true: '#7C3AED', false: COLORS.textMuted }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                <View style={styles.notifDivider} />
+
+                {/* Horarios */}
+                <Text style={[styles.toggleSub, { marginBottom: SPACING.sm }]}>AJUSTAR HORARIOS</Text>
+                <View style={styles.timeRow}>
+                  {[
+                    { label: '🌅 Mañana', key: 'morningHour' as const, options: [5,6,7,8,9] },
+                    { label: '🔥 Tarde', key: 'afternoonHour' as const, options: [12,13,14,15,16] },
+                    { label: '🌙 Noche', key: 'nightHour' as const, options: [19,20,21,22,23] },
+                  ].map(item => (
+                    <View key={item.key} style={styles.timeCol}>
+                      <Text style={styles.timeLabel}>{item.label}</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          {item.options.map(h => (
+                            <TouchableOpacity
+                              key={h}
+                              style={[
+                                styles.timeChip,
+                                notif[item.key] === h && styles.timeChipActive,
+                              ]}
+                              onPress={() => updateNotif({ [item.key]: h })}
+                            >
+                              <Text style={[
+                                styles.timeChipText,
+                                notif[item.key] === h && { color: '#fff' },
+                              ]}>{h}h</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+
           {/* Appearance */}
           <Text style={styles.sectionTitle}>APARIENCIA</Text>
           <View style={styles.card}>
             <View style={styles.toggleRow}>
               <Ionicons name="moon" size={18} color={COLORS.textSecondary} />
               <Text style={styles.toggleLabel}>Modo oscuro</Text>
-              <Switch value={darkMode} disabled trackColor={{ true: COLORS.accent }} />
+              <Switch value={true} disabled trackColor={{ true: COLORS.accent }} />
             </View>
           </View>
 
@@ -276,10 +418,32 @@ const styles = StyleSheet.create({
   graceDesc: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
   graceDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
 
-  toggleRow: {
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  toggleLabel: { fontSize: FONT.base, color: COLORS.textPrimary, fontWeight: '600' },
+  toggleSub: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 1 },
+
+  notifDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.sm },
+  notifRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
   },
-  toggleLabel: { flex: 1, fontSize: FONT.base, color: COLORS.textPrimary },
+  notifIcon: {
+    width: 38, height: 38, borderRadius: RADIUS.sm,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  notifTitle: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700' },
+  notifDesc: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 1 },
+
+  timeRow: { gap: SPACING.sm },
+  timeCol: { gap: 6 },
+  timeLabel: { fontSize: FONT.xs, color: COLORS.textSecondary, fontWeight: '600' },
+  timeChip: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: RADIUS.full, borderWidth: 1,
+    borderColor: COLORS.border, backgroundColor: COLORS.bgCard,
+  },
+  timeChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  timeChipText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
 
   aboutText: { fontSize: FONT.base, color: COLORS.textSecondary, lineHeight: 24 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.md },
