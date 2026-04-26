@@ -255,8 +255,8 @@ export default function ConfigScreen() {
                 <Text style={[styles.toggleSub, { marginBottom: SPACING.sm }]}>AJUSTAR HORARIOS</Text>
                 <View style={styles.timeRow}>
                   {[
-                    { label: '🌅 Mañana', key: 'morningHour' as const, options: [5,6,7,8,9] },
-                    { label: '🔥 Tarde', key: 'afternoonHour' as const, options: [12,13,14,15,16] },
+                    { label: '🌅 Mañana', key: 'morningHour' as const, options: [7,8,9,10,11] },
+                    { label: '🔥 Tarde', key: 'afternoonHour' as const, options: [13,14,15,16,17] },
                     { label: '🌙 Noche', key: 'nightHour' as const, options: [19,20,21,22,23] },
                   ].map(item => (
                     <View key={item.key} style={styles.timeCol}>

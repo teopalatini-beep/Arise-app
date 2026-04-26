@@ -29,41 +29,55 @@ export const DEFAULT_SETTINGS: NotifSettings = {
   morning: true,
   afternoon: true,
   night: true,
-  morningHour: 7,
-  afternoonHour: 14,
+  morningHour: 9,
+  afternoonHour: 15,
   nightHour: 21,
 };
 
 // ─── Mensajes por turno ───────────────────────────────────────────────────────
+
+// MAÑANA — boost mental, disciplina, arrancar el día con fuego
 const MORNING_MESSAGES = [
-  { title: '🔥 Despierta tu Chakra', body: 'El guerrero que duerme pierde la batalla antes de empezar. Hoy es el día.' },
-  { title: '⚡ Super Saiyan Mode', body: 'Cada mañana es un nuevo nivel. Teo, activá tu poder interior ahora.' },
-  { title: '⚔️ Misión del día activada', body: 'Los ninjas no esperan. Tu entrenamiento del día te espera. ¡Empieza!' },
-  { title: '🌅 Arise, Teo', body: 'El sol salió. Tu chakra también tiene que salir. Un día más hacia la cima.' },
-  { title: '🐉 El dragón despierta', body: 'Goku entrena cuando todos duermen. Tú entrenás cuando todos se rinden.' },
-  { title: '🔥 Modo Bestia ON', body: 'Respirá profundo. Estirá. Hoy vas a superar al Teo de ayer. Garantizado.' },
-  { title: '⚔️ Honor del guerrero', body: 'Los Hashira no faltaron ni un día. Vos tampoco. Levantáte.' },
+  { title: '🔥 Hoy es el día', body: 'La disciplina no negocia con el estado de ánimo. Arrancá ahora y el resto viene solo.' },
+  { title: '⚡ Activá tu poder', body: 'No esperes estar listo. Los grandes nunca estuvieron listos — simplemente empezaron.' },
+  { title: '⚔️ Tu versión élite te espera', body: 'El Teo de ayer ya fue superado. Hoy escribís un capítulo mejor. Andá a buscarlo.' },
+  { title: '🐉 Modo guerrero ON', body: 'Goku no entrenó cuando tuvo ganas. Entrenó porque sabía que la batalla se gana hoy.' },
+  { title: '🔥 Sin excusas', body: 'El cansancio es mentira que el cerebro inventa. El cuerpo puede más de lo que creés.' },
+  { title: '⚡ La diferencia la hacés vos', body: 'Mientras otros duermen un rato más, vos ya estás construyendo quién vas a ser.' },
+  { title: '🎯 Enfocate', body: '"La disciplina es el puente entre las metas y los logros." — Jim Rohn. Hoy cruzás ese puente.' },
+  { title: '🌅 Arise', body: 'Cada mañana que te levantás con intención es una victoria antes de empezar. Ya ganaste una.' },
+  { title: '⚔️ El camino del ninja', body: 'Rock Lee no tenía talentos. Solo tenía disciplina. Mirá en qué se convirtió.' },
+  { title: '💪 Un día más', body: 'No tenés que querer hacerlo. Solo tenés que hacerlo. Las ganas vienen mientras actuás.' },
 ];
 
+// TARDE — recordatorio de tareas, boost de disciplina para terminar el día fuerte
 const AFTERNOON_MESSAGES = [
-  { title: '⚡ Check de poder', body: '¿Completaste tu entrenamiento? El día sigue. Tus tareas te esperan, guerrero.' },
-  { title: '🎯 Ojo de Sharingan', body: 'A mitad del día. ¿Cuántas misiones completadas? El progreso no miente.' },
-  { title: '🔥 Fuego de mediodia', body: 'La tarde es cuando los débiles se rinden. Los fuertes aceleran. ¿Cuál sos vos?' },
-  { title: '📜 Pergamino incompleto', body: 'Revisá tus tareas del día. Cada tilde verde es un paso hacia tu mejor versión.' },
-  { title: '⚔️ Segunda ronda', body: 'Si el entrenamiento está hecho, perfecto. Si no, ahora es el momento. Sin excusas.' },
-  { title: '🐉 El Ki no se detiene', body: 'Vegeta nunca tomó un descanso cuando el universo estaba en juego. Seguí.' },
-  { title: '💎 Presión = Diamante', body: 'La tarde es el test real de tu disciplina. No dejes que el cansancio gane.' },
+  { title: '🔥 La tarde te define', body: 'El mediodía ya pasó. Los que se rinden paran acá. Los que crecen siguen. ¿Vos?' },
+  { title: '⚡ Check de misiones', body: 'Revisá tus tareas. Si falta algo, ahora es el momento. La noche llega rápido.' },
+  { title: '💎 Presión = Diamante', body: 'El cansancio de la tarde es el momento exacto donde se construye el carácter.' },
+  { title: '🎯 Sharingan activado', body: 'Enfocate. Una tarea a la vez. No necesitás perfección — necesitás constancia.' },
+  { title: '🐉 El Ki no para', body: '"El único entrenamiento malo es el que no se hizo." Todavía estás a tiempo.' },
+  { title: '⚔️ Segunda mitad del día', body: 'Los campeones no tienen buenas mañanas. Tienen buenos hábitos de tarde también.' },
+  { title: '🔥 Terminá lo que empezaste', body: 'Empezar es fácil. Terminar es lo que separa al guerrero del resto. Terminá tu día.' },
+  { title: '⚡ Sin rendirse', body: '"Cae siete veces, levántate ocho." — Proverbio japonés. Hoy no caés ni una.' },
+  { title: '💪 El esfuerzo acumula', body: 'Cada tarde que terminás fuerte es un ladrillo en el edificio de quien serás en 90 días.' },
+  { title: '🎯 El momentum es tuyo', body: 'Si completaste tareas hoy, seguí. Si no, este es tu momento. El día no terminó.' },
 ];
 
+// NOCHE — relajante, orgullo, celebración del día completado
 const NIGHT_MESSAGES = [
-  { title: '📜 El guerrero reflexiona', body: 'Antes de dormir, el ninja revisa su día. Abrí el diario y escribí tu historia.' },
-  { title: '🌙 Hora de cierre ninja', body: '¿Completaste todas las misiones de hoy? Marcá tu día y descansá con honor.' },
-  { title: '⭐ Reflexión del alma', body: 'Los grandes guerreros aprenden de cada jornada. ¿Qué te llevás de hoy, Teo?' },
-  { title: '🔥 El fuego no se apaga', body: 'El día casi termina. Si te queda alguna tarea, ahora es el último momento.' },
-  { title: '🐲 Senzu Bean', body: 'El descanso es parte del entrenamiento. Escribí, cerrá el día y recargá energía.' },
-  { title: '⚔️ El dojo cierra', body: 'Tus tareas de hoy. Tu diario. Tu descanso. En ese orden. El guerrero descansa con conciencia.' },
-  { title: '🌟 Día completado', body: 'Cada día que terminás es una cicatriz de batalla. Mañana, más fuerte. Descansá, guerrero.' },
+  { title: '🌙 Lo lograste, Teo', body: 'Pusiste un día más. No todos pueden decir eso. Estar orgulloso de vos mismo no es arrogancia — es justicia.' },
+  { title: '⭐ Un día más en el camino', body: 'Cada noche que llegás a este punto, sos un poco más de la persona que querés ser. Eso vale.' },
+  { title: '🌟 Orgulloso de vos', body: 'Hayas hecho mucho o poco hoy — estuviste presente. Y eso ya es más que la mayoría.' },
+  { title: '🌙 Cerrá el día con paz', body: 'Respirá. El guerrero que dio todo hoy merece descansar sin culpa. Escribí y soltá.' },
+  { title: '💫 Construiste algo hoy', body: 'Quizás no lo ves todavía. Pero el progreso es silencioso hasta que de repente es evidente.' },
+  { title: '🌙 El esfuerzo no se borra', body: 'Lo que hiciste hoy quedó grabado en quién sos. Nadie te lo puede quitar. Descansá tranquilo.' },
+  { title: '⭐ Más fuerte que ayer', body: 'No importa el nivel del día. Seguiste. Y seguir, cuando podrías no haberlo hecho, es todo.' },
+  { title: '🌟 Hacelo por vos', body: 'No hacés esto para impresionar a nadie. Lo hacés para mirarte al espejo y respetarte. Ya lo merecés.' },
+  { title: '🌙 La racha sigue', body: 'Un día más en la racha. Cerrá los ojos sabiendo que mañana arrancás con momentum.' },
+  { title: '💙 Estás en el camino correcto', body: 'Dias difíciles, días fáciles — seguiste igual. Eso es exactamente lo que hace a alguien extraordinario.' },
 ];
+
 
 function randomFrom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
