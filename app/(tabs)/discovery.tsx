@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
+import { getStageTheme, StageTheme } from '../../src/lib/progression';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Phase = 1 | 2 | 3;
@@ -450,7 +451,7 @@ function DifficultyDots({ level, color }: { level: 1 | 2 | 3; color: string }) {
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
-function DetailModal({ item, onClose }: { item: Exercise | Book | MindsetItem | null; onClose: () => void }) {
+function DetailModal({ item, onClose, stageTheme }: { item: Exercise | Book | MindsetItem | null; onClose: () => void; stageTheme: StageTheme }) {
   if (!item) return null;
 
   const isExercise = 'muscles' in item;
@@ -461,7 +462,7 @@ function DetailModal({ item, onClose }: { item: Exercise | Book | MindsetItem | 
     <Modal transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={modalStyles.backdrop} onPress={onClose} />
       <View style={modalStyles.sheet}>
-        <LinearGradient colors={GRADIENTS.background} style={modalStyles.content}>
+        <LinearGradient colors={stageTheme.background} style={modalStyles.content}>
           <View style={modalStyles.handle} />
 
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -819,6 +820,7 @@ export default function DiscoveryScreen() {
   if (!data) return null;
 
   const { user } = data;
+  const stageTheme = getStageTheme(user);
   const currentPhase = getPhase(user.currentDay);
   const phaseInfo = PHASE_INFO[currentPhase];
 
@@ -830,7 +832,7 @@ export default function DiscoveryScreen() {
   ];
 
   return (
-    <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+    <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -969,7 +971,7 @@ export default function DiscoveryScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <DetailModal item={selected} onClose={() => setSelected(null)} />
+      <DetailModal item={selected} stageTheme={stageTheme} onClose={() => setSelected(null)} />
       <ToolModal tool={selectedTool} onClose={() => setSelectedTool(null)} />
     </LinearGradient>
   );

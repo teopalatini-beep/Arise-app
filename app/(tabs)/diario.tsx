@@ -6,9 +6,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getStageTheme } from '../../src/lib/progression';
 
 // ─── Herramientas data ────────────────────────────────────────────────────────
 interface EmotionTool {
@@ -234,6 +235,7 @@ export default function DiarioScreen() {
   if (!data) return null;
 
   const { user, days } = data;
+  const stageTheme = getStageTheme(user);
 
   // Days with journal entries
   const journalDays = days
@@ -251,7 +253,7 @@ export default function DiarioScreen() {
   // ── Past entry viewer ──────────────────────────────────────────────────────
   if (viewingDay && viewingRecord) {
     return (
-      <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+      <LinearGradient colors={stageTheme.background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.viewerHeader}>
             <TouchableOpacity onPress={() => setViewingDay(null)} style={styles.backButton}>
@@ -269,7 +271,7 @@ export default function DiarioScreen() {
   }
 
   return (
-    <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+    <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -319,7 +321,7 @@ export default function DiarioScreen() {
                 <Text style={styles.charCount}>{text.length} caracteres</Text>
                 <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
                   <LinearGradient
-                    colors={saved ? [COLORS.success, '#059669'] : GRADIENTS.accent}
+                    colors={saved ? [COLORS.success, '#059669'] : stageTheme.accent}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.saveGradient}

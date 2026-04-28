@@ -1,4 +1,5 @@
 export type TaskCategory = 'cuerpo' | 'mente' | 'bienestar' | 'productividad' | 'motivacion';
+export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 
 export interface TaskDefinition {
   id: string;
@@ -33,11 +34,58 @@ export interface DayMetrics {
   notes?: string;
 }
 
+export interface UserGoals {
+  targetWeight?: number;       // kg objetivo
+  targetReadingPages?: number; // páginas totales en 90 días
+  targetStreak?: number;       // racha objetivo
+  targetTrainingDays?: number; // días de entrenamiento en 90 días
+}
+
+export type AdaptiveTrack = 'fat_loss' | 'muscle_gain' | 'recomposition' | 'maintenance';
+export type AdaptiveChallenge = 'consistency' | 'nutrition' | 'time' | 'stress' | 'sleep';
+
+export interface AdaptiveProfile {
+  track: AdaptiveTrack;
+  currentWeight?: number;
+  targetWeight?: number;
+  weightDelta?: number;
+  weeklyTargetKg: number;
+  challenges: AdaptiveChallenge[];
+  recommendations: string[];
+}
+
+export type BadgeId
+  = 'first_day'
+  | 'week1' | 'week2' | 'week4' | 'week8' | 'week12'
+  | 'streak7' | 'streak14' | 'streak30' | 'streak60' | 'streak90'
+  | 'phase1' | 'phase2' | 'phase3'
+  | 'perfect_week'
+  | 'early_riser'
+  | 'bookworm'
+  | 'iron_body'
+  | 'no_miss'
+  | 'arise_complete';
+
+export interface Badge {
+  id: BadgeId;
+  name: string;
+  emoji: string;
+  description: string;
+  rank: 'genin' | 'chunin' | 'jonin' | 'kage';
+  unlockedAt?: string; // ISO date
+}
+
 export interface OnboardingData {
   completed: boolean;
   goal: 'fitness' | 'mental' | 'discipline' | 'all';
-  fitnessLevel: 'beginner' | 'intermediate' | 'advanced';
+  fitnessLevel: FitnessLevel;
   wakeUpHour: number;
+  age?: number;
+  initialWeight?: number;
+  height?: number;
+  trainingDaysPerWeek?: number;
+  goals?: UserGoals;
+  adaptiveProfile?: AdaptiveProfile;
 }
 
 export interface DayRecord {
@@ -63,6 +111,15 @@ export interface UserProfile {
   graceMonthRef: string;
   programActive: boolean;
   programCompleted: boolean;
+  // Extended profile
+  fitnessLevel?: FitnessLevel;
+  age?: number;
+  initialWeight?: number;
+  height?: number;
+  trainingDaysPerWeek?: number;
+  goals?: UserGoals;
+  adaptiveProfile?: AdaptiveProfile;
+  badges?: BadgeId[];
 }
 
 export interface AppData {
@@ -77,4 +134,34 @@ export const CATEGORY_INFO: Record<TaskCategory, { color: string; icon: string; 
   bienestar:     { color: '#68D391', icon: 'leaf',           label: 'Bienestar' },
   productividad: { color: '#FFD93D', icon: 'flash',          label: 'Productividad' },
   motivacion:    { color: '#C084FC', icon: 'star',           label: 'Motivación' },
+};
+
+export const BADGE_DEFINITIONS: Record<BadgeId, Omit<Badge, 'id' | 'unlockedAt'>> = {
+  first_day:       { name: 'Primer Paso',        emoji: '🌱', rank: 'genin',  description: 'Completaste tu primer día' },
+  week1:           { name: 'Semana Genin',        emoji: '⚡', rank: 'genin',  description: '7 días completados' },
+  week2:           { name: 'Doble Semana',        emoji: '🔥', rank: 'genin',  description: '14 días completados' },
+  week4:           { name: 'Chunin Iniciado',     emoji: '⚔️', rank: 'chunin', description: 'Fase 1 completada — 30 días' },
+  week8:           { name: 'Jonin en Ascenso',    emoji: '🐉', rank: 'jonin',  description: 'Fase 2 completada — 60 días' },
+  week12:          { name: 'Kage Supremo',        emoji: '👁️', rank: 'kage',   description: '90 días completados' },
+  streak7:         { name: 'Racha Ninja',         emoji: '🔥', rank: 'genin',  description: '7 días consecutivos' },
+  streak14:        { name: 'Racha de Fuego',      emoji: '💥', rank: 'chunin', description: '14 días consecutivos' },
+  streak30:        { name: 'Modo Saiyan',         emoji: '⚡', rank: 'chunin', description: '30 días consecutivos' },
+  streak60:        { name: 'Super Saiyan',        emoji: '🌟', rank: 'jonin',  description: '60 días consecutivos' },
+  streak90:        { name: 'Legendario',          emoji: '🏆', rank: 'kage',   description: '90 días consecutivos — perfecto' },
+  phase1:          { name: 'Fase 1: Genin',       emoji: '🌿', rank: 'genin',  description: 'Completaste los primeros 30 días' },
+  phase2:          { name: 'Fase 2: Chunin',      emoji: '⚔️', rank: 'chunin', description: 'Completaste 60 días' },
+  phase3:          { name: 'Fase 3: Kage',        emoji: '👑', rank: 'kage',   description: 'Completaste los 90 días' },
+  perfect_week:    { name: 'Semana Perfecta',     emoji: '💎', rank: 'chunin', description: '7 días seguidos sin fallar' },
+  early_riser:     { name: 'Madrugador',          emoji: '🌅', rank: 'genin',  description: 'Completaste 10 días antes de las 9am' },
+  bookworm:        { name: 'Devorador de Libros', emoji: '📚', rank: 'chunin', description: '500 páginas leídas en total' },
+  iron_body:       { name: 'Cuerpo de Hierro',    emoji: '🦾', rank: 'jonin',  description: '50 horas de entrenamiento acumuladas' },
+  no_miss:         { name: 'Sin Faltas',          emoji: '🎯', rank: 'jonin',  description: '30 días sin perder ninguno' },
+  arise_complete:  { name: 'ARISE COMPLETE',      emoji: '炎', rank: 'kage',   description: 'Terminaste los 90 días. Leyenda.' },
+};
+
+export const RANK_COLORS: Record<Badge['rank'], string> = {
+  genin:  '#68D391',
+  chunin: '#4FC3F7',
+  jonin:  '#C084FC',
+  kage:   '#F59E0B',
 };

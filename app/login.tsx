@@ -11,6 +11,20 @@ import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '../src/theme';
 
 type Mode = 'login' | 'register' | 'reset';
 
+function normalizeAuthError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('email not confirmed')) {
+    return 'Tu email todavia no esta confirmado. Revisa tu bandeja y valida la cuenta para ingresar.';
+  }
+  if (lower.includes('invalid login credentials')) {
+    return 'Email o contrasena incorrectos.';
+  }
+  if (lower.includes('network')) {
+    return 'No hay conexion con el servidor. Revisa internet e intenta de nuevo.';
+  }
+  return message;
+}
+
 export default function LoginScreen() {
   const { register, login, resetPassword } = useAuth();
 
@@ -84,7 +98,7 @@ export default function LoginScreen() {
     const err = await login(email.trim(), password);
     setLoading(false);
     if (err) {
-      showError('Email o contraseña incorrectos.');
+      showError(normalizeAuthError(err));
       setPassword('');
     }
   }

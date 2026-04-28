@@ -40,15 +40,15 @@ export const COLORS = {
 };
 
 export const GRADIENTS = {
-  background:  ['#05050A', '#0A0A14', '#0F0F1E'] as string[],
-  accent:      ['#E8460A', '#7C3AED'] as string[],
-  fire:        ['#F97316', '#E8460A', '#B53508'] as string[],
-  gold:        ['#FCD34D', '#F59E0B'] as string[],
-  card:        ['rgba(232,70,10,0.12)', 'rgba(124,58,237,0.06)'] as string[],
-  streak:      ['#F97316', '#EF4444'] as string[],
-  success:     ['#10B981', '#059669'] as string[],
-  header:      ['rgba(5,5,10,0)', 'rgba(5,5,10,0.97)'] as string[],
-  sharingan:   ['#EF4444', '#7C3AED'] as string[],
+  background:  ['#05050A', '#0A0A14', '#0F0F1E'] as const,
+  accent:      ['#E8460A', '#7C3AED'] as const,
+  fire:        ['#F97316', '#E8460A', '#B53508'] as const,
+  gold:        ['#FCD34D', '#F59E0B'] as const,
+  card:        ['rgba(232,70,10,0.12)', 'rgba(124,58,237,0.06)'] as const,
+  streak:      ['#F97316', '#EF4444'] as const,
+  success:     ['#10B981', '#059669'] as const,
+  header:      ['rgba(5,5,10,0)', 'rgba(5,5,10,0.97)'] as const,
+  sharingan:   ['#EF4444', '#7C3AED'] as const,
 };
 
 export const FONT = {

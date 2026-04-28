@@ -1,4 +1,41 @@
-import { DayDefinition, TaskDefinition } from '../types';
+import { DayDefinition, TaskDefinition, FitnessLevel, AdaptiveProfile, AdaptiveTrack, AdaptiveChallenge, OnboardingData } from '../types';
+
+// Multiplicadores por nivel de fitness
+const LEVEL_MULT: Record<FitnessLevel, { train: number; read: number; work: number; breath: number }> = {
+  beginner:     { train: 0.70, read: 0.75, work: 0.70, breath: 0.80 },
+  intermediate: { train: 1.00, read: 1.00, work: 1.00, breath: 1.00 },
+  advanced:     { train: 1.30, read: 1.25, work: 1.25, breath: 1.15 },
+};
+
+const TRACK_MULT: Record<AdaptiveTrack, { train: number; read: number; work: number; breath: number }> = {
+  fat_loss:      { train: 1.10, read: 0.95, work: 1.00, breath: 1.05 },
+  muscle_gain:   { train: 1.20, read: 0.95, work: 1.00, breath: 0.95 },
+  recomposition: { train: 1.08, read: 1.00, work: 1.00, breath: 1.00 },
+  maintenance:   { train: 0.95, read: 1.00, work: 1.00, breath: 1.05 },
+};
+
+const DEFAULT_RECOMMENDATIONS: Record<AdaptiveTrack, string[]> = {
+  fat_loss: [
+    'Caminar 8.000+ pasos diarios para subir gasto sin quemarte.',
+    'Priorizar 2 comidas altas en proteina para proteger masa muscular.',
+    'Cerrar el dia con 10 min de movilidad para sostener consistencia.',
+  ],
+  muscle_gain: [
+    'Agregar una comida extra con proteina + carbohidrato post entreno.',
+    'Subir cargas o repeticiones cada semana para progresar de verdad.',
+    'Dormir 7-9h para convertir el entrenamiento en crecimiento muscular.',
+  ],
+  recomposition: [
+    'Entrenar fuerza 3-5 veces por semana y registrar pesos usados.',
+    'Mantener proteina diaria alta para perder grasa sin perder musculo.',
+    'Revisar progreso cada semana y ajustar solo si te estancaste.',
+  ],
+  maintenance: [
+    'Sostener 3 entrenamientos semanales para conservar el progreso.',
+    'Apuntar a pasos diarios estables para no perder condicion.',
+    'Usar chequeo semanal de energia/sueno para prevenir recaidas.',
+  ],
+};
 
 // ─── FRASES MOTIVACIONALES ────────────────────────────────────────────────────
 const QUOTES = [
@@ -173,13 +210,106 @@ function clamp(val: number, min: number, max: number) {
   return Math.min(max, Math.max(min, val));
 }
 
-function buildDay(dayNum: number): DayDefinition {
-  const d = dayNum;
+function normalizeWeeklyTarget(track: AdaptiveTrack, weightDelta?: number): number {
+  const absDelta = Math.abs(weightDelta ?? 0);
+  if (track === 'maintenance') return 0;
+  if (absDelta <= 2) return 0.2;
+  if (absDelta <= 5) return 0.35;
+  return 0.5;
+}
 
-  const trainMin = clamp(Math.round(20 + (d - 1) * 0.82), 20, 95);
-  const readPages = clamp(Math.round(10 + (d - 1) * 0.34), 10, 40);
-  const breathMin = clamp(Math.round(5 + (d - 1) * 0.17), 5, 20);
-  const workMin   = clamp(Math.round(45 + (d - 1) * 1.5), 45, 180);
+function inferTrack(goal: OnboardingData['goal'] | undefined, currentWeight?: number, targetWeight?: number): AdaptiveTrack {
+  if (typeof currentWeight === 'number' && typeof targetWeight === 'number') {
+    const delta = targetWeight - currentWeight;
+    if (delta <= -2) return 'fat_loss';
+    if (delta >= 2) return 'muscle_gain';
+    return 'recomposition';
+  }
+  if (goal === 'fitness' || goal === 'all') return 'recomposition';
+  return 'maintenance';
+}
+
+export function deriveAdaptiveProfile(params: {
+  goal?: OnboardingData['goal'];
+  currentWeight?: number;
+  targetWeight?: number;
+  challenges?: AdaptiveChallenge[];
+  track?: AdaptiveTrack;
+  weeklyTargetKg?: number;
+}): AdaptiveProfile {
+  const track = params.track ?? inferTrack(params.goal, params.currentWeight, params.targetWeight);
+  const weightDelta = (typeof params.currentWeight === 'number' && typeof params.targetWeight === 'number')
+    ? Number((params.targetWeight - params.currentWeight).toFixed(1))
+    : undefined;
+  const weeklyTargetKg = params.weeklyTargetKg ?? normalizeWeeklyTarget(track, weightDelta);
+
+  return {
+    track,
+    currentWeight: params.currentWeight,
+    targetWeight: params.targetWeight,
+    weightDelta,
+    weeklyTargetKg,
+    challenges: params.challenges ?? [],
+    recommendations: DEFAULT_RECOMMENDATIONS[track],
+  };
+}
+
+function buildAdaptiveTask(dayNumber: number, profile: AdaptiveProfile): TaskDefinition {
+  if (profile.track === 'fat_loss') {
+    return {
+      id: `d${dayNumber}-adaptive-fatloss`,
+      name: 'Ajuste nutricional',
+      category: 'cuerpo',
+      description: 'Deficit inteligente: plato con proteina + vegetales en 2 comidas y evita calorias liquidas hoy.',
+      target: 2,
+      unit: 'comidas enfocadas',
+    };
+  }
+  if (profile.track === 'muscle_gain') {
+    return {
+      id: `d${dayNumber}-adaptive-gain`,
+      name: 'Construccion muscular',
+      category: 'cuerpo',
+      description: 'Superavit limpio: suma 1 comida extra con proteina y carbohidrato para apoyar el aumento de masa.',
+      target: 1,
+      unit: 'comida extra',
+    };
+  }
+  if (profile.track === 'recomposition') {
+    return {
+      id: `d${dayNumber}-adaptive-recomp`,
+      name: 'Recomposicion',
+      category: 'cuerpo',
+      description: 'Balance de recomposicion: proteina alta y registrar pesos del entrenamiento para progresion semanal.',
+      target: 1,
+      unit: 'check',
+    };
+  }
+  return {
+    id: `d${dayNumber}-adaptive-maintenance`,
+    name: 'Mantenimiento inteligente',
+    category: 'cuerpo',
+    description: 'Conserva lo ganado: caminata activa + hidratacion consistente para sostener energia y enfoque.',
+    target: 30,
+    unit: 'minutos activos',
+  };
+}
+
+function buildDay(
+  dayNum: number,
+  level: FitnessLevel = 'intermediate',
+  adaptiveProfile?: AdaptiveProfile,
+  trainingDaysPerWeek = 4
+): DayDefinition {
+  const d = dayNum;
+  const m = LEVEL_MULT[level];
+  const trackMult = adaptiveProfile ? TRACK_MULT[adaptiveProfile.track] : TRACK_MULT.maintenance;
+  const availabilityMult = trainingDaysPerWeek <= 3 ? 0.9 : trainingDaysPerWeek >= 5 ? 1.08 : 1;
+
+  const trainMin = clamp(Math.round((20 + (d - 1) * 0.82) * m.train * trackMult.train * availabilityMult), 15, 130);
+  const readPages = clamp(Math.round((10 + (d - 1) * 0.34) * m.read * trackMult.read), 8, 50);
+  const breathMin = clamp(Math.round((5 + (d - 1) * 0.17) * m.breath * trackMult.breath), 4, 25);
+  const workMin   = clamp(Math.round((45 + (d - 1) * 1.5) * m.work * trackMult.work), 30, 220);
   const visMin    = d >= 20 ? clamp(Math.round(5 + (d - 20) * 0.14), 5, 15) : 0;
   const coldMin   = d >= 40 ? clamp(Math.round(1 + (d - 40) * 0.08), 1, 5) : 0;
   const motivMin  = clamp(Math.round(5 + (d - 1) * 0.08), 5, 12);
@@ -268,6 +398,10 @@ function buildDay(dayNum: number): DayDefinition {
     },
   ];
 
+  if (adaptiveProfile) {
+    tasks.splice(1, 0, buildAdaptiveTask(d, adaptiveProfile));
+  }
+
   if (d >= 20) {
     tasks.push({
       id: `d${d}-visualizacion`,
@@ -300,9 +434,40 @@ function buildDay(dayNum: number): DayDefinition {
   };
 }
 
+// Programa base (intermediate) — para usuarios sin onboarding
 export const PROGRAM: DayDefinition[] = Array.from({ length: 90 }, (_, i) =>
-  buildDay(i + 1)
+  buildDay(i + 1, 'intermediate')
 );
+
+// Genera programa personalizado según nivel
+export function buildProgram(
+  level: FitnessLevel,
+  options?: {
+    goal?: OnboardingData['goal'];
+    trainingDaysPerWeek?: number;
+    adaptiveProfile?: AdaptiveProfile;
+    initialWeight?: number;
+    targetWeight?: number;
+  }
+): DayDefinition[] {
+  const shouldAdapt = Boolean(
+    options?.adaptiveProfile ||
+    options?.goal ||
+    typeof options?.initialWeight === 'number' ||
+    typeof options?.targetWeight === 'number'
+  );
+  const adaptiveProfile = shouldAdapt
+    ? (options?.adaptiveProfile ?? deriveAdaptiveProfile({
+      goal: options?.goal,
+      currentWeight: options?.initialWeight,
+      targetWeight: options?.targetWeight,
+    }))
+    : undefined;
+
+  return Array.from({ length: 90 }, (_, i) =>
+    buildDay(i + 1, level, adaptiveProfile, options?.trainingDaysPerWeek ?? 4)
+  );
+}
 
 export const PENALTY_MISSION: TaskDefinition[] = [
   {

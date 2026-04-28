@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TextInput,
-  TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Dimensions,
+  TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Dimensions, Share, Modal, Pressable, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Rect, G, Text as SvgText } from 'react-native-svg';
 import { useApp } from '../../src/context/AppContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING } from '../../src/theme';
-import { DayMetrics } from '../../src/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, BadgeId } from '../../src/types';
+import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme, StageTheme } from '../../src/lib/progression';
+import { buildWeeklyCoachReport, CoachId, COACH_STORAGE_KEY, COACHES } from '../../src/lib/coach';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 
 const SCREEN_W = Dimensions.get('window').width - SPACING.md * 2;
 
@@ -208,7 +213,7 @@ function XPRing({ xp, level, xpForLevel }: { xp: number; level: number; xpForLev
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ProgresoScreen() {
-  const { data, todayRecord, saveMetrics } = useApp();
+  const { data, todayRecord, saveMetrics, newBadges, clearNewBadges } = useApp();
   const [weight, setWeight] = useState(todayRecord?.metrics?.weight?.toString() ?? '');
   const [trainMin, setTrainMin] = useState(todayRecord?.metrics?.trainingMinutes?.toString() ?? '');
   const [readPages, setReadPages] = useState(todayRecord?.metrics?.readingPages?.toString() ?? '');
@@ -219,9 +224,37 @@ export default function ProgresoScreen() {
   const [metricNotes, setMetricNotes] = useState(todayRecord?.metrics?.notes ?? '');
   const [saved, setSaved] = useState(false);
   const [showWeeklyReview, setShowWeeklyReview] = useState(false);
+  const [selectedCoach, setSelectedCoach] = useState<CoachId>('normal');
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [sharingStory, setSharingStory] = useState(false);
+  const storyRef = useRef<ViewShot | null>(null);
 
   if (!data) return null;
   const { user, days } = data;
+  const powerStage = getPowerStage(user);
+  const stageTheme = getStageTheme(user);
+  const nextStageHint = getNextStageHint(user);
+  const earnedBadges = (user.badges ?? []).map(id => ({ id, ...BADGE_DEFINITIONS[id] }));
+  const recentBadges = [...earnedBadges].reverse().slice(0, 6);
+  const lockedBadges = (Object.keys(BADGE_DEFINITIONS) as BadgeId[])
+    .filter(id => !(user.badges ?? []).includes(id))
+    .slice(0, 3)
+    .map(id => ({ id, ...BADGE_DEFINITIONS[id] }));
+  const dynamicChallenges = buildDynamicChallenges(user, days).slice(0, 3);
+  const weeklyReport = useMemo(() => buildWeeklyCoachReport(data, selectedCoach), [data, selectedCoach]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(COACH_STORAGE_KEY).then(raw => {
+      if (!raw) return;
+      const exists = COACHES.some(c => c.id === raw);
+      if (exists) setSelectedCoach(raw as CoachId);
+    });
+  }, []);
+
+  async function selectCoach(id: CoachId) {
+    setSelectedCoach(id);
+    await AsyncStorage.setItem(COACH_STORAGE_KEY, id);
+  }
 
   function xpForLevel(level: number) { return level * level * 100; }
 
@@ -239,6 +272,38 @@ export default function ProgresoScreen() {
     saveMetrics(metrics);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  async function handleShareProgress() {
+    const shareText = buildShareText({
+      currentWeek,
+      weeklySummary: weeklyReport.summary,
+      streak: user.streak,
+      coachName: COACHES.find(c => c.id === selectedCoach)?.name ?? 'Coach Humano',
+    });
+    await Share.share({
+      title: 'Mi progreso en ARISE',
+      message: shareText,
+    });
+  }
+
+  async function handleShareStoryImage() {
+    if (!storyRef.current) return;
+    try {
+      setSharingStory(true);
+      const uri = await storyRef.current.capture?.();
+      if (!uri) return;
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Compartir story de progreso',
+        });
+      } else {
+        await Share.share({ url: uri, message: 'Mi progreso en ARISE' });
+      }
+    } finally {
+      setSharingStory(false);
+    }
   }
 
   // Calcular semana actual para revisión
@@ -263,7 +328,7 @@ export default function ProgresoScreen() {
     .map(d => ({ x: d.dayNumber, y: d.metrics!.weight! }));
 
   return (
-    <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+    <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -285,11 +350,186 @@ export default function ProgresoScreen() {
               <StatChip icon="close-circle" value={`${missedDays}`} label="Fallados" color={COLORS.danger} />
             </View>
 
+            {newBadges.length > 0 && (
+              <View style={styles.newBadgeBanner}>
+                <Text style={styles.newBadgeTitle}>✨ Nuevos logros desbloqueados</Text>
+                <Text style={styles.newBadgeText}>
+                  {newBadges.map(id => BADGE_DEFINITIONS[id]?.name ?? id).join(' · ')}
+                </Text>
+                <TouchableOpacity onPress={clearNewBadges}>
+                  <Text style={styles.newBadgeAction}>Ocultar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <Text style={styles.sectionTitle}>MODO ANIME ACTUAL</Text>
+            <View style={styles.card}>
+              <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerPill}>
+                <Text style={styles.powerPillText}>{powerStage.auraLabel}</Text>
+              </LinearGradient>
+              <Text style={styles.powerTitle}>{powerStage.title}</Text>
+              <Text style={styles.powerSubtitle}>{nextStageHint}</Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>LOGROS Y BADGES</Text>
+            <View style={styles.card}>
+              <Text style={styles.badgeSummary}>{earnedBadges.length} desbloqueados · {Object.keys(BADGE_DEFINITIONS).length - earnedBadges.length} pendientes</Text>
+              <View style={styles.badgesGrid}>
+                {recentBadges.map(b => (
+                  <View key={b.id} style={[styles.badgeCard, { borderColor: `${RANK_COLORS[b.rank]}50` }]}>
+                    <Text style={styles.badgeEmoji}>{b.emoji}</Text>
+                    <Text style={styles.badgeName} numberOfLines={1}>{b.name}</Text>
+                    <Text style={[styles.badgeRank, { color: RANK_COLORS[b.rank] }]}>{b.rank.toUpperCase()}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>PRÓXIMOS DESBLOQUEOS</Text>
+            <View style={styles.card}>
+              {lockedBadges.map(b => (
+                <View key={b.id} style={styles.lockedRow}>
+                  <Text style={styles.lockedEmoji}>🔒</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.lockedName}>{b.name}</Text>
+                    <Text style={styles.lockedDesc}>{b.description}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.sectionTitle}>DESAFÍOS QUE SUBEN LA DIFICULTAD</Text>
+            <View style={styles.card}>
+              {dynamicChallenges.map(ch => {
+                const ratio = Math.max(0, Math.min(1, ch.current / Math.max(ch.target, 1)));
+                return (
+                  <View key={ch.id} style={styles.challengeRow}>
+                    <Text style={styles.challengeTitle}>{ch.label}</Text>
+                    <Text style={styles.challengeMeta}>{ch.current} / {ch.target} {ch.unit}</Text>
+                    <View style={styles.challengeBarBg}>
+                      <View style={[styles.challengeBarFill, { width: `${ratio * 100}%` as any }]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            <Text style={styles.sectionTitle}>COACH IA SEMANAL</Text>
+            <View style={styles.card}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coachSelectorRow}>
+                {COACHES.map(c => {
+                  const active = selectedCoach === c.id;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.coachChip, active && styles.coachChipActive]}
+                      onPress={() => selectCoach(c.id)}
+                    >
+                      <Text style={[styles.coachChipText, active && styles.coachChipTextActive]}>{c.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text style={styles.coachTitle}>{weeklyReport.title}</Text>
+              <Text style={styles.coachSummary}>{weeklyReport.summary}</Text>
+
+              <Text style={styles.coachLabel}>Lo mejor de tu semana</Text>
+              {weeklyReport.wins.map(win => (
+                <View key={win} style={styles.coachRow}>
+                  <Text style={styles.coachBullet}>•</Text>
+                  <Text style={styles.coachRowText}>{win}</Text>
+                </View>
+              ))}
+
+              <Text style={styles.coachLabel}>Foco para la proxima</Text>
+              {weeklyReport.focus.map(item => (
+                <View key={item} style={styles.coachRow}>
+                  <Text style={styles.coachBullet}>•</Text>
+                  <Text style={styles.coachRowText}>{item}</Text>
+                </View>
+              ))}
+
+              <Text style={styles.coachMessage}>{weeklyReport.message}</Text>
+            </View>
+
+            <Text style={styles.sectionTitle}>COMPARTIR PROGRESO</Text>
+            <View style={styles.shareRow}>
+              <TouchableOpacity style={styles.shareButton} onPress={() => setShowStoryModal(true)} activeOpacity={0.85}>
+                <LinearGradient colors={stageTheme.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shareGradient}>
+                  <Ionicons name="image-outline" size={18} color="#fff" />
+                  <Text style={styles.shareText}>Story Card</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareButton} onPress={handleShareProgress} activeOpacity={0.85}>
+                <LinearGradient colors={['#3B82F6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shareGradient}>
+                  <Ionicons name="share-social-outline" size={18} color="#fff" />
+                  <Text style={styles.shareText}>Texto</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
             {/* Heatmap */}
             <Text style={styles.sectionTitle}>MAPA DE 90 DÍAS</Text>
             <View style={styles.card}>
               <Heatmap days={days} currentDay={user.currentDay} />
             </View>
+
+            {/* Goals progress bars */}
+            {user.goals && (
+              Object.keys(user.goals).some(k => (user.goals as any)[k] != null) && (
+                <>
+                  <Text style={styles.sectionTitle}>🎯 OBJETIVOS PERSONALES</Text>
+                  <View style={styles.card}>
+                    {typeof user.goals.targetStreak === 'number' && user.goals.targetStreak > 0 && (
+                      <GoalBar
+                        label="🔥 Racha objetivo"
+                        current={user.streak}
+                        target={user.goals.targetStreak}
+                        unit="días"
+                        color={COLORS.streak}
+                      />
+                    )}
+                    {typeof user.goals.targetReadingPages === 'number' && user.goals.targetReadingPages > 0 && (
+                      <GoalBar
+                        label="📚 Páginas leídas"
+                        current={totalReadPages}
+                        target={user.goals.targetReadingPages}
+                        unit="págs"
+                        color={COLORS.mente}
+                      />
+                    )}
+                    {typeof user.goals.targetWeight === 'number' && typeof user.initialWeight === 'number' && (
+                      (() => {
+                        const latestW = [...days].reverse().map(d => d.metrics?.weight).find((w): w is number => typeof w === 'number') ?? user.initialWeight;
+                        const totalDelta = user.goals.targetWeight! - user.initialWeight!;
+                        const doneDelta = latestW - user.initialWeight!;
+                        const pct = Math.abs(totalDelta) < 0.1 ? 1 : Math.max(0, Math.min(1, doneDelta / totalDelta));
+                        return (
+                          <GoalBar
+                            label="⚖️ Peso objetivo"
+                            current={parseFloat(latestW.toFixed(1))}
+                            target={user.goals.targetWeight!}
+                            unit="kg"
+                            color={COLORS.accent}
+                            forcePct={pct}
+                          />
+                        );
+                      })()
+                    )}
+                    {typeof user.goals.targetTrainingDays === 'number' && user.goals.targetTrainingDays > 0 && (
+                      <GoalBar
+                        label="🏋️ Días entrenados"
+                        current={days.filter(d => (d.metrics?.trainingMinutes ?? 0) > 0).length}
+                        target={user.goals.targetTrainingDays}
+                        unit="días"
+                        color={COLORS.cuerpo}
+                      />
+                    )}
+                  </View>
+                </>
+              )
+            )}
 
             {/* Weight chart */}
             <Text style={styles.sectionTitle}>EVOLUCIÓN DE PESO</Text>
@@ -431,11 +671,14 @@ export default function ProgresoScreen() {
                   placeholderTextColor={COLORS.textMuted}
                   textAlignVertical="top"
                 />
+                <TouchableOpacity onPress={() => setMetricNotes('')} style={styles.clearNotesBtn}>
+                  <Text style={styles.clearNotesText}>Borrar nota</Text>
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
                 <LinearGradient
-                  colors={saved ? [COLORS.success, '#059669'] : GRADIENTS.accent}
+                  colors={saved ? [COLORS.success, '#059669'] : stageTheme.accent}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   style={styles.saveGradient}
                 >
@@ -454,21 +697,57 @@ export default function ProgresoScreen() {
       <WeeklyReviewModal
         visible={showWeeklyReview}
         onClose={() => setShowWeeklyReview(false)}
+        stageTheme={stageTheme}
         weekNumber={currentWeek}
         weekDays={weekDays}
         weekCompleted={weekCompleted}
         weekMissed={weekMissed}
         user={user}
       />
+
+      <Modal visible={showStoryModal} transparent animationType="slide" onRequestClose={() => setShowStoryModal(false)}>
+        <Pressable style={storyStyles.backdrop} onPress={() => setShowStoryModal(false)}>
+          <View style={{ flex: 1 }} />
+          <View style={storyStyles.sheet}>
+            <ViewShot
+              ref={(ref) => { storyRef.current = ref; }}
+              options={{ format: 'png', quality: 1, result: 'tmpfile' }}
+              style={storyStyles.captureWrap}
+            >
+              <LinearGradient colors={stageTheme.background} style={storyStyles.card}>
+                <Text style={storyStyles.brand}>ARISE</Text>
+                <Text style={storyStyles.title}>Semana {currentWeek}</Text>
+                <Text style={storyStyles.subtitle}>{powerStage.title}</Text>
+
+                <View style={storyStyles.stats}>
+                  <Text style={storyStyles.stat}>Racha: {user.streak} dias</Text>
+                  <Text style={storyStyles.stat}>Cumplimiento: {completionRate}%</Text>
+                  <Text style={storyStyles.stat}>Coach: {COACHES.find(c => c.id === selectedCoach)?.name ?? 'Coach Humano'}</Text>
+                </View>
+
+                <Text style={storyStyles.message}>{weeklyReport.message}</Text>
+                <Text style={storyStyles.hash}>#Arise #90Dias</Text>
+              </LinearGradient>
+            </ViewShot>
+
+            <TouchableOpacity style={storyStyles.exportBtn} onPress={handleShareStoryImage} activeOpacity={0.85} disabled={sharingStory}>
+              <LinearGradient colors={stageTheme.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={storyStyles.exportBtnInner}>
+                {sharingStory ? <ActivityIndicator color="#fff" /> : <Ionicons name="share-outline" size={18} color="#fff" />}
+                <Text style={storyStyles.exportText}>{sharingStory ? 'Exportando...' : 'Exportar y compartir imagen'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </LinearGradient>
   );
 }
 
 // ─── Weekly Review Modal ──────────────────────────────────────────────────────
-import { Modal, Pressable } from 'react-native';
 
-function WeeklyReviewModal({ visible, onClose, weekNumber, weekDays, weekCompleted, weekMissed, user }: {
+function WeeklyReviewModal({ visible, onClose, stageTheme, weekNumber, weekDays, weekCompleted, weekMissed, user }: {
   visible: boolean; onClose: () => void; weekNumber: number;
+  stageTheme: StageTheme;
   weekDays: any[]; weekCompleted: number; weekMissed: number; user: any;
 }) {
   const rate = weekDays.length > 0 ? Math.round((weekCompleted / weekDays.length) * 100) : 0;
@@ -496,7 +775,7 @@ function WeeklyReviewModal({ visible, onClose, weekNumber, weekDays, weekComplet
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={weekStyles.backdrop} onPress={onClose}>
         <View style={{ flex: 1 }} />
-        <LinearGradient colors={['#0A0A14', '#0F0F1E']} style={weekStyles.sheet}>
+        <LinearGradient colors={[stageTheme.background[1], stageTheme.background[2]]} style={weekStyles.sheet}>
           <ScrollView contentContainerStyle={weekStyles.content} showsVerticalScrollIndicator={false}>
             <View style={weekStyles.handle} />
 
@@ -583,7 +862,7 @@ function WeeklyReviewModal({ visible, onClose, weekNumber, weekDays, weekComplet
             </View>
 
             <Pressable style={weekStyles.closeBtn} onPress={onClose}>
-              <LinearGradient colors={['#E8460A', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={weekStyles.closeBtnInner}>
+              <LinearGradient colors={stageTheme.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={weekStyles.closeBtnInner}>
                 <Text style={weekStyles.closeBtnText}>Cerrar</Text>
               </LinearGradient>
             </Pressable>
@@ -594,6 +873,21 @@ function WeeklyReviewModal({ visible, onClose, weekNumber, weekDays, weekComplet
   );
 }
 
+function buildShareText(params: {
+  currentWeek: number;
+  weeklySummary: string;
+  streak: number;
+  coachName: string;
+}): string {
+  return [
+    `ARISE · Semana ${params.currentWeek}`,
+    params.weeklySummary,
+    `Racha actual: ${params.streak} dias`,
+    `Coach: ${params.coachName}`,
+    '#Arise #90Dias',
+  ].join('\n');
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 function StatChip({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
   return (
@@ -601,6 +895,26 @@ function StatChip({ icon, value, label, color }: { icon: string; value: string; 
       <Ionicons name={icon as any} size={16} color={color} />
       <Text style={[chipStyles.value, { color }]}>{value}</Text>
       <Text style={chipStyles.label}>{label}</Text>
+    </View>
+  );
+}
+
+function GoalBar({ label, current, target, unit, color, forcePct }: {
+  label: string; current: number; target: number; unit: string; color: string; forcePct?: number;
+}) {
+  const pct = forcePct !== undefined ? forcePct : Math.max(0, Math.min(1, current / Math.max(target, 1)));
+  const pctDisplay = Math.round(pct * 100);
+  return (
+    <View style={{ marginBottom: SPACING.md }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+        <Text style={{ color: COLORS.textSecondary, fontSize: FONT.sm, fontWeight: '700' }}>{label}</Text>
+        <Text style={{ color, fontSize: FONT.sm, fontWeight: '800' }}>
+          {current} / {target} {unit} · {pctDisplay}%
+        </Text>
+      </View>
+      <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
+        <View style={{ height: '100%', width: `${pctDisplay}%` as any, backgroundColor: color, borderRadius: 4 }} />
+      </View>
     </View>
   );
 }
@@ -648,7 +962,84 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: FONT.base, color: COLORS.textSecondary, marginTop: 2 },
   sectionTitle: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.lg },
   statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm },
+  newBadgeBanner: {
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.35)',
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  newBadgeTitle: { fontSize: FONT.sm, color: COLORS.gold, fontWeight: '800' },
+  newBadgeText: { fontSize: FONT.sm, color: COLORS.textPrimary, marginTop: 4, lineHeight: 18 },
+  newBadgeAction: { fontSize: FONT.xs, color: COLORS.accent, fontWeight: '700', marginTop: 6 },
+
   card: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm },
+  powerPill: {
+    alignSelf: 'flex-start',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  powerPillText: { color: '#fff', fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1 },
+  powerTitle: { fontSize: FONT.lg, color: COLORS.textPrimary, fontWeight: '800' },
+  powerSubtitle: { fontSize: FONT.sm, color: COLORS.textSecondary, marginTop: 2 },
+
+  badgeSummary: { fontSize: FONT.sm, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  badgeCard: {
+    width: '31%',
+    minHeight: 84,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+  },
+  badgeEmoji: { fontSize: 22, marginBottom: 4 },
+  badgeName: { fontSize: 10, color: COLORS.textPrimary, fontWeight: '700', textAlign: 'center' },
+  badgeRank: { fontSize: 9, marginTop: 2, fontWeight: '800' },
+  lockedRow: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'flex-start', marginBottom: SPACING.sm },
+  lockedEmoji: { fontSize: 18, marginTop: 1 },
+  lockedName: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700' },
+  lockedDesc: { fontSize: FONT.xs, color: COLORS.textSecondary, marginTop: 2, lineHeight: 17 },
+
+  challengeRow: { marginBottom: SPACING.sm },
+  challengeTitle: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700' },
+  challengeMeta: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 2, marginBottom: 4 },
+  challengeBarBg: { height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  challengeBarFill: { height: '100%', backgroundColor: COLORS.gold, borderRadius: RADIUS.full },
+
+  coachSelectorRow: { gap: SPACING.sm, marginBottom: SPACING.sm },
+  coachChip: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  coachChipActive: {
+    backgroundColor: 'rgba(232,70,10,0.18)',
+    borderColor: 'rgba(232,70,10,0.45)',
+  },
+  coachChipText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
+  coachChipTextActive: { color: COLORS.textPrimary },
+  coachTitle: { fontSize: FONT.base, color: COLORS.textPrimary, fontWeight: '800', marginBottom: 4 },
+  coachSummary: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20, marginBottom: SPACING.sm },
+  coachLabel: { fontSize: FONT.xs, color: COLORS.gold, fontWeight: '800', letterSpacing: 1, marginBottom: 4, marginTop: 2 },
+  coachRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 4 },
+  coachBullet: { color: COLORS.gold, fontWeight: '900', marginTop: -1 },
+  coachRowText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 18 },
+  coachMessage: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700', marginTop: SPACING.sm },
+
+  shareRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
+  shareButton: { borderRadius: RADIUS.md, overflow: 'hidden', flex: 1 },
+  shareGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: SPACING.md },
+  shareText: { color: '#fff', fontSize: FONT.base, fontWeight: '800' },
+
   chartFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.sm },
   chartFooterCenter: { textAlign: 'center', color: COLORS.textMuted, fontSize: FONT.xs, marginTop: SPACING.sm },
   chartStat: { fontSize: FONT.xs, color: COLORS.textSecondary },
@@ -657,6 +1048,8 @@ const styles = StyleSheet.create({
   notesSection: { marginTop: SPACING.sm },
   metricLabel: { fontSize: FONT.sm, color: COLORS.textSecondary, marginBottom: SPACING.xs, fontWeight: '600' },
   notesInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: RADIUS.md, padding: SPACING.sm, color: COLORS.textPrimary, fontSize: FONT.base, minHeight: 80, borderWidth: 1, borderColor: COLORS.border },
+  clearNotesBtn: { alignSelf: 'flex-end', marginTop: 6 },
+  clearNotesText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
   saveButton: { marginTop: SPACING.md, borderRadius: RADIUS.md, overflow: 'hidden' },
   saveGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md, gap: 8 },
   saveText: { color: '#fff', fontWeight: '700', fontSize: FONT.base },
@@ -738,4 +1131,36 @@ const weekStyles = StyleSheet.create({
   closeBtn: { borderRadius: RADIUS.xl, overflow: 'hidden' },
   closeBtnInner: { paddingVertical: 14, alignItems: 'center' },
   closeBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.base, letterSpacing: 1 },
+});
+
+const storyStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)' },
+  sheet: {
+    backgroundColor: '#0A0A14',
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.md,
+  },
+  captureWrap: { borderRadius: RADIUS.lg, overflow: 'hidden' },
+  card: {
+    minHeight: 360,
+    padding: SPACING.lg,
+    justifyContent: 'space-between',
+  },
+  brand: { color: '#fff', fontSize: FONT.sm, fontWeight: '900', letterSpacing: 3 },
+  title: { color: '#fff', fontSize: FONT.xxl, fontWeight: '900' },
+  subtitle: { color: COLORS.textSecondary, fontSize: FONT.base, fontWeight: '700', marginTop: 2 },
+  stats: { gap: 6, marginTop: SPACING.md },
+  stat: { color: COLORS.textPrimary, fontSize: FONT.base, fontWeight: '700' },
+  message: { color: '#fff', fontSize: FONT.lg, fontWeight: '800', lineHeight: 28, marginTop: SPACING.lg },
+  hash: { color: COLORS.textSecondary, fontSize: FONT.sm, marginTop: SPACING.md, fontWeight: '700' },
+  exportBtn: { marginTop: SPACING.md, borderRadius: RADIUS.md, overflow: 'hidden' },
+  exportBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: SPACING.md,
+  },
+  exportText: { color: '#fff', fontSize: FONT.base, fontWeight: '800' },
 });

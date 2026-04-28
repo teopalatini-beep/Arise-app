@@ -2,6 +2,8 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/theme';
 import { Platform, Text, View } from 'react-native';
+import { useApp } from '../../src/context/AppContext';
+import { getStageTheme } from '../../src/lib/progression';
 
 // Emoji icons para el tema anime
 const ANIME_ICONS: Record<string, string> = {
@@ -30,20 +32,23 @@ function AnimeTabIcon({ name, color, focused }: { name: string; color: string; f
 }
 
 export default function TabsLayout() {
+  const { data } = useApp();
+  const stageTheme = getStageTheme(data?.user);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#05050A',
-          borderTopColor: 'rgba(232,70,10,0.2)',
+          backgroundColor: stageTheme.tabBackground,
+          borderTopColor: stageTheme.tabBorder,
           borderTopWidth: 1,
           height: Platform.OS === 'ios' ? 84 : 64,
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: COLORS.accent,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarActiveTintColor: stageTheme.tabActive,
+        tabBarInactiveTintColor: stageTheme.tabInactive,
         tabBarLabelStyle: {
           fontSize: 9,
           fontWeight: '700',

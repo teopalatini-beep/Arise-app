@@ -6,21 +6,135 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp, xpForLevel, levelFromXP } from '../../src/context/AppContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
-import { CATEGORY_INFO, TaskCategory } from '../../src/types';
+import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
+import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '../../src/types';
+import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
+
+const TRACK_DIRECTION: Record<string, string> = {
+  fat_loss: 'Direccion: crear deficit sostenible sin perder masa muscular.',
+  muscle_gain: 'Direccion: ganar fuerza y peso de calidad con progreso semanal.',
+  recomposition: 'Direccion: bajar grasa y subir musculo manteniendo consistencia.',
+  maintenance: 'Direccion: sostener resultados y evitar recaidas.',
+};
+
+const TRACK_QUOTES: Record<string, string[]> = {
+  fat_loss: [
+    'No se trata de sufrir, se trata de sostener.',
+    'Constancia diaria vence cualquier plan extremo.',
+    'Cada decision de hoy te acerca a tu version liviana y fuerte.',
+  ],
+  muscle_gain: [
+    'Comer y entrenar con estrategia tambien es disciplina.',
+    'No hay musculo sin progresion real en el tiempo.',
+    'Subi el nivel semana a semana, no dia a dia.',
+  ],
+  recomposition: [
+    'Equilibrio inteligente: menos impulso, mas sistema.',
+    'Tu cuerpo cambia cuando tu consistencia deja de negociar.',
+    'Pequenos ajustes sostenidos generan grandes cambios.',
+  ],
+  maintenance: [
+    'Mantener tambien es progreso cuando antes habia recaida.',
+    'Lo importante no es llegar, es quedarte.',
+    'La disciplina estable construye libertad.',
+  ],
+};
+
+const CHALLENGE_TOOLS: Record<string, { title: string; advice: string }> = {
+  consistency: {
+    title: 'Constancia',
+    advice: 'Usa regla de no cero dias: aunque sea 10 minutos, la cadena no se rompe.',
+  },
+  nutrition: {
+    title: 'Nutricion',
+    advice: 'Prepara 2 comidas base con proteina para reducir decisiones impulsivas.',
+  },
+  time: {
+    title: 'Tiempo',
+    advice: 'Bloquea entrenamiento y lectura en el calendario como reuniones fijas.',
+  },
+  stress: {
+    title: 'Estres',
+    advice: 'Antes de abandonar una tarea: 2 minutos de respiracion box breathing.',
+  },
+  sleep: {
+    title: 'Sueno',
+    advice: 'Corta pantallas 45 min antes de dormir para mejorar recuperacion.',
+  },
+};
+
+function clampProgress(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+// ─── Badge unlock modal ───────────────────────────────────────────────────────
+function BadgeUnlockModal({ badges, onClose }: { badges: BadgeId[]; onClose: () => void }) {
+  if (!badges.length) return null;
+  const first = badges[0];
+  const def = BADGE_DEFINITIONS[first];
+  const rankColor = RANK_COLORS[def.rank];
+  return (
+    <Modal transparent animationType="fade" visible>
+      <View style={badgeModalStyles.overlay}>
+        <LinearGradient
+          colors={['#0A0A14', '#12121F']}
+          style={[badgeModalStyles.card, { borderColor: rankColor + '60' }]}
+        >
+          <Text style={badgeModalStyles.unlocked}>🏅 ¡LOGRO DESBLOQUEADO!</Text>
+          <Text style={[badgeModalStyles.emoji]}>{def.emoji}</Text>
+          <Text style={[badgeModalStyles.name, { color: rankColor }]}>{def.name}</Text>
+          <Text style={badgeModalStyles.rank}>{def.rank.toUpperCase()}</Text>
+          <Text style={badgeModalStyles.desc}>{def.description}</Text>
+          {badges.length > 1 && (
+            <Text style={badgeModalStyles.more}>+{badges.length - 1} logro{badges.length > 2 ? 's' : ''} más</Text>
+          )}
+          <TouchableOpacity
+            style={[badgeModalStyles.btn, { backgroundColor: rankColor }]}
+            onPress={onClose}
+          >
+            <Text style={badgeModalStyles.btnText}>GENIAL 🔥</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
+    </Modal>
+  );
+}
+
+const badgeModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.85)',
+    alignItems: 'center', justifyContent: 'center', padding: SPACING.lg,
+  },
+  card: {
+    width: '100%', borderRadius: RADIUS.xl, padding: SPACING.xl,
+    alignItems: 'center', borderWidth: 2, gap: SPACING.sm,
+  },
+  unlocked: { fontSize: FONT.xs, color: '#F59E0B', fontWeight: '800', letterSpacing: 2 },
+  emoji: { fontSize: 64, marginVertical: SPACING.sm },
+  name: { fontSize: 24, fontWeight: '900', textAlign: 'center' },
+  rank: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 2, color: COLORS.textMuted },
+  desc: { fontSize: FONT.base, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
+  more: { fontSize: FONT.sm, color: COLORS.textMuted, fontStyle: 'italic' },
+  btn: {
+    marginTop: SPACING.sm, paddingHorizontal: SPACING.xl, paddingVertical: 12,
+    borderRadius: RADIUS.full,
+  },
+  btnText: { color: '#fff', fontWeight: '900', fontSize: FONT.base, letterSpacing: 1 },
+});
 
 export default function HoyScreen() {
   const {
     data, todayRecord, todayDefinition,
     completeTask, uncompleteTask, markDayComplete,
     hasPenalty, completePenalty, useGraceDay, canUseGrace,
+    newBadges, clearNewBadges,
   } = useApp();
 
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
   if (!data || !todayDefinition) {
     return (
-      <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+      <LinearGradient colors={getStageTheme().background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
           <Text style={styles.loadingText}>Cargando…</Text>
         </SafeAreaView>
@@ -34,10 +148,73 @@ export default function HoyScreen() {
   const totalCount = tasks.length;
   const progress = totalCount > 0 ? completedCount / totalCount : 0;
   const allDone = progress === 1;
+  const completedDays = data.days.filter(d => d.completed).length;
+  const totalReadingPages = data.days.reduce((sum, d) => sum + (d.metrics?.readingPages ?? 0), 0);
+  const latestWeight = [...data.days]
+    .reverse()
+    .map(d => d.metrics?.weight)
+    .find((w): w is number => typeof w === 'number');
 
   const xpNeeded = xpForLevel(user.level + 1);
   const xpCurrent = xpForLevel(user.level);
   const xpProgress = (user.xp - xpCurrent) / (xpNeeded - xpCurrent);
+  const track = user.adaptiveProfile?.track ?? 'maintenance';
+  const direction = TRACK_DIRECTION[track] ?? TRACK_DIRECTION.maintenance;
+  const challengeTools = (user.adaptiveProfile?.challenges ?? [])
+    .map(c => CHALLENGE_TOOLS[c])
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const goalProgressItems: { label: string; current: string; target: string; progress: number }[] = [];
+  if (typeof user.goals?.targetStreak === 'number' && user.goals.targetStreak > 0) {
+    goalProgressItems.push({
+      label: 'Racha objetivo',
+      current: `${user.streak} dias`,
+      target: `${user.goals.targetStreak} dias`,
+      progress: clampProgress(user.streak / user.goals.targetStreak),
+    });
+  }
+  if (typeof user.goals?.targetReadingPages === 'number' && user.goals.targetReadingPages > 0) {
+    goalProgressItems.push({
+      label: 'Lectura',
+      current: `${totalReadingPages} pags`,
+      target: `${user.goals.targetReadingPages} pags`,
+      progress: clampProgress(totalReadingPages / user.goals.targetReadingPages),
+    });
+  }
+  if (
+    typeof user.goals?.targetWeight === 'number' &&
+    typeof user.initialWeight === 'number' &&
+    typeof latestWeight === 'number'
+  ) {
+    const totalDelta = user.goals.targetWeight - user.initialWeight;
+    const doneDelta = latestWeight - user.initialWeight;
+    const ratio = Math.abs(totalDelta) < 0.1 ? 1 : doneDelta / totalDelta;
+    goalProgressItems.push({
+      label: 'Peso',
+      current: `${latestWeight.toFixed(1)} kg`,
+      target: `${user.goals.targetWeight.toFixed(1)} kg`,
+      progress: clampProgress(ratio),
+    });
+  }
+
+  if (goalProgressItems.length === 0) {
+    goalProgressItems.push({
+      label: 'Programa 90 dias',
+      current: `${completedDays} dias`,
+      target: '90 dias',
+      progress: clampProgress(completedDays / 90),
+    });
+  }
+
+  const avgGoalProgress = goalProgressItems.reduce((sum, g) => sum + g.progress, 0) / goalProgressItems.length;
+  const quotes = TRACK_QUOTES[track] ?? TRACK_QUOTES.maintenance;
+  const quoteIndex = Math.min(quotes.length - 1, Math.floor(avgGoalProgress * quotes.length));
+  const coachingQuote = quotes[quoteIndex];
+  const powerStage = getPowerStage(user);
+  const stageTheme = getStageTheme(user);
+  const nextStageHint = getNextStageHint(user);
+  const dynamicChallenges = buildDynamicChallenges(user, data.days).slice(0, 2);
 
   const isTaskDone = (taskId: string) =>
     todayRecord?.taskStates.find(ts => ts.taskId === taskId)?.completed ?? false;
@@ -117,8 +294,11 @@ export default function HoyScreen() {
 
   // ── Main daily screen ───────────────────────────────────────────────────
   return (
-    <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+    <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
+        {newBadges.length > 0 && (
+          <BadgeUnlockModal badges={newBadges} onClose={clearNewBadges} />
+        )}
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
@@ -133,9 +313,76 @@ export default function HoyScreen() {
             </View>
           </View>
 
+          <View style={styles.powerCard}>
+            <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerAura}>
+              <Text style={styles.powerAuraText}>{powerStage.auraLabel}</Text>
+            </LinearGradient>
+            <Text style={styles.powerTitle}>{powerStage.title}</Text>
+            <Text style={styles.powerHint}>{nextStageHint}</Text>
+          </View>
+
           {/* Quote */}
           <View style={styles.quoteBox}>
             <Text style={styles.quoteText}>"{todayDefinition.quote}"</Text>
+          </View>
+
+          {/* Objetivos medibles + direccion */}
+          <View style={styles.goalSection}>
+            <Text style={styles.sectionTitle}>OBJETIVOS MEDIBLES</Text>
+            <Text style={styles.goalDirection}>{direction}</Text>
+
+            {goalProgressItems.map(item => (
+              <View key={item.label} style={styles.goalCard}>
+                <View style={styles.goalHeader}>
+                  <Text style={styles.goalLabel}>{item.label}</Text>
+                  <Text style={styles.goalNumbers}>{item.current} / {item.target}</Text>
+                </View>
+                <View style={styles.goalBarBg}>
+                  <LinearGradient
+                    colors={stageTheme.accent}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.goalBarFill, { width: `${item.progress * 100}%` as any }]}
+                  />
+                </View>
+              </View>
+            ))}
+
+            <View style={styles.coachBox}>
+              <Text style={styles.coachLabel}>FRASE MOTIVADORA DEL OBJETIVO</Text>
+              <Text style={styles.coachText}>{coachingQuote}</Text>
+            </View>
+
+            <View style={styles.toolsBox}>
+              <Text style={styles.toolsLabel}>HERRAMIENTAS Y CONSEJOS</Text>
+              {(challengeTools.length > 0 ? challengeTools : (user.adaptiveProfile?.recommendations ?? []).map(advice => ({
+                title: 'Plan semanal',
+                advice,
+              }))).slice(0, 3).map(tool => (
+                <View key={`${tool.title}-${tool.advice}`} style={styles.toolRow}>
+                  <Text style={styles.toolBullet}>•</Text>
+                  <Text style={styles.toolText}><Text style={styles.toolTitle}>{tool.title}: </Text>{tool.advice}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.challengeBox}>
+              <Text style={styles.challengeLabel}>DESAFIOS EVOLUTIVOS</Text>
+              {dynamicChallenges.map(ch => {
+                const progressValue = clampProgress(ch.current / Math.max(ch.target, 1));
+                return (
+                  <View key={ch.id} style={styles.challengeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.challengeTitle}>{ch.label}</Text>
+                      <Text style={styles.challengeMeta}>{ch.current} / {ch.target} {ch.unit}</Text>
+                    </View>
+                    <View style={styles.challengeBarBg}>
+                      <View style={[styles.challengeBarFill, { width: `${progressValue * 100}%` as any, backgroundColor: stageTheme.tabActive }]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </View>
 
           {/* Progress bar */}
@@ -146,7 +393,7 @@ export default function HoyScreen() {
             </View>
             <View style={styles.progressBarBg}>
               <LinearGradient
-                colors={GRADIENTS.accent}
+                colors={stageTheme.accent}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={[styles.progressBarFill, { width: `${progress * 100}%` as any }]}
@@ -226,7 +473,7 @@ export default function HoyScreen() {
             activeOpacity={completedCount < totalCount ? 1 : 0.8}
           >
             <LinearGradient
-              colors={completedCount < totalCount ? ['#2a2a2a', '#1a1a1a'] : GRADIENTS.accent}
+              colors={completedCount < totalCount ? ['#2a2a2a', '#1a1a1a'] : stageTheme.accent}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.ctaGradient}
@@ -289,6 +536,25 @@ const styles = StyleSheet.create({
   },
   streakFire: { fontSize: FONT.lg, marginLeft: 2 },
 
+  powerCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: SPACING.md,
+  },
+  powerAura: {
+    alignSelf: 'flex-start',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  powerAuraText: { color: '#fff', fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1 },
+  powerTitle: { fontSize: FONT.lg, color: COLORS.textPrimary, fontWeight: '800' },
+  powerHint: { fontSize: FONT.sm, color: COLORS.textSecondary, marginTop: 2 },
+
   quoteBox: {
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.md,
@@ -303,6 +569,66 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 22,
   },
+
+  goalSection: { marginBottom: SPACING.md },
+  goalDirection: {
+    fontSize: FONT.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    lineHeight: 20,
+  },
+  goalCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, gap: SPACING.sm },
+  goalLabel: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700' },
+  goalNumbers: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
+  goalBarBg: { height: 6, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  goalBarFill: { height: '100%', borderRadius: RADIUS.full, minWidth: 5 },
+
+  coachBox: {
+    backgroundColor: 'rgba(124,58,237,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.35)',
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  coachLabel: { fontSize: FONT.xs, color: '#D8B4FE', fontWeight: '800', letterSpacing: 1 },
+  coachText: { fontSize: FONT.sm, color: COLORS.textPrimary, marginTop: 4, lineHeight: 20, fontWeight: '600' },
+
+  toolsBox: {
+    backgroundColor: 'rgba(232,70,10,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(232,70,10,0.25)',
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+  },
+  toolsLabel: { fontSize: FONT.xs, color: '#E8460A', fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+  toolRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 6 },
+  toolBullet: { color: '#E8460A', fontWeight: '900', marginTop: -1 },
+  toolText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT.sm, lineHeight: 19 },
+  toolTitle: { color: COLORS.textPrimary, fontWeight: '700' },
+
+  challengeBox: {
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: SPACING.sm,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+  },
+  challengeLabel: { fontSize: FONT.xs, color: COLORS.gold, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+  challengeRow: { marginBottom: 8 },
+  challengeTitle: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700' },
+  challengeMeta: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: 4 },
+  challengeBarBg: { height: 5, backgroundColor: 'rgba(255,255,255,0.09)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  challengeBarFill: { height: '100%', backgroundColor: COLORS.gold, borderRadius: RADIUS.full },
 
   progressSection: { marginBottom: SPACING.md },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

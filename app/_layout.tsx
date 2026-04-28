@@ -1,5 +1,5 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { AppProvider } from '../src/context/AppContext';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
@@ -11,23 +11,20 @@ function RootNavigator() {
   const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
-  const handled = useRef(false);
 
   useEffect(() => {
-    if (loading || handled.current) return;
+    if (loading) return;
 
     const inLogin = segments[0] === 'login';
     const inOnboarding = segments[0] === 'onboarding';
     const inWelcome = segments[0] === 'welcome';
 
     if (!isAuthenticated && !inLogin) {
-      handled.current = true;
       router.replace('/login');
       return;
     }
 
     if (isAuthenticated && (inLogin || (!inOnboarding && !inWelcome))) {
-      handled.current = true;
       Promise.all([
         AsyncStorage.getItem(ONBOARDING_KEY),
         AsyncStorage.getItem('arise_welcome_date'),

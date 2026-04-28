@@ -7,7 +7,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp, xpForLevel } from '../../src/context/AppContext';
 import { useAuth } from '../../src/context/AuthContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '../../src/types';
+import { getStageTheme } from '../../src/lib/progression';
 import {
   NotifSettings, DEFAULT_SETTINGS,
   loadNotifSettings, saveNotifSettings,
@@ -47,6 +49,7 @@ export default function ConfigScreen() {
 
   if (!data) return null;
   const { user } = data;
+  const stageTheme = getStageTheme(user);
 
   const xpNext = xpForLevel(user.level + 1);
   const xpCurrent = xpForLevel(user.level);
@@ -70,7 +73,7 @@ export default function ConfigScreen() {
   }
 
   return (
-    <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+    <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -101,7 +104,7 @@ export default function ConfigScreen() {
                 <Text style={styles.xpText}>{user.xp} / {xpNext} XP</Text>
                 <View style={styles.xpBarBg}>
                   <LinearGradient
-                    colors={GRADIENTS.accent}
+                    colors={stageTheme.accent}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={[styles.xpBarFill, { width: `${xpProgress * 100}%` as any }]}
@@ -310,6 +313,56 @@ export default function ConfigScreen() {
             <Text style={styles.versionText}>Versión 1.0 — MVP</Text>
           </View>
 
+          {/* Logros / Badges */}
+          <Text style={styles.sectionTitle}>🏅 LOGROS</Text>
+          {(() => {
+            const allBadgeIds = Object.keys(BADGE_DEFINITIONS) as BadgeId[];
+            const earnedIds: BadgeId[] = user.badges ?? [];
+            const ranks = ['genin', 'chunin', 'jonin', 'kage'] as const;
+            return ranks.map(rank => {
+              const rankBadges = allBadgeIds.filter(id => BADGE_DEFINITIONS[id].rank === rank);
+              const rankColor = RANK_COLORS[rank];
+              return (
+                <View key={rank} style={[styles.card, { marginBottom: SPACING.sm }]}>
+                  <Text style={[styles.toggleSub, { color: rankColor, marginBottom: SPACING.sm }]}>
+                    {rank.toUpperCase()}
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                    {rankBadges.map(id => {
+                      const def = BADGE_DEFINITIONS[id];
+                      const earned = earnedIds.includes(id);
+                      return (
+                        <View
+                          key={id}
+                          style={[
+                            styles.badgeChip,
+                            earned
+                              ? { borderColor: rankColor, backgroundColor: rankColor + '18' }
+                              : styles.badgeLocked,
+                          ]}
+                        >
+                          <Text style={{ fontSize: 20, opacity: earned ? 1 : 0.3 }}>{def.emoji}</Text>
+                          <Text
+                            style={[
+                              styles.badgeName,
+                              { color: earned ? rankColor : COLORS.textMuted },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {def.name}
+                          </Text>
+                          {earned && (
+                            <Text style={styles.badgeEarned}>✓</Text>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            });
+          })()}
+
           {/* Danger zone */}
           <Text style={[styles.sectionTitle, { color: COLORS.danger }]}>ZONA PELIGROSA</Text>
           <TouchableOpacity style={styles.resetButton} onPress={confirmReset}>
@@ -448,6 +501,15 @@ const styles = StyleSheet.create({
   aboutText: { fontSize: FONT.base, color: COLORS.textSecondary, lineHeight: 24 },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.md },
   versionText: { fontSize: FONT.sm, color: COLORS.textMuted },
+
+  badgeChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: RADIUS.full, borderWidth: 1.5,
+    paddingHorizontal: 10, paddingVertical: 6, maxWidth: '47%',
+  },
+  badgeLocked: { borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.03)' },
+  badgeName: { fontSize: 10, fontWeight: '700', flex: 1 },
+  badgeEarned: { fontSize: 10, color: COLORS.success, fontWeight: '900' },
 
   resetButton: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,

@@ -3,7 +3,8 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView } fr
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { getStageTheme } from '../../src/lib/progression';
 
 const COLS = 9; // 9 columnas × 10 filas = 90 días
 
@@ -12,6 +13,7 @@ export default function ProgramaScreen() {
   if (!data) return null;
 
   const { user } = data;
+  const stageTheme = getStageTheme(user);
   const currentDay = user.currentDay;
 
   function getDayStatus(day: number): 'completed' | 'current' | 'missed' | 'future' {
@@ -29,7 +31,7 @@ export default function ProgramaScreen() {
   const progressPercent = Math.round((completedDays / 90) * 100);
 
   return (
-    <LinearGradient colors={GRADIENTS.background} style={styles.container}>
+    <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -60,7 +62,7 @@ export default function ProgramaScreen() {
           {/* Progress bar */}
           <View style={styles.bigProgressBg}>
             <LinearGradient
-              colors={GRADIENTS.accent}
+              colors={stageTheme.accent}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={[styles.bigProgressFill, { width: `${progressPercent}%` as any }]}
