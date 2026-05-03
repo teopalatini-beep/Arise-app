@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  SafeAreaView, Alert, Switch,
+  SafeAreaView, Alert, Switch, Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp, xpForLevel } from '../../src/context/AppContext';
 import { useAuth } from '../../src/context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
 import { BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '../../src/types';
 import { getStageTheme } from '../../src/lib/progression';
+import { deleteUserData } from '../../src/lib/db';
+import { supabase } from '../../src/lib/supabase';
+import { ONBOARDING_KEY } from '../onboarding';
+import { COACH_STORAGE_KEY } from '../../src/lib/coach';
 import {
   NotifSettings, DEFAULT_SETTINGS,
   loadNotifSettings, saveNotifSettings,
@@ -18,8 +23,9 @@ import {
 
 export default function ConfigScreen() {
   const { data, resetProgram, canUseGrace } = useApp();
-  const { logout } = useAuth();
+  const { logout, userEmail } = useAuth();
   const [notif, setNotif] = useState<NotifSettings>(DEFAULT_SETTINGS);
+  const [busyAction, setBusyAction] = useState<'none' | 'backup' | 'delete'>('none');
 
   useEffect(() => {
     loadNotifSettings().then(setNotif);
@@ -68,6 +74,66 @@ export default function ConfigScreen() {
           style: 'destructive',
           onPress: resetProgram,
         },
+      ]
+    );
+  }
+
+  async function handleExportBackup() {
+    if (!data) return;
+    setBusyAction('backup');
+    try {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        userEmail: userEmail || null,
+        appData: data,
+      };
+      await Share.share({
+        title: 'Backup ARISE',
+        message: JSON.stringify(payload, null, 2),
+      });
+    } catch (error) {
+      Alert.alert('No se pudo exportar', 'Hubo un problema al generar el backup.');
+    } finally {
+      setBusyAction('none');
+    }
+  }
+
+  async function executeDeleteAccountData() {
+    setBusyAction('delete');
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData.user?.id;
+      if (!userId) {
+        Alert.alert('Sesion no valida', 'Inicia sesion otra vez e intenta nuevamente.');
+        return;
+      }
+      const error = await deleteUserData(userId);
+      if (error) {
+        Alert.alert('No se pudo borrar', error);
+        return;
+      }
+      await AsyncStorage.multiRemove([
+        'arise_data_v1',
+        ONBOARDING_KEY,
+        COACH_STORAGE_KEY,
+      ]);
+      await logout();
+      Alert.alert(
+        'Datos eliminados',
+        'Se elimino tu informacion de la app (nube y local). Tu cuenta de acceso queda creada para volver cuando quieras.'
+      );
+    } finally {
+      setBusyAction('none');
+    }
+  }
+
+  function confirmDeleteAccountData() {
+    Alert.alert(
+      'Eliminar todos mis datos',
+      'Se borrara tu progreso, perfil, diario, metricas y configuracion guardada. Esta accion no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar todo', style: 'destructive', onPress: executeDeleteAccountData },
       ]
     );
   }
@@ -365,9 +431,29 @@ export default function ConfigScreen() {
 
           {/* Danger zone */}
           <Text style={[styles.sectionTitle, { color: COLORS.danger }]}>ZONA PELIGROSA</Text>
+          <TouchableOpacity
+            style={[styles.resetButton, { backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.3)' }]}
+            onPress={handleExportBackup}
+            disabled={busyAction !== 'none'}
+          >
+            <Ionicons name="download-outline" size={18} color="#60A5FA" />
+            <Text style={[styles.resetText, { color: '#60A5FA' }]}>
+              {busyAction === 'backup' ? 'Generando backup...' : 'Exportar backup (JSON)'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.resetButton} onPress={confirmReset}>
             <Ionicons name="refresh" size={18} color={COLORS.danger} />
             <Text style={styles.resetText}>Reiniciar programa desde el Día 1</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.resetButton, { marginTop: SPACING.sm }]}
+            onPress={confirmDeleteAccountData}
+            disabled={busyAction !== 'none'}
+          >
+            <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+            <Text style={styles.resetText}>
+              {busyAction === 'delete' ? 'Eliminando datos...' : 'Eliminar todos mis datos'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.resetButton, { marginTop: SPACING.sm, borderColor: 'rgba(255,255,255,0.1)' }]}

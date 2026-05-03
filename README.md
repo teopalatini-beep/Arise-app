@@ -108,9 +108,21 @@ arise-app/
 
 ---
 
-## Datos
+## Backend (cuentas + nube)
 
-Todo se guarda localmente en tu dispositivo con AsyncStorage. No hay servidor ni cuenta. Es solo tuyo.
+La app usa **Supabase** para:
+- Autenticación (registro/login/reset contraseña)
+- Guardado en la nube por usuario
+- Recuperar todo el progreso al iniciar sesión desde cualquier dispositivo
+
+### Configuración rápida del backend
+
+1. Abrí tu proyecto en Supabase.
+2. Andá a **SQL Editor**.
+3. Ejecutá el script `supabase/schema.sql`.
+4. Verificá que existan tablas: `profiles`, `day_records`, `metrics`, `journal`.
+
+Con eso, cada usuario tendrá su información persistida y privada (RLS por `auth.uid()`).
 
 ---
 
