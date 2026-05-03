@@ -369,7 +369,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
         const fallbackName = sessionRes?.data?.session?.user?.user_metadata?.name ?? 'Usuario';
         const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
-        await loadLocalDataFallback(fallbackName || onboarding?.name || 'Usuario');
+        await loadLocalDataFallback(fallbackName || 'Usuario');
       } catch {
         const initial = createInitialData('Usuario');
         setData(initial);

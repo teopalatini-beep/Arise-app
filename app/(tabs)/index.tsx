@@ -407,7 +407,7 @@ export default function HoyScreen() {
   const avgGoalProgress = goalProgressItems.reduce((sum, g) => sum + g.progress, 0) / goalProgressItems.length;
   const quotes = TRACK_QUOTES[track] ?? TRACK_QUOTES.maintenance;
   const quoteIndex = Math.min(quotes.length - 1, Math.floor(avgGoalProgress * quotes.length));
-  const coachId = user.preferredCoachId ?? 'normal';
+  const coachId = user.preferredCoachId ?? 'goku';
   const coach = getCoachById(coachId);
   const coachVisual = getCoachVisualProfile(coachId);
   const coachPhraseIndex = Math.min(

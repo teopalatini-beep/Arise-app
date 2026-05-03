@@ -224,7 +224,7 @@ export default function ProgresoScreen() {
   const [metricNotes, setMetricNotes] = useState(todayRecord?.metrics?.notes ?? '');
   const [saved, setSaved] = useState(false);
   const [showWeeklyReview, setShowWeeklyReview] = useState(false);
-  const [selectedCoach, setSelectedCoach] = useState<CoachId>('normal');
+  const [selectedCoach, setSelectedCoach] = useState<CoachId>('goku');
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [sharingStory, setSharingStory] = useState(false);
   const storyRef = useRef<ViewShot | null>(null);
@@ -232,11 +232,11 @@ export default function ProgresoScreen() {
   if (!data) {
     const fallbackTheme = getStageTheme();
     return (
-      <LinearGradient colors={fallbackTheme.background} style={styles.screen}>
+      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
-          <View style={styles.empty}>
+          <View style={chartStyles.empty}>
             <Ionicons name="analytics-outline" size={40} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>
+            <Text style={chartStyles.emptyText}>
               {loading ? 'Cargando progreso...' : 'No pudimos cargar tu progreso.\nRevisa conexión e inicia sesión nuevamente.'}
             </Text>
           </View>
