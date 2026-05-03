@@ -35,7 +35,9 @@ export default function ConfigScreen() {
     const next = { ...notif, ...patch };
     setNotif(next);
     await saveNotifSettings(next);
-    await scheduleAllNotifications(next);
+    // Pass startDate so milestone notifications stay correct
+    const startDate = data?.user.startDate;
+    await scheduleAllNotifications(next, startDate);
   }
 
   async function handleEnableToggle(value: boolean) {

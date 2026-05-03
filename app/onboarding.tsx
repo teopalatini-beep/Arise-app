@@ -177,8 +177,9 @@ export default function OnboardingScreen() {
     // Ajustar hora de notificación mañanera al horario de despertar + 30 min
     const notifSettings = await loadNotifSettings();
     const morningHour = Math.min(wakeUpHour + 1, 10);
+    const today = new Date().toISOString().slice(0, 10);
     await saveNotifSettings({ ...notifSettings, morningHour });
-    await scheduleAllNotifications({ ...notifSettings, morningHour });
+    await scheduleAllNotifications({ ...notifSettings, morningHour }, today);
 
     router.replace('/welcome');
   }

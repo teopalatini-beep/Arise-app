@@ -1,12 +1,17 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect, Component, ReactNode } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, LogBox } from 'react-native';
 import { AppProvider } from '../src/context/AppContext';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import { ONBOARDING_KEY } from './onboarding';
+
+LogBox.ignoreLogs([
+  'TypeError: Network request failed',
+  'AuthRetryableFetchError: Network request failed',
+]);
 
 // ── Error Boundary ───────────────────────────────────────────────────────────
 interface EBState { hasError: boolean; error?: Error }

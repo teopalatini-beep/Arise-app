@@ -294,7 +294,7 @@ const mStyles = StyleSheet.create({
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HoyScreen() {
   const {
-    data, todayRecord, todayDefinition,
+    data, todayRecord, todayDefinition, syncing,
     earnPoints, todayMissions, pointsTarget,
     pinnedMissions, pinMission, unpinMission,
     hasPenalty, completePenalty, useGraceDay, canUseGrace,
@@ -590,7 +590,15 @@ export default function HoyScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.greeting}>Arise, {user.name}.</Text>
-              <Text style={styles.dayLabel}>DÍA {user.currentDay} DE 90</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <Text style={styles.dayLabel}>DÍA {user.currentDay} DE 90</Text>
+                {syncing && (
+                  <View style={styles.syncBadge}>
+                    <Ionicons name="cloud-upload-outline" size={10} color="#60A5FA" />
+                    <Text style={styles.syncText}>sync</Text>
+                  </View>
+                )}
+              </View>
             </View>
             <View style={styles.streakBadge}>
               <Text style={styles.streakNumber}>{user.streak}</Text>
@@ -941,6 +949,13 @@ const styles = StyleSheet.create({
     color: COLORS.streak,
   },
   streakFire: { fontSize: FONT.lg, marginLeft: 2 },
+  syncBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(96,165,250,0.12)',
+    borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 1, borderColor: 'rgba(96,165,250,0.3)',
+  },
+  syncText: { fontSize: 9, color: '#60A5FA', fontWeight: '700' },
 
   coachIdentityCard: {
     borderRadius: RADIUS.md,

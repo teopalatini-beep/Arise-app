@@ -104,9 +104,28 @@ export async function loadNotifSettings(): Promise<NotifSettings> {
   return DEFAULT_SETTINGS;
 }
 
+// ─── Mensajes de hito (días 30, 60, 90) ──────────────────────────────────────
+const MILESTONE_MESSAGES: Record<number, { title: string; body: string }> = {
+  30: {
+    title: '🌿 FASE 1 COMPLETADA — Genin desbloqueado',
+    body: '30 días de fuego puro. El 80% no llega aquí. Vos sí. La Fase 2 empieza mañana.',
+  },
+  60: {
+    title: '⚔️ FASE 2 COMPLETADA — Chunin confirmado',
+    body: '60 días. Dos meses construyendo quien sos. Quedan 30 días para la leyenda. No pares.',
+  },
+  90: {
+    title: '👑 ARISE COMPLETE — LEYENDA',
+    body: '90 días. Terminaste lo que casi nadie termina. Abrí la app — hay algo esperándote.',
+  },
+};
+
 // ─── Programar todas las notificaciones ──────────────────────────────────────
-export async function scheduleAllNotifications(settings: NotifSettings): Promise<void> {
-  // Cancelar todo primero
+export async function scheduleAllNotifications(
+  settings: NotifSettings,
+  startDate?: string,  // 'yyyy-MM-dd' — para calcular fechas de hitos
+): Promise<void> {
+  // Cancelar todo primero — garantiza cero duplicados
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   if (!settings.enabled) return;
@@ -114,6 +133,7 @@ export async function scheduleAllNotifications(settings: NotifSettings): Promise
   const hasPermission = await requestPermissions();
   if (!hasPermission) return;
 
+  // ── Notificaciones diarias ─────────────────────────────────────────────
   if (settings.morning) {
     const msg = randomFrom(MORNING_MESSAGES);
     await Notifications.scheduleNotificationAsync({
@@ -148,6 +168,28 @@ export async function scheduleAllNotifications(settings: NotifSettings): Promise
         minute: 0,
       },
     });
+  }
+
+  // ── Notificaciones de hito (días 30, 60, 90) ───────────────────────────
+  if (startDate) {
+    const start = new Date(startDate);
+    for (const [dayStr, msg] of Object.entries(MILESTONE_MESSAGES)) {
+      const dayOffset = parseInt(dayStr) - 1; // day 30 = 29 days after start
+      const milestoneDate = new Date(start);
+      milestoneDate.setDate(start.getDate() + dayOffset);
+      milestoneDate.setHours(settings.nightHour, 0, 0, 0);
+
+      // Only schedule if the milestone is in the future
+      if (milestoneDate > new Date()) {
+        await Notifications.scheduleNotificationAsync({
+          content: { title: msg.title, body: msg.body, sound: true },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: milestoneDate,
+          },
+        });
+      }
+    }
   }
 }
 

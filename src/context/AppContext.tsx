@@ -17,6 +17,16 @@ const STORAGE_KEY = 'arise_data_v1';
 const TODAY = () => format(new Date(), 'yyyy-MM-dd');
 const MONTH_REF = () => format(new Date(), 'yyyy-MM');
 
+function isNetworkError(error: unknown): boolean {
+  const msg = String((error as any)?.message ?? error ?? '').toLowerCase();
+  return msg.includes('network request failed') || msg.includes('fetch failed');
+}
+
+function logUnexpectedError(scope: string, error: unknown) {
+  if (isNetworkError(error)) return;
+  console.warn(`[AppContext] ${scope}`, error);
+}
+
 // ── Programa adaptativo ──────────────────────────────────────────────────────
 let _cachedLevel: FitnessLevel = 'intermediate';
 let _cachedProgram: ReturnType<typeof buildProgram> = buildProgram('intermediate');
@@ -85,6 +95,12 @@ function checkBadges(data: AppData): BadgeId[] {
   if (!has('arise_complete') && user.programCompleted) earned.push('arise_complete');
 
   return earned;
+}
+
+// Merge badge arrays — union of both, no duplicates
+function mergeBadges(a?: BadgeId[], b?: BadgeId[]): BadgeId[] {
+  const set = new Set<BadgeId>([...(a ?? []), ...(b ?? [])]);
+  return Array.from(set);
 }
 
 function createInitialData(name: string, onboarding?: Partial<OnboardingData>): AppData {
@@ -236,21 +252,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const stored = storedRaw ? JSON.parse(storedRaw) as AppData : undefined;
           const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
 
-          // Merge metrics and journal into day records
+          // Enrich remote records with metrics + journal
           const enrichedDays = dayRecords.map(dr => {
             const m = metricsData.find(m => m.dayNumber === dr.dayNumber);
             const j = journalData.find(j => j.dayNumber === dr.dayNumber);
-            return {
-              ...dr,
-              metrics: m?.metrics,
-              journal: j?.content,
-            };
+            return { ...dr, metrics: m?.metrics, journal: j?.content };
           });
+
+          // ── Conflict resolution: most progress wins ──────────────────────
+          // If local cache has days not yet in Supabase (user was offline),
+          // merge them in and push back to Supabase.
+          const localDays = stored?.days ?? [];
+          const mergedDays: DayRecord[] = [...enrichedDays];
+          let needsRemoteSync = false;
+
+          for (const localDay of localDays) {
+            const remoteIdx = mergedDays.findIndex(d => d.dayNumber === localDay.dayNumber);
+            if (remoteIdx === -1) {
+              // Day exists locally but not in Supabase — push it
+              mergedDays.push(localDay);
+              needsRemoteSync = true;
+            } else if ((localDay.totalPoints ?? 0) > (mergedDays[remoteIdx].totalPoints ?? 0)) {
+              // Local has more points for this day — local wins, keep remote journal/metrics
+              mergedDays[remoteIdx] = {
+                ...localDay,
+                metrics: mergedDays[remoteIdx].metrics,
+                journal: mergedDays[remoteIdx].journal,
+              };
+              needsRemoteSync = true;
+            }
+          }
+
+          // Profile: take whichever has more progress (higher currentDay)
+          const resolvedProfile =
+            (stored?.user.currentDay ?? 0) > profile.currentDay ? stored!.user : profile;
 
           const today = TODAY();
           const appData: AppData = {
             user: {
-              ...profile,
+              ...resolvedProfile,
               fitnessLevel: stored?.user.fitnessLevel ?? onboarding?.fitnessLevel,
               age: stored?.user.age ?? onboarding?.age,
               initialWeight: stored?.user.initialWeight ?? onboarding?.initialWeight,
@@ -260,15 +300,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               adaptiveProfile: stored?.user.adaptiveProfile ?? onboarding?.adaptiveProfile,
               nutritionProfile: stored?.user.nutritionProfile ?? onboarding?.nutritionProfile,
               preferredCoachId: stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'normal',
-              badges: stored?.user.badges ?? profile.badges,
+              badges: mergeBadges(profile.badges, stored?.user.badges),
             },
-            days: enrichedDays,
+            days: mergedDays,
             lastOpenedDate: today,
           };
 
           const updated = handleDayTransition(appData);
           setData(updated);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+          // Push local-ahead data to Supabase in background (no await — non-blocking)
+          if (needsRemoteSync) syncAllToSupabase(user.id, updated).catch(() => {});
+
           setLoading(false);
           return;
         }
@@ -300,7 +344,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e) {
-      console.error('Failed to load data', e);
+      logUnexpectedError('Failed to load data', e);
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const stored: AppData = JSON.parse(raw);
+          setData(handleDayTransition(stored));
+        }
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -316,7 +367,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (dr.journal) await upsertJournal(userId, dr.dayNumber, dr.journal);
       }));
     } catch (e) {
-      console.error('Sync error', e);
+      logUnexpectedError('Sync error', e);
     } finally {
       setSyncing(false);
     }
@@ -400,7 +451,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) await upsertProfile(user.id, newData.user);
     } catch (e) {
-      console.error('Profile sync error', e);
+      logUnexpectedError('Profile sync error', e);
     }
   }, []);
 
@@ -417,7 +468,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
       }
     } catch (e) {
-      console.error('Record sync error', e);
+      logUnexpectedError('Record sync error', e);
     }
   }, []);
 
