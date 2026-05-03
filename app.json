@@ -22,7 +22,10 @@
       "infoPlist": {
         "NSCameraUsageDescription": "ARISE no usa tu cámara.",
         "NSPhotoLibraryUsageDescription": "ARISE no accede a tus fotos.",
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -32,7 +35,10 @@
       },
       "package": "com.teopalatini.arise",
       "versionCode": 1,
-      "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"]
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -54,9 +60,11 @@
       "typedRoutes": true
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "arise-app"
+        "projectId": "dd3339e1-0597-408a-9151-198a23ab3c9d"
       }
-    }
+    },
+    "owner": "capocha"
   }
 }
