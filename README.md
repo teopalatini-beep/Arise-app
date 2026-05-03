@@ -127,6 +127,17 @@ La app usa **Supabase** para:
 
 Con eso, cada usuario tendrá su información persistida y privada (RLS por `auth.uid()`).
 
+### EAS secrets (builds de producción)
+
+Para no depender del `.env` local en builds remotos, cargá estas variables en EAS:
+
+```bash
+eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL --value "https://<project-ref>.supabase.co"
+eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<tu_anon_key>"
+```
+
+También podés repetirlo para `preview` o `development` cambiando `--environment`.
+
 ---
 
 *Arise — levantáte. 90 días. Sin excusas.*

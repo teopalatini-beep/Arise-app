@@ -320,7 +320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               goals: stored?.user.goals ?? onboarding?.goals,
               adaptiveProfile: stored?.user.adaptiveProfile ?? onboarding?.adaptiveProfile,
               nutritionProfile: stored?.user.nutritionProfile ?? onboarding?.nutritionProfile,
-              preferredCoachId: stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'normal',
+              preferredCoachId: stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'goku',
               badges: mergeBadges(profile.badges, stored?.user.badges),
             },
             days: mergedDays,

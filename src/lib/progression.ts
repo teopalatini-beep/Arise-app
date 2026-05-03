@@ -1,4 +1,4 @@
-import { BadgeId, DayRecord, UserProfile } from '../types';
+import { BadgeId, CoachId, DayRecord, UserProfile } from '../types';
 import { getCoachVisualProfile } from './coach';
 
 export interface PowerStage {
@@ -92,38 +92,67 @@ const STAGE_THEMES: Record<PowerStage['id'], StageTheme> = {
   },
 };
 
+// Per-sensei rank names for the 4 stages (rookie→awakened→elite→mythic)
+export const SENSEI_RANKS: Record<CoachId, [string, string, string, string]> = {
+  goku:      ['Guerrero', 'Super Saiyan', 'Super Saiyan 2', 'Ultra Instinto'],
+  itachi:    ['Genin', 'Chunin', 'ANBU', 'Mangekyo Sharingan'],
+  rengoku:   ['Aprendiz', 'Pilar del Fuego', 'Hashira Supremo', 'Más Allá del Humano'],
+  jiraiya:   ['Aprendiz Ninja', 'Modo Sabio', 'Sabio de Ranas', 'Sannin Legendario'],
+  gojo:      ['Hechicero Grado 2', 'Grado 1', 'Grado Especial', 'El Más Fuerte'],
+  all_might: ['Estudiante', 'Héroe Pro', 'Héroe Nº 1', 'Símbolo de la Paz'],
+};
+
+const STAGE_INDEX: Record<PowerStage['id'], number> = {
+  rookie: 0, awakened: 1, elite: 2, mythic: 3,
+};
+
 function hasAnyBadge(owned: BadgeId[], needed: BadgeId[]): boolean {
   return needed.some(id => owned.includes(id));
 }
 
-export function getPowerStage(user: UserProfile): PowerStage {
+export function getPowerStage(user: UserProfile, coachId?: CoachId): PowerStage {
   const badges = user.badges ?? [];
+  const resolvedCoachId = coachId ?? user.preferredCoachId;
 
+  let baseStage: PowerStage;
   if (hasAnyBadge(badges, ['streak90', 'week12', 'arise_complete']) || user.level >= 18) {
-    return STAGES[3];
+    baseStage = STAGES[3];
+  } else if (hasAnyBadge(badges, ['streak60', 'week8', 'phase2']) || user.level >= 11) {
+    baseStage = STAGES[2];
+  } else if (hasAnyBadge(badges, ['streak14', 'week2', 'phase1']) || user.level >= 6) {
+    baseStage = STAGES[1];
+  } else {
+    baseStage = STAGES[0];
   }
-  if (hasAnyBadge(badges, ['streak60', 'week8', 'phase2']) || user.level >= 11) {
-    return STAGES[2];
+
+  if (resolvedCoachId && SENSEI_RANKS[resolvedCoachId]) {
+    const idx = STAGE_INDEX[baseStage.id];
+    return { ...baseStage, title: SENSEI_RANKS[resolvedCoachId][idx] };
   }
-  if (hasAnyBadge(badges, ['streak14', 'week2', 'phase1']) || user.level >= 6) {
-    return STAGES[1];
-  }
-  return STAGES[0];
+  return baseStage;
 }
 
-export function getNextStageHint(user: UserProfile): string {
-  const stage = getPowerStage(user);
-  if (stage.id === 'mythic') return 'Maximo rango desbloqueado. Ahora mantenelo.';
-  if (stage.id === 'elite') return 'Siguiente evolucion: racha 90 o completar 90 dias.';
-  if (stage.id === 'awakened') return 'Siguiente evolucion: racha 60 o completar 60 dias.';
-  return 'Siguiente evolucion: racha 14 o completar 14 dias.';
+export function getNextStageHint(user: UserProfile, coachId?: CoachId): string {
+  const resolvedCoachId = coachId ?? user.preferredCoachId;
+  const stage = getPowerStage(user, resolvedCoachId);
+
+  if (stage.id === 'mythic') return 'Máximo rango desbloqueado. Ahora mantenelo.';
+
+  const nextIdx = STAGE_INDEX[stage.id] + 1;
+  const nextTitle = resolvedCoachId && SENSEI_RANKS[resolvedCoachId]
+    ? SENSEI_RANKS[resolvedCoachId][nextIdx]
+    : ['Guerrero', 'Super Saiyan', 'Super Saiyan 2', 'Ultra Instinto'][nextIdx];
+
+  if (stage.id === 'elite') return `Siguiente rango: ${nextTitle} — racha 90 o completar 90 días.`;
+  if (stage.id === 'awakened') return `Siguiente rango: ${nextTitle} — racha 60 o completar 60 días.`;
+  return `Siguiente rango: ${nextTitle} — racha 14 o completar 14 días.`;
 }
 
-export function getStageTheme(user?: UserProfile): StageTheme {
+export function getStageTheme(user?: UserProfile, coachId?: CoachId): StageTheme {
   if (!user) return STAGE_THEMES.rookie;
-  const stage = getPowerStage(user);
+  const stage = getPowerStage(user, coachId);
   const base = STAGE_THEMES[stage.id];
-  const coach = user.preferredCoachId;
+  const coach = coachId ?? user.preferredCoachId;
   if (!coach) return base;
   const visual = getCoachVisualProfile(coach);
   return {

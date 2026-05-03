@@ -11,7 +11,6 @@ import { OnboardingData, UserGoals, AdaptiveChallenge, AdaptiveTrack, CoachId, D
 import { scheduleAllNotifications, loadNotifSettings, saveNotifSettings } from '../src/lib/notifications';
 import { deriveAdaptiveProfile } from '../src/data/program';
 import { initProgram, useApp } from '../src/context/AppContext';
-import { COACHES } from '../src/lib/coach';
 
 const { width } = Dimensions.get('window');
 export const ONBOARDING_KEY = 'arise_onboarding_v1';
@@ -76,6 +75,15 @@ const ACTIVITY_OPTIONS: { key: ActivityProfile; label: string; emoji: string }[]
   { key: 'active', label: 'Activo', emoji: '🏃' },
 ];
 
+const SENSEIS = [
+  { id: 'goku' as CoachId,      emoji: '🐉', name: 'Goku',      color: '#F59E0B', ranks: 'Guerrero → Ultra Instinto',       desc: 'Superación sin límites' },
+  { id: 'itachi' as CoachId,    emoji: '👁️', name: 'Itachi',    color: '#EF4444', ranks: 'Genin → Mangekyo Sharingan',      desc: 'Poder en silencio' },
+  { id: 'rengoku' as CoachId,   emoji: '🔥', name: 'Rengoku',   color: '#F97316', ranks: 'Aprendiz → Más Allá del Humano', desc: 'Corazón en llamas' },
+  { id: 'jiraiya' as CoachId,   emoji: '📜', name: 'Jiraiya',   color: '#84CC16', ranks: 'Aprendiz → Sannin Legendario',   desc: 'Sabiduría del camino' },
+  { id: 'gojo' as CoachId,      emoji: '♾️', name: 'Gojo',      color: '#38BDF8', ranks: 'Grado 2 → El Más Fuerte',        desc: 'Infinito dominio' },
+  { id: 'all_might' as CoachId, emoji: '💪', name: 'All Might', color: '#3B82F6', ranks: 'Estudiante → Símbolo de la Paz', desc: 'Plus Ultra siempre' },
+];
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { applyOnboardingProfile } = useApp();
@@ -96,10 +104,10 @@ export default function OnboardingScreen() {
   const [dietStyle, setDietStyle] = useState<DietStyle>('balanced');
   const [activityProfile, setActivityProfile] = useState<ActivityProfile>('moderate');
   const [mealsPerDay, setMealsPerDay] = useState(3);
-  const [selectedCoachId, setSelectedCoachId] = useState<CoachId>('normal');
+  const [selectedCoachId, setSelectedCoachId] = useState<CoachId>('goku');
 
   const slideAnim = useRef(new Animated.Value(0)).current;
-  const totalSteps = 6;
+  const totalSteps = 7;
 
   function nextStep() {
     Animated.sequence([
@@ -199,7 +207,8 @@ export default function OnboardingScreen() {
 
           {/* STEP 0 — Bienvenida */}
           {step === 0 && (
-            <View style={styles.stepContainer}>
+            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+            <View>
               <Text style={styles.bigEmoji}>炎</Text>
               <Text style={styles.stepTitle}>Bienvenido a{'\n'}ARISE</Text>
               <Text style={styles.stepSubtitle}>
@@ -221,11 +230,13 @@ export default function OnboardingScreen() {
                 ))}
               </View>
             </View>
+            </ScrollView>
           )}
 
           {/* STEP 1 — Objetivo */}
           {step === 1 && (
-            <View style={styles.stepContainer}>
+            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+            <View>
               <Text style={styles.stepLabel}>PASO 1 DE 3</Text>
               <Text style={styles.stepTitle}>¿Cuál es tu{'\n'}objetivo principal?</Text>
               <Text style={styles.stepSubtitle}>Esto personaliza el enfoque de tu programa.</Text>
@@ -244,11 +255,13 @@ export default function OnboardingScreen() {
                 ))}
               </View>
             </View>
+            </ScrollView>
           )}
 
           {/* STEP 2 — Nivel fitness */}
           {step === 2 && (
-            <View style={styles.stepContainer}>
+            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+            <View>
               <Text style={styles.stepLabel}>PASO 2 DE 3</Text>
               <Text style={styles.stepTitle}>¿Cuál es tu nivel{'\n'}de fitness actual?</Text>
               <Text style={styles.stepSubtitle}>Sé honesto — el programa se adapta a vos.</Text>
@@ -272,12 +285,13 @@ export default function OnboardingScreen() {
                 ))}
               </View>
             </View>
+            </ScrollView>
           )}
 
           {/* STEP 3 — Datos físicos */}
           {step === 3 && (
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-              <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false}>
+              <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={styles.stepLabel}>PASO 3 DE 5</Text>
                 <Text style={styles.stepTitle}>Tu punto{'\n'}de partida</Text>
                 <Text style={styles.stepSubtitle}>Datos opcionales para medir tu evolución real a lo largo de 90 días.</Text>
@@ -369,25 +383,6 @@ export default function OnboardingScreen() {
                   <Text style={styles.inputLabel}>🧠 Ajuste nutricional sugerido</Text>
                   <Text style={styles.recommendationText}>{nutritionTip}</Text>
                 </View>
-
-                <Text style={styles.inputLabel}>🎮 Elegí tu coach semanal (cambia visuales)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coachRow}>
-                  {COACHES.map((coach) => {
-                    const active = selectedCoachId === coach.id;
-                    return (
-                      <TouchableOpacity
-                        key={coach.id}
-                        style={[styles.coachCard, active && styles.coachCardActive]}
-                        onPress={() => setSelectedCoachId(coach.id)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.coachName}>{coach.name}</Text>
-                        <Text style={styles.coachStyle}>{coach.style === 'anime' ? 'Anime vibe' : 'Humano realista'}</Text>
-                        <Text style={styles.coachQuote}>{coach.motivator}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
               </ScrollView>
             </KeyboardAvoidingView>
           )}
@@ -395,7 +390,7 @@ export default function OnboardingScreen() {
           {/* STEP 4 — Objetivos medibles */}
           {step === 4 && (
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-              <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false}>
+              <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={styles.stepLabel}>PASO 4 DE 5</Text>
                 <Text style={styles.stepTitle}>Tus objetivos{'\n'}en 90 días</Text>
                 <Text style={styles.stepSubtitle}>La app va a trackear tu progreso hacia estas metas. Podés saltear cualquiera.</Text>
@@ -497,10 +492,46 @@ export default function OnboardingScreen() {
             </KeyboardAvoidingView>
           )}
 
-          {/* STEP 5 — Hora de despertar */}
+          {/* STEP 5 — Sensei Selection */}
           {step === 5 && (
-            <View style={styles.stepContainer}>
-              <Text style={styles.stepLabel}>PASO 5 DE 5</Text>
+            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+            <View>
+              <Text style={styles.stepLabel}>PASO 5 DE 6</Text>
+              <Text style={styles.stepTitle}>Elegí tu{'\n'}Sensei</Text>
+              <Text style={styles.stepSubtitle}>
+                Tu sensei cambia los colores, los rangos y las frases de motivación de toda la app.
+              </Text>
+              <View style={styles.senseiGrid}>
+                {SENSEIS.map((s) => {
+                  const active = selectedCoachId === s.id;
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      style={[
+                        styles.senseiCard,
+                        { borderColor: active ? s.color : 'rgba(255,255,255,0.1)' },
+                        active && { backgroundColor: `${s.color}18` },
+                      ]}
+                      onPress={() => setSelectedCoachId(s.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.senseiEmoji}>{s.emoji}</Text>
+                      <Text style={[styles.senseiName, active && { color: s.color }]}>{s.name}</Text>
+                      <Text style={styles.senseiRanks}>{s.ranks}</Text>
+                      <Text style={styles.senseiDesc}>{s.desc}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+            </ScrollView>
+          )}
+
+          {/* STEP 6 — Hora de despertar */}
+          {step === 6 && (
+            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+            <View>
+              <Text style={styles.stepLabel}>PASO 6 DE 6</Text>
               <Text style={styles.stepTitle}>¿A qué hora{'\n'}te despertás?</Text>
               <Text style={styles.stepSubtitle}>
                 Ajustamos tu notificación de mañana para que llegue justo cuando estás listo para arrancar.
@@ -521,10 +552,11 @@ export default function OnboardingScreen() {
                 <Text style={styles.summaryItem}>🎯 Objetivo: {GOALS.find(g => g.key === goal)?.label}</Text>
                 <Text style={styles.summaryItem}>💪 Nivel: {FITNESS_LEVELS.find(f => f.key === fitnessLevel)?.label}</Text>
                 <Text style={styles.summaryItem}>🍽️ Nutrición: {DIET_STYLE_OPTIONS.find(d => d.key === dietStyle)?.label}</Text>
-                <Text style={styles.summaryItem}>🎮 Coach: {COACHES.find(c => c.id === selectedCoachId)?.name}</Text>
+                <Text style={styles.summaryItem}>🐉 Sensei: {SENSEIS.find(s => s.id === selectedCoachId)?.name} · {SENSEIS.find(s => s.id === selectedCoachId)?.ranks}</Text>
                 <Text style={styles.summaryItem}>⏰ Notificación mañana: {Math.min(wakeUpHour + 1, 10)}:00 hs</Text>
               </View>
             </View>
+            </ScrollView>
           )}
 
         </Animated.View>
@@ -558,7 +590,7 @@ const styles = StyleSheet.create({
   dotCurrent: { width: 24, backgroundColor: '#E8460A' },
 
   content: { flex: 1 },
-  stepContainer: { flex: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg },
+  stepContainer: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 },
 
   bigEmoji: { fontSize: 64, color: '#E8460A', textAlign: 'center', marginBottom: SPACING.md,
     textShadowColor: '#E8460A', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 20 },
@@ -688,23 +720,26 @@ const styles = StyleSheet.create({
   recommendationRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   recommendationBullet: { color: '#E8460A', fontWeight: '900', marginTop: -1 },
   recommendationText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT.sm, lineHeight: 20 },
-  coachRow: { gap: SPACING.sm, paddingBottom: SPACING.md },
-  coachCard: {
-    width: 220,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  senseiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    justifyContent: 'space-between',
+  },
+  senseiCard: {
+    width: '48%',
+    borderRadius: RADIUS.lg,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
     backgroundColor: 'rgba(255,255,255,0.04)',
-    padding: SPACING.sm,
+    padding: SPACING.md,
+    alignItems: 'center',
     gap: 4,
   },
-  coachCardActive: {
-    borderColor: '#E8460A',
-    backgroundColor: 'rgba(232,70,10,0.12)',
-  },
-  coachName: { color: COLORS.textPrimary, fontSize: FONT.sm, fontWeight: '800' },
-  coachStyle: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
-  coachQuote: { color: COLORS.textSecondary, fontSize: FONT.xs, lineHeight: 18 },
+  senseiEmoji: { fontSize: 36, marginBottom: 4 },
+  senseiName: { color: COLORS.textPrimary, fontSize: FONT.base, fontWeight: '900', textAlign: 'center' },
+  senseiRanks: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  senseiDesc: { color: COLORS.textSecondary, fontSize: FONT.xs, textAlign: 'center', lineHeight: 16 },
 
   footer: { padding: SPACING.lg },
   btn: { borderRadius: RADIUS.xl, paddingVertical: 16, alignItems: 'center',

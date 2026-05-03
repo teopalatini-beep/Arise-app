@@ -39,71 +39,50 @@ export interface WeeklyCoachReport {
 
 export const COACHES: CoachProfile[] = [
   {
-    id: 'normal',
-    name: 'Coach Humano',
-    style: 'humano',
-    opener: 'Vamos con una mirada clara y sin humo:',
-    motivator: 'Constancia simple, resultado real.',
-  },
-  {
     id: 'goku',
     name: 'Goku',
     style: 'anime',
     opener: 'Esta semana entrenaste como un verdadero saiyajin:',
-    motivator: 'Tu proximo nivel esta en la siguiente repeticion.',
-  },
-  {
-    id: 'kakashi',
-    name: 'Kakashi',
-    style: 'anime',
-    opener: 'Analisis tactico semanal completado:',
-    motivator: 'Sin disciplina no hay jutsu que alcance.',
+    motivator: 'Tu próximo nivel está en la siguiente repetición.',
   },
   {
     id: 'itachi',
     name: 'Itachi',
     style: 'anime',
-    opener: 'Observacion precisa de tu progreso:',
+    opener: 'Observación precisa de tu progreso:',
     motivator: 'Dominarte a vos mismo es el verdadero poder.',
   },
   {
     id: 'rengoku',
     name: 'Rengoku',
     style: 'anime',
-    opener: 'Tu llama esta viva, y esta semana se noto:',
-    motivator: 'Pon tu corazon en llamas, otra vez.',
+    opener: 'Tu llama está viva, y esta semana se notó:',
+    motivator: 'Pon tu corazón en llamas, otra vez.',
+  },
+  {
+    id: 'jiraiya',
+    name: 'Jiraiya',
+    style: 'anime',
+    opener: 'El verdadero ninja aprende de cada caída:',
+    motivator: 'El camino del sabio es largo pero no tiene límite.',
+  },
+  {
+    id: 'gojo',
+    name: 'Gojo',
+    style: 'anime',
+    opener: 'Con los ojos abiertos todo se ve claro:',
+    motivator: 'El más fuerte no nació así — se construyó.',
+  },
+  {
+    id: 'all_might',
+    name: 'All Might',
+    style: 'anime',
+    opener: 'Con una sonrisa siempre adelante:',
+    motivator: 'GO BEYOND — PLUS ULTRA.',
   },
 ];
 
 export const COACH_VISUALS: Record<CoachId, CoachVisualProfile> = {
-  normal: {
-    icon: 'person-circle',
-    headerLabel: 'Modo Coach Humano',
-    homePhrases: [
-      'Menos drama, mas ejecucion: prioriza lo importante hoy.',
-      'La estrategia gana cuando se vuelve rutina.',
-      'Disciplina simple, resultados medibles.',
-    ],
-    overlays: [
-      { emoji: '📈', x: 24, y: 94, size: 18, opacity: 0.18 },
-      { emoji: '🎯', x: 300, y: 160, size: 20, opacity: 0.16 },
-      { emoji: '🧠', x: 42, y: 430, size: 22, opacity: 0.13 },
-    ],
-    background: ['#06060A', '#0D0D16', '#151522'],
-    accent: ['#E879F9', '#7C3AED'],
-    tabActive: '#E879F9',
-    tabBorder: 'rgba(232,121,249,0.3)',
-    cardBackground: 'rgba(232,121,249,0.08)',
-    cardBorder: 'rgba(232,121,249,0.35)',
-    glowColor: '#E879F9',
-    taskIcons: {
-      cuerpo: 'fitness',
-      mente: 'analytics',
-      bienestar: 'heart',
-      productividad: 'checkmark-done',
-      motivacion: 'sparkles',
-    },
-  },
   goku: {
     icon: 'flash',
     headerLabel: 'Modo Saiyan',
@@ -130,34 +109,6 @@ export const COACH_VISUALS: Record<CoachId, CoachVisualProfile> = {
       bienestar: 'sunny',
       productividad: 'rocket',
       motivacion: 'flame',
-    },
-  },
-  kakashi: {
-    icon: 'thunderstorm',
-    headerLabel: 'Modo Estratega',
-    homePhrases: [
-      'Calma primero, precision despues.',
-      'Sin metodo no hay tecnica que alcance.',
-      'Equipo, foco y ejecucion: esa es la jugada.',
-    ],
-    overlays: [
-      { emoji: '🌩️', x: 18, y: 96, size: 20, opacity: 0.2 },
-      { emoji: '👁️', x: 298, y: 150, size: 22, opacity: 0.16 },
-      { emoji: '📘', x: 46, y: 438, size: 20, opacity: 0.14 },
-    ],
-    background: ['#050912', '#0A1220', '#111C2E'],
-    accent: ['#38BDF8', '#8B5CF6'],
-    tabActive: '#38BDF8',
-    tabBorder: 'rgba(56,189,248,0.34)',
-    cardBackground: 'rgba(56,189,248,0.11)',
-    cardBorder: 'rgba(56,189,248,0.35)',
-    glowColor: '#38BDF8',
-    taskIcons: {
-      cuerpo: 'thunderstorm',
-      mente: 'book',
-      bienestar: 'moon',
-      productividad: 'timer',
-      motivacion: 'eye',
     },
   },
   itachi: {
@@ -216,6 +167,90 @@ export const COACH_VISUALS: Record<CoachId, CoachVisualProfile> = {
       motivacion: 'flash',
     },
   },
+  jiraiya: {
+    icon: 'leaf',
+    headerLabel: 'Modo Sabio de las Ranas',
+    homePhrases: [
+      'El sabio aprende hasta del error más tonto.',
+      'La naturaleza no apura — pero siempre llega.',
+      'Cada caída es datos para el próximo intento.',
+    ],
+    overlays: [
+      { emoji: '🐸', x: 18, y: 90, size: 22, opacity: 0.18 },
+      { emoji: '📜', x: 298, y: 148, size: 20, opacity: 0.15 },
+      { emoji: '🌿', x: 52, y: 430, size: 22, opacity: 0.14 },
+    ],
+    background: ['#060C05', '#0E1A08', '#16260C'] as [string,string,string],
+    accent: ['#84CC16', '#F59E0B'] as [string,string],
+    tabActive: '#84CC16',
+    tabBorder: 'rgba(132,204,22,0.35)',
+    cardBackground: 'rgba(132,204,22,0.1)',
+    cardBorder: 'rgba(132,204,22,0.38)',
+    glowColor: '#84CC16',
+    taskIcons: {
+      cuerpo: 'leaf',
+      mente: 'book',
+      bienestar: 'water',
+      productividad: 'pencil',
+      motivacion: 'sparkles',
+    },
+  },
+  gojo: {
+    icon: 'infinite',
+    headerLabel: 'Modo Infinito',
+    homePhrases: [
+      'El infinito no es una distancia — es una actitud.',
+      'Ves todo cuando no te aferrás a nada.',
+      'La técnica más fuerte es la que dominás sin pensar.',
+    ],
+    overlays: [
+      { emoji: '♾️', x: 16, y: 86, size: 22, opacity: 0.2 },
+      { emoji: '👁️', x: 302, y: 144, size: 24, opacity: 0.18 },
+      { emoji: '❄️', x: 54, y: 424, size: 20, opacity: 0.15 },
+    ],
+    background: ['#02080F', '#04111E', '#071A2E'] as [string,string,string],
+    accent: ['#38BDF8', '#E0F2FE'] as [string,string],
+    tabActive: '#38BDF8',
+    tabBorder: 'rgba(56,189,248,0.38)',
+    cardBackground: 'rgba(56,189,248,0.1)',
+    cardBorder: 'rgba(56,189,248,0.38)',
+    glowColor: '#38BDF8',
+    taskIcons: {
+      cuerpo: 'pulse',
+      mente: 'infinite',
+      bienestar: 'snow',
+      productividad: 'flash',
+      motivacion: 'eye',
+    },
+  },
+  all_might: {
+    icon: 'shield',
+    headerLabel: 'Modo Plus Ultra',
+    homePhrases: [
+      'Los símbolos no nacen — se forjan con acción.',
+      'Sonreí y empujá más allá del límite.',
+      'Ser el Nº 1 empieza siendo mejor que ayer.',
+    ],
+    overlays: [
+      { emoji: '💪', x: 20, y: 88, size: 22, opacity: 0.2 },
+      { emoji: '⭐', x: 300, y: 142, size: 24, opacity: 0.18 },
+      { emoji: '🔵', x: 50, y: 422, size: 20, opacity: 0.12 },
+    ],
+    background: ['#020814', '#031020', '#041830'] as [string,string,string],
+    accent: ['#3B82F6', '#FBBF24'] as [string,string],
+    tabActive: '#3B82F6',
+    tabBorder: 'rgba(59,130,246,0.38)',
+    cardBackground: 'rgba(59,130,246,0.1)',
+    cardBorder: 'rgba(59,130,246,0.38)',
+    glowColor: '#3B82F6',
+    taskIcons: {
+      cuerpo: 'barbell',
+      mente: 'shield',
+      bienestar: 'heart',
+      productividad: 'star',
+      motivacion: 'flash',
+    },
+  },
 };
 
 export const COACH_STORAGE_KEY = 'arise_weekly_coach_v1';
@@ -225,8 +260,8 @@ export function getCoachById(id: CoachId): CoachProfile {
 }
 
 export function getCoachVisualProfile(id?: CoachId): CoachVisualProfile {
-  if (!id) return COACH_VISUALS.normal;
-  return COACH_VISUALS[id] ?? COACH_VISUALS.normal;
+  if (!id) return COACH_VISUALS.goku;
+  return COACH_VISUALS[id] ?? COACH_VISUALS.goku;
 }
 
 export function getCoachTaskIcon(coachId: CoachId | undefined, category: TaskCategory): string {

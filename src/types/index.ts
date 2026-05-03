@@ -1,6 +1,6 @@
 export type TaskCategory = 'cuerpo' | 'mente' | 'bienestar' | 'productividad' | 'motivacion';
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
-export type CoachId = 'normal' | 'goku' | 'kakashi' | 'itachi' | 'rengoku';
+export type CoachId = 'goku' | 'itachi' | 'rengoku' | 'jiraiya' | 'gojo' | 'all_might';
 
 export interface TaskDefinition {
   id: string;
