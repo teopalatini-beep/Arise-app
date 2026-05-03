@@ -9,6 +9,7 @@ import { useApp, xpForLevel, levelFromXP } from '../../src/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
 import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '../../src/types';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
+import { getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
 
 const TRACK_DIRECTION: Record<string, string> = {
   fat_loss: 'Direccion: crear deficit sostenible sin perder masa muscular.',
@@ -210,11 +211,27 @@ export default function HoyScreen() {
   const avgGoalProgress = goalProgressItems.reduce((sum, g) => sum + g.progress, 0) / goalProgressItems.length;
   const quotes = TRACK_QUOTES[track] ?? TRACK_QUOTES.maintenance;
   const quoteIndex = Math.min(quotes.length - 1, Math.floor(avgGoalProgress * quotes.length));
-  const coachingQuote = quotes[quoteIndex];
+  const coachId = user.preferredCoachId ?? 'normal';
+  const coach = getCoachById(coachId);
+  const coachVisual = getCoachVisualProfile(coachId);
+  const coachPhraseIndex = Math.min(
+    coachVisual.homePhrases.length - 1,
+    Math.floor(avgGoalProgress * coachVisual.homePhrases.length)
+  );
+  const coachingQuote = `${coachVisual.homePhrases[coachPhraseIndex]} ${quotes[quoteIndex]}`;
   const powerStage = getPowerStage(user);
   const stageTheme = getStageTheme(user);
   const nextStageHint = getNextStageHint(user);
   const dynamicChallenges = buildDynamicChallenges(user, data.days).slice(0, 2);
+  const coachCardStyle = {
+    backgroundColor: coachVisual.cardBackground,
+    borderColor: coachVisual.cardBorder,
+    shadowColor: coachVisual.glowColor,
+    shadowOpacity: 0.32,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  } as const;
 
   const isTaskDone = (taskId: string) =>
     todayRecord?.taskStates.find(ts => ts.taskId === taskId)?.completed ?? false;
@@ -239,6 +256,54 @@ export default function HoyScreen() {
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Usar gracia', onPress: useGraceDay, style: 'destructive' },
       ]
+    );
+  }
+
+  // ── Program complete screen (day 90 done) ──────────────────────────────
+  if (user.programCompleted) {
+    return (
+      <LinearGradient colors={['#05050A', '#0D0520', '#1A0830']} style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+          <ScrollView contentContainerStyle={[styles.scroll, { alignItems: 'center', paddingTop: 40 }]}>
+            <Text style={styles.ariseCompleteKanji}>炎</Text>
+            <Text style={styles.ariseCompleteTitle}>ARISE{'\n'}COMPLETE</Text>
+            <Text style={styles.ariseCompleteSubtitle}>
+              90 días. Sin excusas.{'\n'}Lo lograste.
+            </Text>
+
+            <View style={[styles.card, { borderColor: '#F59E0B60', width: '100%' }]}>
+              <Text style={[styles.cardLabel, { color: '#F59E0B' }]}>TUS NÚMEROS FINALES</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: SPACING.sm }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.bigNumber, { color: '#F59E0B' }]}>{user.maxStreak}🔥</Text>
+                  <Text style={styles.cardLabel}>RACHA MÁX</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.bigNumber, { color: COLORS.accent }]}>{user.xp}</Text>
+                  <Text style={styles.cardLabel}>XP TOTAL</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={[styles.bigNumber, { color: COLORS.purple }]}>Nv.{user.level}</Text>
+                  <Text style={styles.cardLabel}>NIVEL</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[styles.card, { borderColor: '#7C3AED60', width: '100%' }]}>
+              <Text style={[styles.cardLabel, { color: '#C084FC' }]}>LOGRO MÁXIMO</Text>
+              <Text style={{ fontSize: 48, textAlign: 'center', marginVertical: 8 }}>👑</Text>
+              <Text style={{ color: '#F5F0FF', fontWeight: '900', fontSize: 18, textAlign: 'center' }}>ARISE COMPLETE</Text>
+              <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginTop: 4, fontSize: FONT.sm }}>
+                Leyenda. Solo el 1% de los que empiezan llegan aquí.
+              </Text>
+            </View>
+
+            <Text style={{ color: COLORS.textMuted, textAlign: 'center', marginTop: SPACING.lg, fontSize: FONT.sm, lineHeight: 22 }}>
+              "El poder no viene del cuerpo. Viene de una voluntad indomable."
+            </Text>
+          </ScrollView>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
@@ -296,6 +361,41 @@ export default function HoyScreen() {
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
+        <View pointerEvents="none" style={styles.overlayLayer}>
+          {coachVisual.overlays.map((overlay, idx) => (
+            <View
+              key={`${overlay.emoji}-${idx}`}
+              style={[
+                styles.overlayOrb,
+                {
+                  left: overlay.x,
+                  top: overlay.y,
+                  width: overlay.size * 2.4,
+                  height: overlay.size * 2.4,
+                  borderRadius: overlay.size * 1.2,
+                  backgroundColor: coachVisual.glowColor,
+                  opacity: overlay.opacity * 0.45,
+                },
+              ]}
+            />
+          ))}
+          {coachVisual.overlays.map((overlay, idx) => (
+            <Text
+              key={`${overlay.emoji}-txt-${idx}`}
+              style={[
+                styles.overlayGlyph,
+                {
+                  left: overlay.x,
+                  top: overlay.y,
+                  fontSize: overlay.size,
+                  opacity: overlay.opacity,
+                },
+              ]}
+            >
+              {overlay.emoji}
+            </Text>
+          ))}
+        </View>
         {newBadges.length > 0 && (
           <BadgeUnlockModal badges={newBadges} onClose={clearNewBadges} />
         )}
@@ -313,7 +413,16 @@ export default function HoyScreen() {
             </View>
           </View>
 
-          <View style={styles.powerCard}>
+          <View style={[styles.coachIdentityCard, coachCardStyle]}>
+            <View style={styles.coachIdentityRow}>
+              <Ionicons name={coachVisual.icon as any} size={16} color={stageTheme.tabActive} />
+              <Text style={[styles.coachIdentityLabel, { color: stageTheme.tabActive }]}>{coachVisual.headerLabel}</Text>
+            </View>
+            <Text style={styles.coachIdentityName}>Coach activo: {coach.name}</Text>
+            <Text style={styles.coachIdentityNote}>{coach.motivator}</Text>
+          </View>
+
+          <View style={[styles.powerCard, coachCardStyle]}>
             <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerAura}>
               <Text style={styles.powerAuraText}>{powerStage.auraLabel}</Text>
             </LinearGradient>
@@ -322,7 +431,7 @@ export default function HoyScreen() {
           </View>
 
           {/* Quote */}
-          <View style={styles.quoteBox}>
+          <View style={[styles.quoteBox, coachCardStyle]}>
             <Text style={styles.quoteText}>"{todayDefinition.quote}"</Text>
           </View>
 
@@ -332,7 +441,7 @@ export default function HoyScreen() {
             <Text style={styles.goalDirection}>{direction}</Text>
 
             {goalProgressItems.map(item => (
-              <View key={item.label} style={styles.goalCard}>
+              <View key={item.label} style={[styles.goalCard, coachCardStyle]}>
                 <View style={styles.goalHeader}>
                   <Text style={styles.goalLabel}>{item.label}</Text>
                   <Text style={styles.goalNumbers}>{item.current} / {item.target}</Text>
@@ -348,26 +457,26 @@ export default function HoyScreen() {
               </View>
             ))}
 
-            <View style={styles.coachBox}>
-              <Text style={styles.coachLabel}>FRASE MOTIVADORA DEL OBJETIVO</Text>
+            <View style={[styles.coachBox, coachCardStyle]}>
+              <Text style={[styles.coachLabel, { color: stageTheme.tabActive }]}>FRASE MOTIVADORA DEL OBJETIVO</Text>
               <Text style={styles.coachText}>{coachingQuote}</Text>
             </View>
 
-            <View style={styles.toolsBox}>
-              <Text style={styles.toolsLabel}>HERRAMIENTAS Y CONSEJOS</Text>
+            <View style={[styles.toolsBox, coachCardStyle]}>
+              <Text style={[styles.toolsLabel, { color: stageTheme.tabActive }]}>HERRAMIENTAS Y CONSEJOS</Text>
               {(challengeTools.length > 0 ? challengeTools : (user.adaptiveProfile?.recommendations ?? []).map(advice => ({
                 title: 'Plan semanal',
                 advice,
               }))).slice(0, 3).map(tool => (
                 <View key={`${tool.title}-${tool.advice}`} style={styles.toolRow}>
-                  <Text style={styles.toolBullet}>•</Text>
+                  <Text style={[styles.toolBullet, { color: stageTheme.tabActive }]}>•</Text>
                   <Text style={styles.toolText}><Text style={styles.toolTitle}>{tool.title}: </Text>{tool.advice}</Text>
                 </View>
               ))}
             </View>
 
-            <View style={styles.challengeBox}>
-              <Text style={styles.challengeLabel}>DESAFIOS EVOLUTIVOS</Text>
+            <View style={[styles.challengeBox, coachCardStyle]}>
+              <Text style={[styles.challengeLabel, { color: stageTheme.tabActive }]}>DESAFIOS EVOLUTIVOS</Text>
               {dynamicChallenges.map(ch => {
                 const progressValue = clampProgress(ch.current / Math.max(ch.target, 1));
                 return (
@@ -416,6 +525,7 @@ export default function HoyScreen() {
           {tasks.map(task => {
             const done = isTaskDone(task.id);
             const catInfo = CATEGORY_INFO[task.category as TaskCategory];
+            const coachTaskIcon = getCoachTaskIcon(coachId, task.category as TaskCategory);
             const isExpanded = expandedTask === task.id;
 
             return (
@@ -433,7 +543,7 @@ export default function HoyScreen() {
                     <View style={styles.taskInfo}>
                       <View style={styles.taskHeader}>
                         <Ionicons
-                          name={catInfo.icon as any}
+                          name={coachTaskIcon as any}
                           size={14}
                           color={catInfo.color}
                           style={{ marginRight: 4 }}
@@ -468,7 +578,11 @@ export default function HoyScreen() {
 
           {/* CTA button */}
           <TouchableOpacity
-            style={[styles.ctaButton, completedCount < totalCount && styles.ctaButtonDisabled]}
+            style={[
+              styles.ctaButton,
+              { shadowColor: coachVisual.glowColor },
+              completedCount < totalCount && styles.ctaButtonDisabled,
+            ]}
             onPress={completedCount < totalCount ? undefined : markDayComplete}
             activeOpacity={completedCount < totalCount ? 1 : 0.8}
           >
@@ -496,6 +610,43 @@ export default function HoyScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
+
+  // ── Program Complete styles ──────────────────────────────────────────────
+  ariseCompleteKanji: {
+    fontSize: 80,
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+    textShadowColor: '#F59E0B',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 30,
+  },
+  ariseCompleteTitle: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#F5F0FF',
+    textAlign: 'center',
+    letterSpacing: 4,
+    lineHeight: 54,
+    marginBottom: SPACING.sm,
+  },
+  ariseCompleteSubtitle: {
+    fontSize: FONT.lg,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 28,
+    marginBottom: SPACING.xl,
+  },
+  overlayLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  overlayOrb: {
+    position: 'absolute',
+  },
+  overlayGlyph: {
+    position: 'absolute',
+  },
   scroll: { padding: SPACING.md },
   loadingText: { color: COLORS.textSecondary, textAlign: 'center', marginTop: 100 },
 
@@ -535,6 +686,22 @@ const styles = StyleSheet.create({
     color: COLORS.streak,
   },
   streakFire: { fontSize: FONT.lg, marginLeft: 2 },
+
+  coachIdentityCard: {
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  coachIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  coachIdentityLabel: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1 },
+  coachIdentityName: { fontSize: FONT.sm, color: COLORS.textPrimary, fontWeight: '700' },
+  coachIdentityNote: { fontSize: FONT.xs, color: COLORS.textSecondary, marginTop: 4, lineHeight: 18 },
 
   powerCard: {
     backgroundColor: COLORS.bgCard,

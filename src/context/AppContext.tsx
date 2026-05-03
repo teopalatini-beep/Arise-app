@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
-import { AppData, UserProfile, DayRecord, TaskState, DayMetrics, BadgeId, BADGE_DEFINITIONS, FitnessLevel, OnboardingData } from '../types';
+import { AppData, UserProfile, DayRecord, TaskState, DayMetrics, BadgeId, BADGE_DEFINITIONS, FitnessLevel, OnboardingData, CoachId } from '../types';
 import { buildProgram } from '../data/program';
 import { ONBOARDING_KEY } from '../../app/onboarding';
 import { supabase } from '../lib/supabase';
@@ -108,6 +108,8 @@ function createInitialData(name: string, onboarding?: Partial<OnboardingData>): 
       trainingDaysPerWeek: onboarding?.trainingDaysPerWeek,
       goals: onboarding?.goals,
       adaptiveProfile: onboarding?.adaptiveProfile,
+      nutritionProfile: onboarding?.nutritionProfile,
+      preferredCoachId: onboarding?.preferredCoachId,
     },
     days: [],
     lastOpenedDate: today,
@@ -147,6 +149,8 @@ interface AppContextType {
   resetProgram: () => void;
   hasPenalty: boolean;
   completePenalty: () => void;
+  setPreferredCoach: (coachId: CoachId) => void;
+  applyOnboardingProfile: (onboarding: Partial<OnboardingData>) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -199,6 +203,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
 
         if (profile) {
+          const [storedRaw, onboardingRaw] = await Promise.all([
+            AsyncStorage.getItem(STORAGE_KEY),
+            AsyncStorage.getItem(ONBOARDING_KEY),
+          ]);
+          const stored = storedRaw ? JSON.parse(storedRaw) as AppData : undefined;
+          const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
+
           // Merge metrics and journal into day records
           const enrichedDays = dayRecords.map(dr => {
             const m = metricsData.find(m => m.dayNumber === dr.dayNumber);
@@ -212,7 +223,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           const today = TODAY();
           const appData: AppData = {
-            user: profile,
+            user: {
+              ...profile,
+              fitnessLevel: stored?.user.fitnessLevel ?? onboarding?.fitnessLevel,
+              age: stored?.user.age ?? onboarding?.age,
+              initialWeight: stored?.user.initialWeight ?? onboarding?.initialWeight,
+              height: stored?.user.height ?? onboarding?.height,
+              trainingDaysPerWeek: stored?.user.trainingDaysPerWeek ?? onboarding?.trainingDaysPerWeek,
+              goals: stored?.user.goals ?? onboarding?.goals,
+              adaptiveProfile: stored?.user.adaptiveProfile ?? onboarding?.adaptiveProfile,
+              nutritionProfile: stored?.user.nutritionProfile ?? onboarding?.nutritionProfile,
+              preferredCoachId: stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'normal',
+              badges: stored?.user.badges ?? profile.badges,
+            },
             days: enrichedDays,
             lastOpenedDate: today,
           };
@@ -284,15 +307,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       startOfDay(parseISO(lastDate))
     );
 
-    let updated = { ...stored, lastOpenedDate: today };
+    let updated = { ...stored, lastOpenedDate: today, days: [...stored.days] };
     const user = { ...updated.user };
 
-    if (daysDiff > 1) user.streak = 0;
-
+    // Reset grace month if needed
     const currentMonth = MONTH_REF();
     if (user.graceMonthRef !== currentMonth) {
       user.graceUsedThisMonth = false;
       user.graceMonthRef = currentMonth;
+    }
+
+    if (daysDiff >= 1) {
+      // Check if yesterday's program day was completed
+      const existingRecord = updated.days.find(d => d.dayNumber === user.currentDay);
+      const wasCompleted = existingRecord?.completed ?? false;
+      const wasMissedAlready = existingRecord?.missed ?? false;
+
+      // If they skipped 1+ days without completing → missed day + penalty
+      if (!wasCompleted && !wasMissedAlready && daysDiff >= 1) {
+        user.streak = 0;
+
+        if (existingRecord) {
+          // Mark existing record as missed
+          updated.days = updated.days.map(d =>
+            d.dayNumber === user.currentDay
+              ? { ...d, missed: true, penaltyCompleted: false }
+              : d
+          );
+        } else {
+          // Create a missed record so penalty screen triggers
+          const program = getProgram();
+          const def = program[user.currentDay - 1] ?? program[program.length - 1];
+          const missedRecord: DayRecord = {
+            dayNumber: user.currentDay,
+            date: lastDate,
+            taskStates: def.tasks.map(t => ({ taskId: t.id, completed: false })),
+            completed: false,
+            missed: true,
+            penaltyCompleted: false,
+          };
+          updated.days = [...updated.days, missedRecord];
+        }
+
+        // For multiple missed days, advance currentDay so user stays on calendar
+        if (daysDiff > 1) {
+          const skipDays = Math.min(daysDiff - 1, 90 - user.currentDay);
+          user.currentDay = Math.min(user.currentDay + skipDays, 90);
+          if (user.currentDay >= 90) user.programCompleted = true;
+        }
+      }
     }
 
     updated.user = user;
@@ -513,6 +576,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persistWithRecord(newData, updatedRecord);
   }, [data, persistWithRecord]);
 
+  const setPreferredCoach = useCallback((coachId: CoachId) => {
+    if (!data) return;
+    const newData: AppData = {
+      ...data,
+      user: {
+        ...data.user,
+        preferredCoachId: coachId,
+      },
+    };
+    persist(newData);
+  }, [data, persist]);
+
+  const applyOnboardingProfile = useCallback((onboarding: Partial<OnboardingData>) => {
+    if (!data) return;
+    const newData: AppData = {
+      ...data,
+      user: {
+        ...data.user,
+        fitnessLevel: onboarding.fitnessLevel ?? data.user.fitnessLevel,
+        age: onboarding.age ?? data.user.age,
+        initialWeight: onboarding.initialWeight ?? data.user.initialWeight,
+        height: onboarding.height ?? data.user.height,
+        trainingDaysPerWeek: onboarding.trainingDaysPerWeek ?? data.user.trainingDaysPerWeek,
+        goals: onboarding.goals ?? data.user.goals,
+        adaptiveProfile: onboarding.adaptiveProfile ?? data.user.adaptiveProfile,
+        nutritionProfile: onboarding.nutritionProfile ?? data.user.nutritionProfile,
+        preferredCoachId: onboarding.preferredCoachId ?? data.user.preferredCoachId,
+      },
+    };
+    persist(newData);
+  }, [data, persist]);
+
   // ── Reset ────────────────────────────────────────────────────────────────
   const resetProgram = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -547,6 +642,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       resetProgram,
       hasPenalty,
       completePenalty,
+      setPreferredCoach,
+      applyOnboardingProfile,
       newBadges,
       clearNewBadges,
     }}>
