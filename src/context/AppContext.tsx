@@ -346,12 +346,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       logUnexpectedError('Failed to load data', e);
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const [raw, onboardingRaw, sessionRes] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem(ONBOARDING_KEY),
+          supabase.auth.getSession().catch(() => ({ data: { session: null } as any })),
+        ]);
         if (raw) {
           const stored: AppData = JSON.parse(raw);
           setData(handleDayTransition(stored));
+          return;
         }
-      } catch {}
+        const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
+        const fallbackName = sessionRes?.data?.session?.user?.user_metadata?.name ?? 'Usuario';
+        const initial = createInitialData(fallbackName, onboarding);
+        setData(initial);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+      } catch {
+        const initial = createInitialData('Usuario');
+        setData(initial);
+      }
     } finally {
       setLoading(false);
     }

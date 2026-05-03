@@ -16,15 +16,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function isNetworkError(error: unknown): boolean {
+  const msg = String((error as any)?.message ?? error ?? '').toLowerCase();
+  return msg.includes('network request failed') || msg.includes('fetch failed');
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+      })
+      .catch((error) => {
+        if (!isNetworkError(error)) {
+          console.warn('[Auth] getSession failed', error);
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -34,28 +47,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function register(name: string, email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name },
-      },
-    });
-    return error ? error.message : null;
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name },
+        },
+      });
+      return error ? error.message : null;
+    } catch (error) {
+      if (isNetworkError(error)) return 'No hay conexion con el servidor.';
+      return 'No se pudo crear la cuenta.';
+    }
   }
 
   async function login(email: string, password: string): Promise<string | null> {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return error ? error.message : null;
+    } catch (error) {
+      if (isNetworkError(error)) return 'No hay conexion con el servidor.';
+      return 'No se pudo iniciar sesion.';
+    }
   }
 
   async function logout() {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      if (!isNetworkError(error)) {
+        console.warn('[Auth] logout failed', error);
+      }
+    }
   }
 
   async function resetPassword(email: string): Promise<string | null> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    return error ? error.message : null;
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      return error ? error.message : null;
+    } catch (error) {
+      if (isNetworkError(error)) return 'No hay conexion con el servidor.';
+      return 'No se pudo enviar el email de recuperacion.';
+    }
   }
 
   const userName = session?.user?.user_metadata?.name ?? '';
