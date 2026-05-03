@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_CONFIG_ERROR } from '../lib/supabase';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -26,6 +26,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (SUPABASE_CONFIG_ERROR) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         setSession(session);
@@ -47,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function register(name: string, email: string, password: string): Promise<string | null> {
+    if (SUPABASE_CONFIG_ERROR) return SUPABASE_CONFIG_ERROR;
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -63,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function login(email: string, password: string): Promise<string | null> {
+    if (SUPABASE_CONFIG_ERROR) return SUPABASE_CONFIG_ERROR;
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return error ? error.message : null;
@@ -73,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function logout() {
+    if (SUPABASE_CONFIG_ERROR) return;
     try {
       await supabase.auth.signOut();
     } catch (error) {
@@ -83,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function resetPassword(email: string): Promise<string | null> {
+    if (SUPABASE_CONFIG_ERROR) return SUPABASE_CONFIG_ERROR;
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email);
       return error ? error.message : null;

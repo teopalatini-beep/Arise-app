@@ -120,7 +120,10 @@ La app usa **Supabase** para:
 1. Abrí tu proyecto en Supabase.
 2. Andá a **SQL Editor**.
 3. Ejecutá el script `supabase/schema.sql`.
-4. Verificá que existan tablas: `profiles`, `day_records`, `metrics`, `journal`.
+4. Creá un archivo `.env` (podés copiar `.env.example`) y completá:
+   - `EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co`
+   - `EXPO_PUBLIC_SUPABASE_ANON_KEY=<tu_anon_key>`
+5. Verificá que existan tablas: `profiles`, `day_records`, `metrics`, `journal`.
 
 Con eso, cada usuario tendrá su información persistida y privada (RLS por `auth.uid()`).
 
