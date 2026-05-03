@@ -1,6 +1,4 @@
-import { AppData } from '../types';
-
-export type CoachId = 'normal' | 'goku' | 'kakashi' | 'itachi' | 'rengoku';
+import { AppData, CoachId, TaskCategory } from '../types';
 
 export interface CoachProfile {
   id: CoachId;
@@ -8,6 +6,27 @@ export interface CoachProfile {
   style: 'anime' | 'humano';
   opener: string;
   motivator: string;
+}
+
+export interface CoachVisualProfile {
+  icon: string;
+  headerLabel: string;
+  homePhrases: string[];
+  overlays: {
+    emoji: string;
+    x: number;
+    y: number;
+    size: number;
+    opacity: number;
+  }[];
+  background: [string, string, string];
+  accent: [string, string];
+  tabActive: string;
+  tabBorder: string;
+  cardBackground: string;
+  cardBorder: string;
+  glowColor: string;
+  taskIcons: Record<TaskCategory, string>;
 }
 
 export interface WeeklyCoachReport {
@@ -56,10 +75,163 @@ export const COACHES: CoachProfile[] = [
   },
 ];
 
+export const COACH_VISUALS: Record<CoachId, CoachVisualProfile> = {
+  normal: {
+    icon: 'person-circle',
+    headerLabel: 'Modo Coach Humano',
+    homePhrases: [
+      'Menos drama, mas ejecucion: prioriza lo importante hoy.',
+      'La estrategia gana cuando se vuelve rutina.',
+      'Disciplina simple, resultados medibles.',
+    ],
+    overlays: [
+      { emoji: '📈', x: 24, y: 94, size: 18, opacity: 0.18 },
+      { emoji: '🎯', x: 300, y: 160, size: 20, opacity: 0.16 },
+      { emoji: '🧠', x: 42, y: 430, size: 22, opacity: 0.13 },
+    ],
+    background: ['#06060A', '#0D0D16', '#151522'],
+    accent: ['#E879F9', '#7C3AED'],
+    tabActive: '#E879F9',
+    tabBorder: 'rgba(232,121,249,0.3)',
+    cardBackground: 'rgba(232,121,249,0.08)',
+    cardBorder: 'rgba(232,121,249,0.35)',
+    glowColor: '#E879F9',
+    taskIcons: {
+      cuerpo: 'fitness',
+      mente: 'analytics',
+      bienestar: 'heart',
+      productividad: 'checkmark-done',
+      motivacion: 'sparkles',
+    },
+  },
+  goku: {
+    icon: 'flash',
+    headerLabel: 'Modo Saiyan',
+    homePhrases: [
+      'Hoy se entrena con alegria y hambre de mejorar.',
+      'Si superas tu limite de ayer, ganaste el dia.',
+      'Energia alta, mente limpia, progreso real.',
+    ],
+    overlays: [
+      { emoji: '⚡', x: 16, y: 80, size: 20, opacity: 0.22 },
+      { emoji: '🔥', x: 300, y: 140, size: 24, opacity: 0.2 },
+      { emoji: '🥋', x: 56, y: 410, size: 20, opacity: 0.16 },
+    ],
+    background: ['#130A02', '#1F1206', '#2A1606'],
+    accent: ['#F59E0B', '#3B82F6'],
+    tabActive: '#F59E0B',
+    tabBorder: 'rgba(245,158,11,0.35)',
+    cardBackground: 'rgba(245,158,11,0.12)',
+    cardBorder: 'rgba(245,158,11,0.4)',
+    glowColor: '#F59E0B',
+    taskIcons: {
+      cuerpo: 'thunderstorm',
+      mente: 'flash',
+      bienestar: 'sunny',
+      productividad: 'rocket',
+      motivacion: 'flame',
+    },
+  },
+  kakashi: {
+    icon: 'thunderstorm',
+    headerLabel: 'Modo Estratega',
+    homePhrases: [
+      'Calma primero, precision despues.',
+      'Sin metodo no hay tecnica que alcance.',
+      'Equipo, foco y ejecucion: esa es la jugada.',
+    ],
+    overlays: [
+      { emoji: '🌩️', x: 18, y: 96, size: 20, opacity: 0.2 },
+      { emoji: '👁️', x: 298, y: 150, size: 22, opacity: 0.16 },
+      { emoji: '📘', x: 46, y: 438, size: 20, opacity: 0.14 },
+    ],
+    background: ['#050912', '#0A1220', '#111C2E'],
+    accent: ['#38BDF8', '#8B5CF6'],
+    tabActive: '#38BDF8',
+    tabBorder: 'rgba(56,189,248,0.34)',
+    cardBackground: 'rgba(56,189,248,0.11)',
+    cardBorder: 'rgba(56,189,248,0.35)',
+    glowColor: '#38BDF8',
+    taskIcons: {
+      cuerpo: 'thunderstorm',
+      mente: 'book',
+      bienestar: 'moon',
+      productividad: 'timer',
+      motivacion: 'eye',
+    },
+  },
+  itachi: {
+    icon: 'eye',
+    headerLabel: 'Modo Genjutsu',
+    homePhrases: [
+      'Control interno antes que ruido externo.',
+      'La disciplina silenciosa es poder acumulado.',
+      'Observa, decide, ejecuta sin desperdicio.',
+    ],
+    overlays: [
+      { emoji: '🕊️', x: 20, y: 86, size: 20, opacity: 0.15 },
+      { emoji: '👁️', x: 304, y: 146, size: 24, opacity: 0.2 },
+      { emoji: '🌑', x: 56, y: 426, size: 20, opacity: 0.15 },
+    ],
+    background: ['#120407', '#1D070D', '#270A12'],
+    accent: ['#EF4444', '#A855F7'],
+    tabActive: '#EF4444',
+    tabBorder: 'rgba(239,68,68,0.34)',
+    cardBackground: 'rgba(239,68,68,0.1)',
+    cardBorder: 'rgba(239,68,68,0.35)',
+    glowColor: '#EF4444',
+    taskIcons: {
+      cuerpo: 'skull',
+      mente: 'eye',
+      bienestar: 'moon',
+      productividad: 'shield',
+      motivacion: 'flame',
+    },
+  },
+  rengoku: {
+    icon: 'flame',
+    headerLabel: 'Modo Corazon Ardiente',
+    homePhrases: [
+      'Set your heart ablaze: hoy no se negocia.',
+      'Avanza con firmeza incluso cuando cueste.',
+      'Tu fuego protege tu proceso.',
+    ],
+    overlays: [
+      { emoji: '🔥', x: 16, y: 84, size: 24, opacity: 0.22 },
+      { emoji: '🗡️', x: 304, y: 140, size: 20, opacity: 0.16 },
+      { emoji: '☀️', x: 54, y: 420, size: 22, opacity: 0.14 },
+    ],
+    background: ['#170801', '#261003', '#351706'],
+    accent: ['#F97316', '#FACC15'],
+    tabActive: '#F97316',
+    tabBorder: 'rgba(249,115,22,0.36)',
+    cardBackground: 'rgba(249,115,22,0.12)',
+    cardBorder: 'rgba(249,115,22,0.4)',
+    glowColor: '#F97316',
+    taskIcons: {
+      cuerpo: 'flame',
+      mente: 'sunny',
+      bienestar: 'heart',
+      productividad: 'sparkles',
+      motivacion: 'flash',
+    },
+  },
+};
+
 export const COACH_STORAGE_KEY = 'arise_weekly_coach_v1';
 
 export function getCoachById(id: CoachId): CoachProfile {
   return COACHES.find(c => c.id === id) ?? COACHES[0];
+}
+
+export function getCoachVisualProfile(id?: CoachId): CoachVisualProfile {
+  if (!id) return COACH_VISUALS.normal;
+  return COACH_VISUALS[id] ?? COACH_VISUALS.normal;
+}
+
+export function getCoachTaskIcon(coachId: CoachId | undefined, category: TaskCategory): string {
+  const visual = getCoachVisualProfile(coachId);
+  return visual.taskIcons[category];
 }
 
 export function buildWeeklyCoachReport(data: AppData, coachId: CoachId): WeeklyCoachReport {

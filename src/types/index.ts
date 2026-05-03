@@ -1,5 +1,6 @@
 export type TaskCategory = 'cuerpo' | 'mente' | 'bienestar' | 'productividad' | 'motivacion';
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
+export type CoachId = 'normal' | 'goku' | 'kakashi' | 'itachi' | 'rengoku';
 
 export interface TaskDefinition {
   id: string;
@@ -54,6 +55,15 @@ export interface AdaptiveProfile {
   recommendations: string[];
 }
 
+export type DietStyle = 'balanced' | 'high_protein' | 'low_carb' | 'vegetarian';
+export type ActivityProfile = 'sedentary' | 'moderate' | 'active';
+
+export interface NutritionProfile {
+  dietStyle: DietStyle;
+  mealsPerDay: number;
+  activityProfile: ActivityProfile;
+}
+
 export type BadgeId
   = 'first_day'
   | 'week1' | 'week2' | 'week4' | 'week8' | 'week12'
@@ -86,6 +96,8 @@ export interface OnboardingData {
   trainingDaysPerWeek?: number;
   goals?: UserGoals;
   adaptiveProfile?: AdaptiveProfile;
+  nutritionProfile?: NutritionProfile;
+  preferredCoachId?: CoachId;
 }
 
 export interface DayRecord {
@@ -119,6 +131,8 @@ export interface UserProfile {
   trainingDaysPerWeek?: number;
   goals?: UserGoals;
   adaptiveProfile?: AdaptiveProfile;
+  nutritionProfile?: NutritionProfile;
+  preferredCoachId?: CoachId;
   badges?: BadgeId[];
 }
 

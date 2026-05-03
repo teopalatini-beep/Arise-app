@@ -7,10 +7,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONT, RADIUS, SPACING } from '../src/theme';
-import { OnboardingData, UserGoals, AdaptiveChallenge, AdaptiveTrack } from '../src/types';
+import { OnboardingData, UserGoals, AdaptiveChallenge, AdaptiveTrack, CoachId, DietStyle, ActivityProfile, NutritionProfile } from '../src/types';
 import { scheduleAllNotifications, loadNotifSettings, saveNotifSettings } from '../src/lib/notifications';
 import { deriveAdaptiveProfile } from '../src/data/program';
-import { initProgram } from '../src/context/AppContext';
+import { initProgram, useApp } from '../src/context/AppContext';
+import { COACHES } from '../src/lib/coach';
 
 const { width } = Dimensions.get('window');
 export const ONBOARDING_KEY = 'arise_onboarding_v1';
@@ -62,8 +63,22 @@ const TRACK_COPY: Record<AdaptiveTrack, { title: string; desc: string; emoji: st
   },
 };
 
+const DIET_STYLE_OPTIONS: { key: DietStyle; label: string; emoji: string }[] = [
+  { key: 'balanced', label: 'Balanceado', emoji: '⚖️' },
+  { key: 'high_protein', label: 'Alto en proteína', emoji: '🥩' },
+  { key: 'low_carb', label: 'Bajo en carbos', emoji: '🥗' },
+  { key: 'vegetarian', label: 'Vegetariano', emoji: '🌱' },
+];
+
+const ACTIVITY_OPTIONS: { key: ActivityProfile; label: string; emoji: string }[] = [
+  { key: 'sedentary', label: 'Sedentario', emoji: '🪑' },
+  { key: 'moderate', label: 'Moderado', emoji: '🚶' },
+  { key: 'active', label: 'Activo', emoji: '🏃' },
+];
+
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { applyOnboardingProfile } = useApp();
   const [step, setStep] = useState(0);
   const [goal, setGoal] = useState<OnboardingData['goal']>('all');
   const [fitnessLevel, setFitnessLevel] = useState<OnboardingData['fitnessLevel']>('beginner');
@@ -78,6 +93,10 @@ export default function OnboardingScreen() {
   const [targetPages, setTargetPages] = useState('');
   const [targetStreak, setTargetStreak] = useState('');
   const [challenges, setChallenges] = useState<AdaptiveChallenge[]>([]);
+  const [dietStyle, setDietStyle] = useState<DietStyle>('balanced');
+  const [activityProfile, setActivityProfile] = useState<ActivityProfile>('moderate');
+  const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [selectedCoachId, setSelectedCoachId] = useState<CoachId>('normal');
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const totalSteps = 6;
@@ -113,6 +132,13 @@ export default function OnboardingScreen() {
     challenges,
   });
 
+  const nutritionTip = (() => {
+    if (adaptivePreview.track === 'muscle_gain') return 'Priorizá proteína en cada comida y un extra post-entreno.';
+    if (adaptivePreview.track === 'fat_loss') return 'Apuntá a porciones simples y saciedad alta con verduras + proteína.';
+    if (adaptivePreview.track === 'recomposition') return 'Distribuí proteína parejo y mantené volumen de entrenamiento estable.';
+    return 'Mantené un patrón simple y consistente para sostener resultados.';
+  })();
+
   async function finish() {
     const parsedWeight = parseNumber(weight);
     const parsedTargetWeight = parseNumber(targetWeight);
@@ -128,6 +154,11 @@ export default function OnboardingScreen() {
       targetReadingPages: targetPages ? parseInt(targetPages) : undefined,
       targetStreak: targetStreak ? parseInt(targetStreak) : undefined,
     };
+    const nutritionProfile: NutritionProfile = {
+      dietStyle,
+      mealsPerDay,
+      activityProfile,
+    };
     const onboarding: OnboardingData = {
       completed: true, goal, fitnessLevel, wakeUpHour,
       age: age ? parseInt(age) : undefined,
@@ -136,8 +167,11 @@ export default function OnboardingScreen() {
       trainingDaysPerWeek: trainingDays,
       goals,
       adaptiveProfile,
+      nutritionProfile,
+      preferredCoachId: selectedCoachId,
     };
     await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(onboarding));
+    applyOnboardingProfile(onboarding);
     await initProgram();
 
     // Ajustar hora de notificación mañanera al horario de despertar + 30 min
@@ -280,6 +314,79 @@ export default function OnboardingScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                <Text style={styles.inputLabel}>🍽️ Estrategia de nutrición</Text>
+                <View style={styles.challengeGrid}>
+                  {DIET_STYLE_OPTIONS.map((item) => {
+                    const active = dietStyle === item.key;
+                    return (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={[styles.challengeChip, active && styles.challengeChipActive]}
+                        onPress={() => setDietStyle(item.key)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.challengeEmoji}>{item.emoji}</Text>
+                        <Text style={[styles.challengeText, active && { color: '#fff' }]}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.inputLabel}>⚡ Nivel de actividad diaria</Text>
+                <View style={styles.challengeGrid}>
+                  {ACTIVITY_OPTIONS.map((item) => {
+                    const active = activityProfile === item.key;
+                    return (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={[styles.challengeChip, active && styles.challengeChipActive]}
+                        onPress={() => setActivityProfile(item.key)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.challengeEmoji}>{item.emoji}</Text>
+                        <Text style={[styles.challengeText, active && { color: '#fff' }]}>{item.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={styles.inputLabel}>🍱 Comidas por día</Text>
+                <View style={styles.hoursGrid}>
+                  {[2, 3, 4, 5, 6].map(n => (
+                    <TouchableOpacity
+                      key={n}
+                      style={[styles.hourChip, mealsPerDay === n && styles.hourChipActive]}
+                      onPress={() => setMealsPerDay(n)}
+                    >
+                      <Text style={[styles.hourText, mealsPerDay === n && { color: '#fff' }]}>{n} comidas</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.recommendationsBox}>
+                  <Text style={styles.inputLabel}>🧠 Ajuste nutricional sugerido</Text>
+                  <Text style={styles.recommendationText}>{nutritionTip}</Text>
+                </View>
+
+                <Text style={styles.inputLabel}>🎮 Elegí tu coach semanal (cambia visuales)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coachRow}>
+                  {COACHES.map((coach) => {
+                    const active = selectedCoachId === coach.id;
+                    return (
+                      <TouchableOpacity
+                        key={coach.id}
+                        style={[styles.coachCard, active && styles.coachCardActive]}
+                        onPress={() => setSelectedCoachId(coach.id)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.coachName}>{coach.name}</Text>
+                        <Text style={styles.coachStyle}>{coach.style === 'anime' ? 'Anime vibe' : 'Humano realista'}</Text>
+                        <Text style={styles.coachQuote}>{coach.motivator}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </ScrollView>
             </KeyboardAvoidingView>
           )}
@@ -412,6 +519,8 @@ export default function OnboardingScreen() {
                 <Text style={styles.summaryTitle}>Tu programa personalizado:</Text>
                 <Text style={styles.summaryItem}>🎯 Objetivo: {GOALS.find(g => g.key === goal)?.label}</Text>
                 <Text style={styles.summaryItem}>💪 Nivel: {FITNESS_LEVELS.find(f => f.key === fitnessLevel)?.label}</Text>
+                <Text style={styles.summaryItem}>🍽️ Nutrición: {DIET_STYLE_OPTIONS.find(d => d.key === dietStyle)?.label}</Text>
+                <Text style={styles.summaryItem}>🎮 Coach: {COACHES.find(c => c.id === selectedCoachId)?.name}</Text>
                 <Text style={styles.summaryItem}>⏰ Notificación mañana: {Math.min(wakeUpHour + 1, 10)}:00 hs</Text>
               </View>
             </View>
@@ -578,6 +687,23 @@ const styles = StyleSheet.create({
   recommendationRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   recommendationBullet: { color: '#E8460A', fontWeight: '900', marginTop: -1 },
   recommendationText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT.sm, lineHeight: 20 },
+  coachRow: { gap: SPACING.sm, paddingBottom: SPACING.md },
+  coachCard: {
+    width: 220,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: SPACING.sm,
+    gap: 4,
+  },
+  coachCardActive: {
+    borderColor: '#E8460A',
+    backgroundColor: 'rgba(232,70,10,0.12)',
+  },
+  coachName: { color: COLORS.textPrimary, fontSize: FONT.sm, fontWeight: '800' },
+  coachStyle: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
+  coachQuote: { color: COLORS.textSecondary, fontSize: FONT.xs, lineHeight: 18 },
 
   footer: { padding: SPACING.lg },
   btn: { borderRadius: RADIUS.xl, paddingVertical: 16, alignItems: 'center',

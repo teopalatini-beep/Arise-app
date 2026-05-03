@@ -1,4 +1,5 @@
 import { BadgeId, DayRecord, UserProfile } from '../types';
+import { getCoachVisualProfile } from './coach';
 
 export interface PowerStage {
   id: 'rookie' | 'awakened' | 'elite' | 'mythic';
@@ -121,7 +122,17 @@ export function getNextStageHint(user: UserProfile): string {
 export function getStageTheme(user?: UserProfile): StageTheme {
   if (!user) return STAGE_THEMES.rookie;
   const stage = getPowerStage(user);
-  return STAGE_THEMES[stage.id];
+  const base = STAGE_THEMES[stage.id];
+  const coach = user.preferredCoachId;
+  if (!coach) return base;
+  const visual = getCoachVisualProfile(coach);
+  return {
+    ...base,
+    background: visual.background,
+    accent: visual.accent,
+    tabActive: visual.tabActive,
+    tabBorder: visual.tabBorder,
+  };
 }
 
 export function buildDynamicChallenges(user: UserProfile, days: DayRecord[]): DynamicChallenge[] {

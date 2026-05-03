@@ -9,9 +9,9 @@ import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Rect, G, 
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
-import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, BadgeId } from '../../src/types';
+import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, BadgeId, CoachId } from '../../src/types';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme, StageTheme } from '../../src/lib/progression';
-import { buildWeeklyCoachReport, CoachId, COACH_STORAGE_KEY, COACHES } from '../../src/lib/coach';
+import { buildWeeklyCoachReport, COACH_STORAGE_KEY, COACHES } from '../../src/lib/coach';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
@@ -213,7 +213,7 @@ function XPRing({ xp, level, xpForLevel }: { xp: number; level: number; xpForLev
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ProgresoScreen() {
-  const { data, todayRecord, saveMetrics, newBadges, clearNewBadges } = useApp();
+  const { data, todayRecord, saveMetrics, newBadges, clearNewBadges, setPreferredCoach } = useApp();
   const [weight, setWeight] = useState(todayRecord?.metrics?.weight?.toString() ?? '');
   const [trainMin, setTrainMin] = useState(todayRecord?.metrics?.trainingMinutes?.toString() ?? '');
   const [readPages, setReadPages] = useState(todayRecord?.metrics?.readingPages?.toString() ?? '');
@@ -244,15 +244,21 @@ export default function ProgresoScreen() {
   const weeklyReport = useMemo(() => buildWeeklyCoachReport(data, selectedCoach), [data, selectedCoach]);
 
   useEffect(() => {
+    const fromUser = user.preferredCoachId;
+    if (fromUser) {
+      setSelectedCoach(fromUser);
+      return;
+    }
     AsyncStorage.getItem(COACH_STORAGE_KEY).then(raw => {
       if (!raw) return;
       const exists = COACHES.some(c => c.id === raw);
       if (exists) setSelectedCoach(raw as CoachId);
     });
-  }, []);
+  }, [user.preferredCoachId]);
 
   async function selectCoach(id: CoachId) {
     setSelectedCoach(id);
+    setPreferredCoach(id);
     await AsyncStorage.setItem(COACH_STORAGE_KEY, id);
   }
 
