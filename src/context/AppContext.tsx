@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
-import { AppData, UserProfile, DayRecord, TaskState, DayMetrics, BadgeId, BADGE_DEFINITIONS, FitnessLevel, OnboardingData, CoachId } from '../types';
+import { AppData, UserProfile, DayRecord, TaskState, MissionState, DayMetrics, BadgeId, BADGE_DEFINITIONS, FitnessLevel, OnboardingData, CoachId } from '../types';
 import { buildProgram } from '../data/program';
+import { getMissionById, getDailyMissions, calcPoints, sumPoints, POINTS_TARGET_NORMAL, POINTS_TARGET_HARD, ALL_MISSIONS } from '../data/missions';
 import { ONBOARDING_KEY } from '../../app/onboarding';
 import { supabase } from '../lib/supabase';
 import {
@@ -136,6 +137,16 @@ interface AppContextType {
   syncing: boolean;
   todayRecord: DayRecord | null;
   todayDefinition: ReturnType<typeof getProgram>[0] | null;
+  // Mission-based points system
+  earnPoints: (missionId: string, units: number) => void;
+  todayMissions: ReturnType<typeof getDailyMissions>;
+  pointsTarget: number;
+  hardMode: boolean;
+  setHardMode: (val: boolean) => void;
+  pinnedMissions: string[];
+  pinMission: (missionId: string) => void;
+  unpinMission: (missionId: string) => void;
+  // Legacy task helpers (still used by penalty screen)
   completeTask: (taskId: string) => void;
   uncompleteTask: (taskId: string) => void;
   markDayComplete: () => void;
@@ -155,11 +166,16 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const HARD_MODE_KEY = 'arise_hard_mode';
+const PINNED_KEY    = 'arise_pinned_missions';
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [newBadges, setNewBadges] = useState<BadgeId[]>([]);
+  const [hardMode, setHardModeState] = useState(false);
+  const [pinnedMissions, setPinnedMissions] = useState<string[]>([]);
 
   const clearNewBadges = useCallback(() => setNewBadges([]), []);
 
@@ -172,6 +188,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user: { ...d.user, badges: [...(d.user.badges ?? []), ...earned] },
     };
   }
+
+  // ── Load hard mode + pinned missions ────────────────────────────────────
+  useEffect(() => {
+    AsyncStorage.multiGet([HARD_MODE_KEY, PINNED_KEY]).then(([hm, pm]) => {
+      if (hm[1] === 'true') setHardModeState(true);
+      if (pm[1]) {
+        try { setPinnedMissions(JSON.parse(pm[1])); } catch {}
+      }
+    });
+  }, []);
 
   // ── Load & sync on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -342,6 +368,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             dayNumber: user.currentDay,
             date: lastDate,
             taskStates: def.tasks.map(t => ({ taskId: t.id, completed: false })),
+            missionStates: [],
+            totalPoints: 0,
+            pointsTarget: hardMode ? POINTS_TARGET_HARD : POINTS_TARGET_NORMAL,
             completed: false,
             missed: true,
             penaltyCompleted: false,
@@ -407,6 +436,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   })();
 
   const canUseGrace = data ? !data.user.graceUsedThisMonth : false;
+  const pointsTarget = hardMode ? POINTS_TARGET_HARD : POINTS_TARGET_NORMAL;
+
+  const currentPhase: 1 | 2 | 3 = !data ? 1
+    : data.user.currentDay <= 30 ? 1
+    : data.user.currentDay <= 60 ? 2 : 3;
+
+  const todayMissions = getDailyMissions(
+    data?.user.currentDay ?? 1,
+    currentPhase,
+    pinnedMissions,
+  );
+
+  // ── Hard mode + pinned ───────────────────────────────────────────────────
+  const setHardMode = useCallback(async (val: boolean) => {
+    setHardModeState(val);
+    await AsyncStorage.setItem(HARD_MODE_KEY, val ? 'true' : 'false');
+  }, []);
+
+  const pinMission = useCallback(async (missionId: string) => {
+    if (pinnedMissions.includes(missionId)) return;
+    const next = [...pinnedMissions, missionId].slice(0, 5); // max 5 pinned
+    setPinnedMissions(next);
+    await AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+  }, [pinnedMissions]);
+
+  const unpinMission = useCallback(async (missionId: string) => {
+    const next = pinnedMissions.filter(id => id !== missionId);
+    setPinnedMissions(next);
+    await AsyncStorage.setItem(PINNED_KEY, JSON.stringify(next));
+  }, [pinnedMissions]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function ensureTodayRecord(d: AppData): DayRecord {
@@ -425,10 +484,75 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dayNumber: d.user.currentDay,
       date: TODAY(),
       taskStates: def.tasks.map(t => ({ taskId: t.id, completed: false })),
+      missionStates: [],
+      totalPoints: 0,
+      pointsTarget: hardMode ? POINTS_TARGET_HARD : POINTS_TARGET_NORMAL,
       completed: false,
       missed: false,
     };
   }
+
+  // ── Mission helper ───────────────────────────────────────────────────────
+  function ensureMissionStates(record: DayRecord, missions: ReturnType<typeof getDailyMissions>): MissionState[] {
+    const existing = record.missionStates ?? [];
+    // Ensure every current mission has a state entry
+    return missions.map(m => {
+      const found = existing.find(s => s.missionId === m.id);
+      return found ?? { missionId: m.id, units: 0, points: 0 };
+    });
+  }
+
+  // ── Earn points ──────────────────────────────────────────────────────────
+  const earnPoints = useCallback((missionId: string, units: number) => {
+    if (!data) return;
+    const mission = getMissionById(missionId);
+    if (!mission) return;
+
+    const newData = { ...data };
+    const record = ensureTodayRecord(newData);
+    const missions = getDailyMissions(newData.user.currentDay, currentPhase, pinnedMissions);
+    const currentStates = ensureMissionStates(record, missions);
+
+    const points = calcPoints(mission, units);
+    const updatedStates: MissionState[] = currentStates.map(s =>
+      s.missionId === missionId ? { ...s, units, points } : s
+    );
+
+    const totalPoints = sumPoints(updatedStates);
+    const target = hardMode ? POINTS_TARGET_HARD : POINTS_TARGET_NORMAL;
+    const completed = totalPoints >= target;
+
+    const updatedRecord: DayRecord = {
+      ...record,
+      missionStates: updatedStates,
+      totalPoints,
+      pointsTarget: target,
+      completed,
+    };
+
+    let user = { ...newData.user };
+    const wasCompleted = record.completed;
+
+    if (completed && !wasCompleted) {
+      // Day just got completed — award XP + advance streak
+      const earned = xpForDay(user.currentDay);
+      user.xp += earned;
+      user.level = levelFromXP(user.xp);
+      user.streak += 1;
+      if (user.streak > user.maxStreak) user.maxStreak = user.streak;
+      user.currentDay = Math.min(user.currentDay + 1, 90);
+      if (user.currentDay >= 90) user.programCompleted = true;
+    }
+
+    newData.user = user;
+    newData.days = [
+      ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
+      updatedRecord,
+    ];
+
+    const withBadges = applyBadges(newData);
+    persistWithRecord(withBadges, updatedRecord);
+  }, [data, hardMode, pinnedMissions, persistWithRecord]);
 
   // ── Task operations ──────────────────────────────────────────────────────
   const completeTask = useCallback((taskId: string) => {
@@ -631,6 +755,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       syncing,
       todayRecord,
       todayDefinition,
+      // Mission system
+      earnPoints,
+      todayMissions,
+      pointsTarget,
+      hardMode,
+      setHardMode,
+      pinnedMissions,
+      pinMission,
+      unpinMission,
+      // Legacy
       completeTask,
       uncompleteTask,
       markDayComplete,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Haptics from 'expo-haptics';
 import {
   View, Text, ScrollView, TouchableOpacity,
@@ -9,7 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp, xpForLevel, levelFromXP } from '../../src/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
-import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '../../src/types';
+import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId, MissionDef } from '../../src/types';
+import { calcPoints, pointsByCategory, ALL_MISSIONS } from '../../src/data/missions';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
 import { getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
 
@@ -125,15 +126,182 @@ const badgeModalStyles = StyleSheet.create({
   btnText: { color: '#fff', fontWeight: '900', fontSize: FONT.base, letterSpacing: 1 },
 });
 
+// ─── Mission card components ──────────────────────────────────────────────────
+function MissionCard({
+  mission,
+  currentUnits,
+  onEarn,
+  stageTheme,
+}: {
+  mission: MissionDef;
+  currentUnits: number;
+  onEarn: (missionId: string, units: number) => void;
+  stageTheme: ReturnType<typeof getStageTheme>;
+}) {
+  const catInfo = CATEGORY_INFO[mission.category as TaskCategory];
+  const pts = calcPoints(mission, currentUnits);
+  const done = pts >= mission.maxPoints;
+  const accentColor = done ? catInfo.color : COLORS.textMuted;
+
+  function handleBinary() {
+    const next = currentUnits >= 1 ? 0 : 1;
+    Haptics.impactAsync(next === 1 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    onEarn(mission.id, next);
+  }
+
+  function handleStepped(units: number) {
+    const next = currentUnits === units ? 0 : units;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onEarn(mission.id, next);
+  }
+
+  function handleProportional(delta: number) {
+    const next = Math.max(0, currentUnits + delta);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onEarn(mission.id, next);
+  }
+
+  return (
+    <View style={[mStyles.card, done && { borderColor: catInfo.color + '60' }]}>
+      {/* Color bar */}
+      <View style={[mStyles.colorBar, { backgroundColor: catInfo.color }]} />
+
+      <View style={mStyles.body}>
+        {/* Header row */}
+        <View style={mStyles.headerRow}>
+          <Text style={mStyles.emoji}>{mission.emoji}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[mStyles.name, done && { color: catInfo.color }]}>{mission.name}</Text>
+            <Text style={mStyles.desc}>{mission.description}</Text>
+          </View>
+          {/* Points badge */}
+          <View style={[mStyles.ptsBadge, done && { backgroundColor: catInfo.color + '20', borderColor: catInfo.color + '60' }]}>
+            <Text style={[mStyles.ptsText, { color: done ? catInfo.color : COLORS.textMuted }]}>
+              {pts}/{mission.maxPoints}pt
+            </Text>
+          </View>
+        </View>
+
+        {/* Controls */}
+        {mission.type === 'binary' && (
+          <TouchableOpacity
+            style={[mStyles.binaryBtn, done && { backgroundColor: catInfo.color }]}
+            onPress={handleBinary}
+            activeOpacity={0.8}
+          >
+            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={done ? '#fff' : COLORS.textMuted} />
+            <Text style={[mStyles.binaryText, done && { color: '#fff' }]}>
+              {done ? '¡Completado!' : 'Marcar como hecho'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {mission.type === 'stepped' && mission.steps && (
+          <View style={mStyles.stepsRow}>
+            {mission.steps.map(step => {
+              const active = currentUnits >= step.units;
+              return (
+                <TouchableOpacity
+                  key={step.units}
+                  style={[mStyles.stepBtn, active && { backgroundColor: catInfo.color, borderColor: catInfo.color }]}
+                  onPress={() => handleStepped(step.units)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[mStyles.stepText, active && { color: '#fff' }]}>{step.label}</Text>
+                  <Text style={[mStyles.stepPts, active && { color: '#fff' }]}>+{step.points}pt</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {mission.type === 'proportional' && (
+          <View style={mStyles.counterRow}>
+            <TouchableOpacity style={mStyles.counterBtn} onPress={() => handleProportional(-1)} activeOpacity={0.7}>
+              <Text style={mStyles.counterBtnText}>−</Text>
+            </TouchableOpacity>
+            <View style={mStyles.counterDisplay}>
+              <Text style={[mStyles.counterValue, { color: catInfo.color }]}>{currentUnits}</Text>
+              <Text style={mStyles.counterUnit}>{mission.unit}</Text>
+            </View>
+            <TouchableOpacity style={mStyles.counterBtn} onPress={() => handleProportional(1)} activeOpacity={0.7}>
+              <Text style={mStyles.counterBtnText}>＋</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const mStyles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: SPACING.sm,
+    overflow: 'hidden',
+  },
+  colorBar: { width: 4 },
+  body: { flex: 1, padding: SPACING.sm, gap: SPACING.sm },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
+  emoji: { fontSize: 22 },
+  name: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
+  desc: { fontSize: FONT.xs, color: COLORS.textMuted, lineHeight: 16 },
+  ptsBadge: {
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: RADIUS.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+  },
+  ptsText: { fontSize: 11, fontWeight: '800' },
+
+  // Binary
+  binaryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: RADIUS.md, padding: 10,
+  },
+  binaryText: { fontSize: FONT.sm, fontWeight: '700', color: COLORS.textMuted },
+
+  // Stepped
+  stepsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  stepBtn: {
+    paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: RADIUS.md, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+  },
+  stepText: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted },
+  stepPts: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+
+  // Proportional counter
+  counterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  counterBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  counterBtnText: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '700', lineHeight: 22 },
+  counterDisplay: { alignItems: 'center', minWidth: 50 },
+  counterValue: { fontSize: FONT.xl, fontWeight: '900' },
+  counterUnit: { fontSize: FONT.xs, color: COLORS.textMuted },
+});
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HoyScreen() {
   const {
     data, todayRecord, todayDefinition,
-    completeTask, uncompleteTask, markDayComplete,
+    earnPoints, todayMissions, pointsTarget,
+    pinnedMissions, pinMission, unpinMission,
     hasPenalty, completePenalty, useGraceDay, canUseGrace,
     newBadges, clearNewBadges,
   } = useApp();
 
-  const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const [showMissionRepo, setShowMissionRepo] = useState(false);
 
   // ── Loading skeleton ──────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -167,11 +335,16 @@ export default function HoyScreen() {
   }
 
   const { user } = data;
-  const tasks = todayDefinition.tasks;
-  const completedCount = todayRecord?.taskStates.filter(ts => ts.completed).length ?? 0;
-  const totalCount = tasks.length;
-  const progress = totalCount > 0 ? completedCount / totalCount : 0;
-  const allDone = progress === 1;
+  // ── Points derived state ───────────────────���────────────────────────────
+  const missionStates = todayRecord?.missionStates ?? [];
+  const totalPoints = todayRecord?.totalPoints ?? 0;
+  const pointsProgress = Math.min(totalPoints / pointsTarget, 1);
+  const dayCompleted = totalPoints >= pointsTarget;
+  const catPts = pointsByCategory(missionStates, todayMissions);
+
+  function getMissionUnits(missionId: string): number {
+    return missionStates.find(s => s.missionId === missionId)?.units ?? 0;
+  }
   const completedDays = data.days.filter(d => d.completed).length;
   const totalReadingPages = data.days.reduce((sum, d) => sum + (d.metrics?.readingPages ?? 0), 0);
   const latestWeight = [...data.days]
@@ -256,24 +429,6 @@ export default function HoyScreen() {
     elevation: 10,
   } as const;
 
-  const isTaskDone = (taskId: string) =>
-    todayRecord?.taskStates.find(ts => ts.taskId === taskId)?.completed ?? false;
-
-  function handleTaskToggle(taskId: string) {
-    if (isTaskDone(taskId)) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      uncompleteTask(taskId);
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      completeTask(taskId);
-    }
-  }
-
-  function handleCompletDay() {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    markDayComplete();
-  }
-
   function handleGrace() {
     if (!canUseGrace) {
       Alert.alert('Sin día de gracia', 'Ya usaste tu día de gracia este mes.');
@@ -347,7 +502,7 @@ export default function HoyScreen() {
   }
 
   // ── Day complete screen ─────────────────────────────────────────────────
-  if (allDone) {
+  if (dayCompleted && todayRecord?.completed) {
     return (
       <LinearGradient colors={['#051A10', '#0A2D1A', '#0D1117']} style={styles.container}>
         <SafeAreaView style={styles.safe}>
@@ -524,19 +679,37 @@ export default function HoyScreen() {
             </View>
           </View>
 
-          {/* Progress bar */}
-          <View style={styles.progressSection}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Progreso del día</Text>
-              <Text style={styles.progressCount}>{completedCount}/{totalCount}</Text>
+          {/* ── Points bar ── */}
+          <View style={styles.pointsSection}>
+            <View style={styles.pointsHeader}>
+              <Text style={styles.pointsLabel}>
+                {dayCompleted ? '✅ DÍA COMPLETADO' : 'PUNTOS DE HOY'}
+              </Text>
+              <Text style={[styles.pointsCount, { color: dayCompleted ? COLORS.success : stageTheme.tabActive }]}>
+                {totalPoints} / {pointsTarget} pts
+              </Text>
             </View>
-            <View style={styles.progressBarBg}>
+            <View style={styles.pointsBarBg}>
               <LinearGradient
-                colors={stageTheme.accent}
+                colors={dayCompleted ? ['#22C55E', '#16A34A'] : stageTheme.accent}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={[styles.progressBarFill, { width: `${progress * 100}%` as any }]}
+                style={[styles.pointsBarFill, { width: `${pointsProgress * 100}%` as any }]}
               />
+            </View>
+            {/* Category breakdown pills */}
+            <View style={styles.catRow}>
+              {(Object.keys(CATEGORY_INFO) as TaskCategory[]).map(cat => {
+                const pts = catPts[cat] ?? 0;
+                const info = CATEGORY_INFO[cat];
+                return pts > 0 ? (
+                  <View key={cat} style={[styles.catPill, { borderColor: info.color + '50', backgroundColor: info.color + '15' }]}>
+                    <Text style={[styles.catPillText, { color: info.color }]}>
+                      {info.label} {pts}pt
+                    </Text>
+                  </View>
+                ) : null;
+              })}
             </View>
           </View>
 
@@ -544,98 +717,145 @@ export default function HoyScreen() {
           <View style={styles.xpSection}>
             <Text style={styles.xpLabel}>Nivel {user.level} — {user.xp} XP</Text>
             <View style={styles.xpBarBg}>
-              <View
-                style={[styles.xpBarFill, { width: `${Math.min(xpProgress * 100, 100)}%` as any }]}
-              />
+              <View style={[styles.xpBarFill, { width: `${Math.min(xpProgress * 100, 100)}%` as any }]} />
             </View>
           </View>
 
-          {/* Tasks */}
-          <Text style={styles.sectionTitle}>TAREAS DE HOY</Text>
-          {tasks.map(task => {
-            const done = isTaskDone(task.id);
-            const catInfo = CATEGORY_INFO[task.category as TaskCategory];
-            const coachTaskIcon = getCoachTaskIcon(coachId, task.category as TaskCategory);
-            const isExpanded = expandedTask === task.id;
+          {/* ── Missions ── */}
+          <View style={styles.missionsHeader}>
+            <Text style={styles.sectionTitle}>MISIONES DE HOY</Text>
+            <Text style={styles.missionsMeta}>{todayMissions.length} misiones · tope 10pt/categoría</Text>
+          </View>
 
-            return (
-              <TouchableOpacity
-                key={task.id}
-                onPress={() => setExpandedTask(isExpanded ? null : task.id)}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.taskCard, done && styles.taskCardDone]}>
-                  <View style={styles.taskRow}>
-                    {/* Category color bar */}
-                    <View style={[styles.taskColorBar, { backgroundColor: catInfo.color }]} />
+          {/* Fixed missions first */}
+          <Text style={styles.missionGroupLabel}>📌 FIJAS</Text>
+          {todayMissions.filter(m => m.isFixed).map(mission => (
+            <MissionCard
+              key={mission.id}
+              mission={mission}
+              currentUnits={getMissionUnits(mission.id)}
+              onEarn={earnPoints}
+              stageTheme={stageTheme}
+            />
+          ))}
 
-                    {/* Task info */}
-                    <View style={styles.taskInfo}>
-                      <View style={styles.taskHeader}>
-                        <Ionicons
-                          name={coachTaskIcon as any}
-                          size={14}
-                          color={catInfo.color}
-                          style={{ marginRight: 4 }}
-                        />
-                        <Text style={[styles.taskCategory, { color: catInfo.color }]}>
-                          {catInfo.label.toUpperCase()}
-                        </Text>
-                      </View>
-                      <Text style={[styles.taskName, done && styles.taskNameDone]}>
-                        {task.name}
-                      </Text>
-                      <Text style={styles.taskTarget}>
-                        {task.target} {task.unit}
-                      </Text>
-                      {isExpanded && (
-                        <Text style={styles.taskDescription}>{task.description}</Text>
-                      )}
-                    </View>
+          {/* Daily rotating missions */}
+          <Text style={[styles.missionGroupLabel, { marginTop: SPACING.sm }]}>🎲 MISIONES DEL DÍA</Text>
+          {todayMissions.filter(m => !m.isFixed).map(mission => (
+            <MissionCard
+              key={mission.id}
+              mission={mission}
+              currentUnits={getMissionUnits(mission.id)}
+              onEarn={earnPoints}
+              stageTheme={stageTheme}
+            />
+          ))}
 
-                    {/* Checkbox */}
-                    <TouchableOpacity
-                      onPress={() => handleTaskToggle(task.id)}
-                      style={[styles.checkbox, done && styles.checkboxDone]}
-                    >
-                      {done && <Ionicons name="checkmark" size={18} color="#FFF" />}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-
-          {/* CTA button */}
+          {/* More missions button */}
           <TouchableOpacity
-            style={[
-              styles.ctaButton,
-              { shadowColor: coachVisual.glowColor },
-              completedCount < totalCount && styles.ctaButtonDisabled,
-            ]}
-            onPress={completedCount < totalCount ? undefined : handleCompletDay}
-            activeOpacity={completedCount < totalCount ? 1 : 0.8}
+            style={styles.repoBtn}
+            onPress={() => setShowMissionRepo(true)}
+            activeOpacity={0.8}
           >
-            <LinearGradient
-              colors={completedCount < totalCount ? ['#2a2a2a', '#1a1a1a'] : stageTheme.accent}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.ctaGradient}
-            >
-              <Text style={styles.ctaButtonText}>
-                {completedCount < totalCount
-                  ? `${totalCount - completedCount} tareas restantes`
-                  : '✅ Completar el día'}
-              </Text>
-            </LinearGradient>
+            <Ionicons name="add-circle-outline" size={18} color={stageTheme.tabActive} />
+            <Text style={[styles.repoBtnText, { color: stageTheme.tabActive }]}>Ver repositorio de misiones</Text>
           </TouchableOpacity>
 
-          <View style={{ height: 20 }} />
+          <View style={{ height: 32 }} />
         </ScrollView>
+
+        {/* ── Mission repository modal ── */}
+        <Modal visible={showMissionRepo} animationType="slide" presentationStyle="pageSheet">
+          <LinearGradient colors={['#0A0A14', '#0F0F1E']} style={{ flex: 1 }}>
+            <SafeAreaView style={{ flex: 1 }}>
+              <View style={repoStyles.header}>
+                <Text style={repoStyles.title}>Repositorio de misiones</Text>
+                <TouchableOpacity onPress={() => setShowMissionRepo(false)}>
+                  <Ionicons name="close-circle" size={28} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={repoStyles.subtitle}>
+                Ancla hasta 5 misiones para que aparezcan todos los días junto a las fijas.
+              </Text>
+              <ScrollView contentContainerStyle={{ padding: SPACING.md, paddingBottom: 40 }}>
+                {(Object.keys(CATEGORY_INFO) as TaskCategory[]).map(cat => {
+                  const catMissions = ALL_MISSIONS.filter(m => m.category === cat && !m.isFixed);
+                  if (!catMissions.length) return null;
+                  const info = CATEGORY_INFO[cat];
+                  return (
+                    <View key={cat} style={{ marginBottom: SPACING.lg }}>
+                      <Text style={[repoStyles.catTitle, { color: info.color }]}>
+                        {info.label.toUpperCase()}
+                      </Text>
+                      {catMissions.map(m => {
+                        const isPinned = pinnedMissions.includes(m.id);
+                        const inToday = todayMissions.some(tm => tm.id === m.id);
+                        return (
+                          <View key={m.id} style={repoStyles.repoCard}>
+                            <Text style={repoStyles.repoEmoji}>{m.emoji}</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={repoStyles.repoName}>{m.name}</Text>
+                              <Text style={repoStyles.repoDesc}>{m.description}</Text>
+                              <Text style={repoStyles.repoPts}>Máx {m.maxPoints} pts</Text>
+                            </View>
+                            {inToday && !isPinned ? (
+                              <Text style={repoStyles.todayBadge}>Hoy</Text>
+                            ) : (
+                              <TouchableOpacity
+                                style={[repoStyles.pinBtn, isPinned && { backgroundColor: info.color }]}
+                                onPress={() => isPinned ? unpinMission(m.id) : pinMission(m.id)}
+                                activeOpacity={0.8}
+                              >
+                                <Ionicons
+                                  name={isPinned ? 'pin' : 'pin-outline'}
+                                  size={16}
+                                  color={isPinned ? '#fff' : COLORS.textMuted}
+                                />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            </SafeAreaView>
+          </LinearGradient>
+        </Modal>
+
       </SafeAreaView>
     </LinearGradient>
   );
 }
+
+const repoStyles = StyleSheet.create({
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },
+  title: { fontSize: FONT.xl, fontWeight: '900', color: COLORS.textPrimary },
+  subtitle: { fontSize: FONT.sm, color: COLORS.textSecondary, paddingHorizontal: SPACING.lg, marginBottom: SPACING.md, lineHeight: 20 },
+  catTitle: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 2, marginBottom: SPACING.sm },
+  repoCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: RADIUS.md, padding: SPACING.sm,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    marginBottom: 8,
+  },
+  repoEmoji: { fontSize: 22 },
+  repoName: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.textPrimary },
+  repoDesc: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 2, lineHeight: 16 },
+  repoPts: { fontSize: FONT.xs, color: COLORS.accent, fontWeight: '700', marginTop: 4 },
+  pinBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  todayBadge: {
+    fontSize: 10, fontWeight: '800', color: COLORS.accent,
+    borderWidth: 1, borderColor: COLORS.accent + '50',
+    borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 3,
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -832,6 +1052,30 @@ const styles = StyleSheet.create({
   challengeBarBg: { height: 5, backgroundColor: 'rgba(255,255,255,0.09)', borderRadius: RADIUS.full, overflow: 'hidden' },
   challengeBarFill: { height: '100%', backgroundColor: COLORS.gold, borderRadius: RADIUS.full },
 
+  // ── Points section ───────────────────────────────────────────────────────
+  pointsSection: { marginBottom: SPACING.md },
+  pointsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  pointsLabel: { fontSize: FONT.xs, color: COLORS.textSecondary, fontWeight: '800', letterSpacing: 1.5 },
+  pointsCount: { fontSize: FONT.lg, fontWeight: '900' },
+  pointsBarBg: { height: 10, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: 10 },
+  pointsBarFill: { height: '100%', borderRadius: RADIUS.full, minWidth: 6 },
+  catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  catPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
+  catPillText: { fontSize: 10, fontWeight: '800' },
+
+  // ── Missions section ─────────────────────────────────────────────────────
+  missionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
+  missionsMeta: { fontSize: FONT.xs, color: COLORS.textMuted },
+  missionGroupLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: COLORS.textMuted, marginBottom: SPACING.sm },
+  repoBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: SPACING.sm, padding: SPACING.sm,
+    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  repoBtnText: { fontSize: FONT.sm, fontWeight: '700' },
+
+  // legacy (kept for safety)
   progressSection: { marginBottom: SPACING.md },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   progressLabel: { fontSize: FONT.sm, color: COLORS.textSecondary, fontWeight: '600' },

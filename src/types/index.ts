@@ -100,10 +100,49 @@ export interface OnboardingData {
   preferredCoachId?: CoachId;
 }
 
+// ── Mission system ────────────────────────────────────────────────────────────
+export type MissionType = 'binary' | 'stepped' | 'proportional';
+
+export interface MissionStep {
+  label: string;   // e.g. "3 comidas"
+  units: number;   // the stepper value
+  points: number;  // pts awarded at this step
+}
+
+export interface MissionDef {
+  id: string;
+  name: string;
+  emoji: string;
+  category: TaskCategory;
+  description: string;
+  type: MissionType;
+  maxPoints: number;        // cap per day for this mission
+  // proportional only
+  pointsPerUnit?: number;
+  unitSize?: number;        // how many real-units per 1 step
+  unit?: string;
+  // stepped only
+  steps?: MissionStep[];
+  // flags
+  isFixed?: boolean;        // always shown (can't be removed)
+  minPhase?: 1 | 2 | 3;    // earliest phase it appears in random pool
+  difficulty?: 'easy' | 'medium' | 'hard';
+}
+
+export interface MissionState {
+  missionId: string;
+  units: number;    // raw input (glasses, pages, minutes, steps index…)
+  points: number;   // computed pts
+}
+
+// ── Day record (migrated to mission-based, keeps taskStates for compat) ───────
 export interface DayRecord {
   dayNumber: number;
   date: string;
-  taskStates: TaskState[];
+  taskStates: TaskState[];          // legacy — kept for backward compat
+  missionStates: MissionState[];    // new points system
+  totalPoints: number;
+  pointsTarget: number;             // 30 normal / 40 hard mode
   completed: boolean;
   missed: boolean;
   penaltyCompleted?: boolean;
