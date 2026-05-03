@@ -337,10 +337,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         // Not logged in — load from AsyncStorage
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const [raw, onboardingRaw] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem(ONBOARDING_KEY),
+        ]);
         if (raw) {
           const stored: AppData = JSON.parse(raw);
           setData(handleDayTransition(stored));
+        } else {
+          const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
+          const initial = createInitialData('Usuario', onboarding);
+          setData(initial);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
         }
       }
     } catch (e) {
@@ -486,9 +494,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Derived state ────────────────────────────────────────────────────────
-  const todayDefinition = data
-    ? (getProgram()[data.user.currentDay - 1] ?? null)
-    : null;
+  const todayDefinition = (() => {
+    if (!data) return null;
+    const program = getProgram();
+    if (!program.length) return null;
+    const safeIndex = Math.max(0, Math.min((data.user.currentDay ?? 1) - 1, program.length - 1));
+    return program[safeIndex] ?? null;
+  })();
 
   const todayRecord: DayRecord | null = data
     ? (data.days.find(d => d.dayNumber === data.user.currentDay) ?? null)
