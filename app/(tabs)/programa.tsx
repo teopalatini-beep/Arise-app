@@ -9,8 +9,21 @@ import { getStageTheme } from '../../src/lib/progression';
 const COLS = 9; // 9 columnas × 10 filas = 90 días
 
 export default function ProgramaScreen() {
-  const { data, getDayRecord } = useApp();
-  if (!data) return null;
+  const { data, getDayRecord, loading } = useApp();
+  if (!data) {
+    return (
+      <LinearGradient colors={getStageTheme().background} style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyTitle}>{loading ? 'Cargando programa...' : 'No pudimos cargar tu programa'}</Text>
+            <Text style={styles.emptyText}>
+              Verifica conexión e inicia sesión nuevamente desde Config si es necesario.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
   const { user } = data;
   const stageTheme = getStageTheme(user);
@@ -256,4 +269,7 @@ const styles = StyleSheet.create({
   milestoneName: { fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary },
   milestoneNameDone: { color: COLORS.success },
   milestoneDesc: { fontSize: FONT.sm, color: COLORS.textSecondary, marginTop: 2 },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg },
+  emptyTitle: { color: COLORS.textPrimary, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
+  emptyText: { color: COLORS.textSecondary, fontSize: FONT.sm, textAlign: 'center', lineHeight: 20 },
 });

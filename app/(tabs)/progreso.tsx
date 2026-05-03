@@ -213,7 +213,7 @@ function XPRing({ xp, level, xpForLevel }: { xp: number; level: number; xpForLev
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ProgresoScreen() {
-  const { data, todayRecord, saveMetrics, newBadges, clearNewBadges, setPreferredCoach } = useApp();
+  const { data, todayRecord, saveMetrics, newBadges, clearNewBadges, setPreferredCoach, loading } = useApp();
   const [weight, setWeight] = useState(todayRecord?.metrics?.weight?.toString() ?? '');
   const [trainMin, setTrainMin] = useState(todayRecord?.metrics?.trainingMinutes?.toString() ?? '');
   const [readPages, setReadPages] = useState(todayRecord?.metrics?.readingPages?.toString() ?? '');
@@ -229,7 +229,21 @@ export default function ProgresoScreen() {
   const [sharingStory, setSharingStory] = useState(false);
   const storyRef = useRef<ViewShot | null>(null);
 
-  if (!data) return null;
+  if (!data) {
+    const fallbackTheme = getStageTheme();
+    return (
+      <LinearGradient colors={fallbackTheme.background} style={styles.screen}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.empty}>
+            <Ionicons name="analytics-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.emptyText}>
+              {loading ? 'Cargando progreso...' : 'No pudimos cargar tu progreso.\nRevisa conexión e inicia sesión nuevamente.'}
+            </Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
   const { user, days } = data;
   const powerStage = getPowerStage(user);
   const stageTheme = getStageTheme(user);

@@ -223,7 +223,7 @@ const toolStyles = StyleSheet.create({
 });
 
 export default function DiarioScreen() {
-  const { data, todayRecord, saveJournal, getDayRecord } = useApp();
+  const { data, todayRecord, saveJournal, getDayRecord, loading } = useApp();
   const [text, setText] = useState(todayRecord?.journal ?? '');
   const [saved, setSaved] = useState(false);
   const [viewingDay, setViewingDay] = useState<number | null>(null);
@@ -232,7 +232,20 @@ export default function DiarioScreen() {
     setText(todayRecord?.journal ?? '');
   }, [todayRecord?.journal]);
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <LinearGradient colors={getStageTheme().background} style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.emptyState}>
+            <Ionicons name="book-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.emptyText}>
+              {loading ? 'Cargando diario...' : 'No pudimos cargar tu diario.\nRevisa conexión e inicia sesión de nuevo.'}
+            </Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
   const { user, days } = data;
   const stageTheme = getStageTheme(user);

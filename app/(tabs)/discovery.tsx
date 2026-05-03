@@ -812,12 +812,25 @@ function ToolModal({ tool, onClose }: { tool: Tool | null; onClose: () => void }
 type Tab = 'ejercicios' | 'libros' | 'mentalidad' | 'herramientas';
 
 export default function DiscoveryScreen() {
-  const { data } = useApp();
+  const { data, loading } = useApp();
   const [activeTab, setActiveTab] = useState<Tab>('ejercicios');
   const [selected, setSelected] = useState<Exercise | Book | MindsetItem | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
 
-  if (!data) return null;
+  if (!data) {
+    const fallbackTheme = getStageTheme();
+    return (
+      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.emptyWrap}>
+            <Ionicons name="compass-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>{loading ? 'Cargando discovery...' : 'No pudimos cargar esta sección'}</Text>
+            <Text style={styles.emptyText}>Verifica conexión e inicia sesión nuevamente.</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
   const { user } = data;
   const stageTheme = getStageTheme(user);
@@ -998,6 +1011,9 @@ const styles = StyleSheet.create({
   tabLabelActive: { color: COLORS.accent },
   phaseHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md, marginBottom: SPACING.sm },
   phaseTitle: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1.5 },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg, gap: 8 },
+  emptyTitle: { color: COLORS.textPrimary, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center' },
+  emptyText: { color: COLORS.textSecondary, fontSize: FONT.sm, textAlign: 'center' },
 });
 
 const cardStyles = StyleSheet.create({

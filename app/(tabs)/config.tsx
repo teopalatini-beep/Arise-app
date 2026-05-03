@@ -22,7 +22,7 @@ import {
 } from '../../src/lib/notifications';
 
 export default function ConfigScreen() {
-  const { data, resetProgram, canUseGrace } = useApp();
+  const { data, resetProgram, canUseGrace, loading } = useApp();
   const { logout, userEmail } = useAuth();
   const [notif, setNotif] = useState<NotifSettings>(DEFAULT_SETTINGS);
   const [busyAction, setBusyAction] = useState<'none' | 'backup' | 'delete'>('none');
@@ -55,9 +55,21 @@ export default function ConfigScreen() {
     await updateNotif({ enabled: value });
   }
 
-  if (!data) return null;
+  const stageTheme = getStageTheme(data?.user);
+  if (!data) {
+    return (
+      <LinearGradient colors={stageTheme.background} style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.emptyWrap}>
+            <Ionicons name="settings-outline" size={40} color={COLORS.textMuted} />
+            <Text style={styles.emptyTitle}>{loading ? 'Cargando configuracion...' : 'No pudimos cargar configuracion'}</Text>
+            <Text style={styles.emptyText}>Verifica conexión e inicia sesión nuevamente.</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
   const { user } = data;
-  const stageTheme = getStageTheme(user);
 
   const xpNext = xpForLevel(user.level + 1);
   const xpCurrent = xpForLevel(user.level);
@@ -605,4 +617,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md, borderWidth: 1, borderColor: 'rgba(248,113,113,0.3)',
   },
   resetText: { fontSize: FONT.base, color: COLORS.danger, fontWeight: '600' },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg, gap: 8 },
+  emptyTitle: { color: COLORS.textPrimary, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center' },
+  emptyText: { color: COLORS.textSecondary, fontSize: FONT.sm, textAlign: 'center' },
 });
