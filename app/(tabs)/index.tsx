@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, SafeAreaView, Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -133,11 +135,32 @@ export default function HoyScreen() {
 
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
+  // ── Loading skeleton ──────────────────────────────────────────────────
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!data) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(shimmerAnim, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ])
+      ).start();
+    }
+  }, [data]);
+
   if (!data || !todayDefinition) {
+    const opacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
     return (
-      <LinearGradient colors={getStageTheme().background} style={styles.container}>
+      <LinearGradient colors={['#05050A', '#0A0A14', '#0F0F1E']} style={styles.container}>
         <SafeAreaView style={styles.safe}>
-          <Text style={styles.loadingText}>Cargando…</Text>
+          <ScrollView contentContainerStyle={styles.scroll}>
+            {[140, 80, 100, 80, 80].map((h, i) => (
+              <Animated.View
+                key={i}
+                style={[styles.skeletonBlock, { height: h, opacity, marginBottom: 12 }]}
+              />
+            ))}
+          </ScrollView>
         </SafeAreaView>
       </LinearGradient>
     );
@@ -238,10 +261,17 @@ export default function HoyScreen() {
 
   function handleTaskToggle(taskId: string) {
     if (isTaskDone(taskId)) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       uncompleteTask(taskId);
     } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       completeTask(taskId);
     }
+  }
+
+  function handleCompletDay() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    markDayComplete();
   }
 
   function handleGrace() {
@@ -583,7 +613,7 @@ export default function HoyScreen() {
               { shadowColor: coachVisual.glowColor },
               completedCount < totalCount && styles.ctaButtonDisabled,
             ]}
-            onPress={completedCount < totalCount ? undefined : markDayComplete}
+            onPress={completedCount < totalCount ? undefined : handleCompletDay}
             activeOpacity={completedCount < totalCount ? 1 : 0.8}
           >
             <LinearGradient
@@ -649,6 +679,11 @@ const styles = StyleSheet.create({
   },
   scroll: { padding: SPACING.md },
   loadingText: { color: COLORS.textSecondary, textAlign: 'center', marginTop: 100 },
+  skeletonBlock: {
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 14,
+    width: '100%',
+  },
 
   header: {
     flexDirection: 'row',
