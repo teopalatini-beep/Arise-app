@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -7,6 +7,8 @@ import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
 import { getStageTheme } from '../../src/lib/progression';
 
 const COLS = 9; // 9 columnas × 10 filas = 90 días
+const SCREEN_W = Dimensions.get('window').width;
+const CELL = Math.floor((SCREEN_W - SPACING.md * 2 - (COLS - 1) * 4) / COLS);
 
 export default function ProgramaScreen() {
   const { data, getDayRecord, loading } = useApp();
@@ -134,7 +136,7 @@ export default function ProgramaScreen() {
             );
           })}
 
-          <View style={{ height: 20 }} />
+          <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -208,12 +210,12 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 5,
+    gap: 4,
     marginBottom: SPACING.md,
   },
   dayCell: {
-    width: 30,
-    height: 30,
+    width: CELL,
+    height: CELL,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',

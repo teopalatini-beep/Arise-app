@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useApp } from '../src/context/AppContext';
@@ -70,6 +70,7 @@ export default function WelcomeScreen() {
 
   return (
     <LinearGradient colors={['#05050A', '#0A0A14', '#0F0F1E']} style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
 
       {/* Glow de fondo — chakra */}
       <Animated.View style={[styles.glowBg, { opacity: glowOpacity }]} />
@@ -129,12 +130,14 @@ export default function WelcomeScreen() {
         </Animated.View>
 
       </Animated.View>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1 },
+  safeArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   glowBg: {
     position: 'absolute',

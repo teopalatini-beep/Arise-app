@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  SafeAreaView, Modal, Pressable,
+  SafeAreaView, Modal, Pressable, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -558,7 +558,7 @@ function DetailModal({ item, onClose, stageTheme }: { item: Exercise | Book | Mi
 // ─── Card components ──────────────────────────────────────────────────────────
 function ExerciseCard({ item, locked, onPress }: { item: Exercise; locked: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={locked ? undefined : onPress} activeOpacity={locked ? 1 : 0.8}>
+    <TouchableOpacity onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }} activeOpacity={0.8}>
       <View style={[cardStyles.card, locked && cardStyles.locked, { borderColor: item.color + '30' }]}>
         <View style={[cardStyles.emoji, { backgroundColor: item.color + '20' }]}>
           <Text style={{ fontSize: 22 }}>{locked ? '🔒' : item.emoji}</Text>
@@ -579,7 +579,7 @@ function ExerciseCard({ item, locked, onPress }: { item: Exercise; locked: boole
 
 function BookCard({ item, locked, onPress }: { item: Book; locked: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={locked ? undefined : onPress} activeOpacity={locked ? 1 : 0.8}>
+    <TouchableOpacity onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }} activeOpacity={0.8}>
       <View style={[cardStyles.card, locked && cardStyles.locked, { borderColor: item.color + '30' }]}>
         <View style={[cardStyles.emoji, { backgroundColor: item.color + '20' }]}>
           <Text style={{ fontSize: 22 }}>{locked ? '🔒' : item.emoji}</Text>
@@ -599,7 +599,7 @@ function BookCard({ item, locked, onPress }: { item: Book; locked: boolean; onPr
 
 function MindsetCard({ item, locked, onPress }: { item: MindsetItem; locked: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={locked ? undefined : onPress} activeOpacity={locked ? 1 : 0.8}>
+    <TouchableOpacity onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }} activeOpacity={0.8}>
       <View style={[cardStyles.card, locked && cardStyles.locked, { borderColor: item.color + '30' }]}>
         <View style={[cardStyles.emoji, { backgroundColor: item.color + '20' }]}>
           <Text style={{ fontSize: 22 }}>{locked ? '🔒' : item.emoji}</Text>
@@ -757,8 +757,8 @@ function ToolModal({ tool, onClose }: { tool: Tool | null; onClose: () => void }
   if (!tool) return null;
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={modalStyles.backdrop} onPress={onClose}>
-        <View style={{ flex: 1 }} />
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         <LinearGradient colors={['#0D1628', '#111E35']} style={modalStyles.sheet}>
           <ScrollView contentContainerStyle={modalStyles.content} showsVerticalScrollIndicator={false}>
             <View style={modalStyles.handle} />
@@ -803,7 +803,7 @@ function ToolModal({ tool, onClose }: { tool: Tool | null; onClose: () => void }
             </Pressable>
           </ScrollView>
         </LinearGradient>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -980,7 +980,7 @@ export default function DiscoveryScreen() {
             </>
           )}
 
-          <View style={{ height: 30 }} />
+          <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
 
@@ -1005,7 +1005,7 @@ const styles = StyleSheet.create({
   phaseBarFill: { height: '100%', borderRadius: RADIUS.full },
   phaseProgress: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.lg },
   tabRow: { flexDirection: 'row', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 4, gap: 2, marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
-  tab: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 6, borderRadius: RADIUS.md },
+  tab: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 10, borderRadius: RADIUS.md },
   tabActive: { backgroundColor: 'rgba(72,149,239,0.15)' },
   tabLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '600' },
   tabLabelActive: { color: COLORS.accent },

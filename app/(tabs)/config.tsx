@@ -376,7 +376,9 @@ export default function ConfigScreen() {
             <View style={styles.toggleRow}>
               <Ionicons name="moon" size={18} color={COLORS.textSecondary} />
               <Text style={styles.toggleLabel}>Modo oscuro</Text>
-              <Switch value={true} disabled trackColor={{ true: COLORS.accent }} />
+              <View style={{ backgroundColor: 'rgba(232,70,10,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                <Text style={{ color: '#E8460A', fontSize: 11, fontWeight: '700' }}>Solo modo oscuro</Text>
+              </View>
             </View>
           </View>
 
@@ -486,7 +488,7 @@ export default function ConfigScreen() {
             <Text style={[styles.resetText, { color: COLORS.textSecondary }]}>Cerrar sesión</Text>
           </TouchableOpacity>
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -591,7 +593,7 @@ const styles = StyleSheet.create({
   timeCol: { gap: 6 },
   timeLabel: { fontSize: FONT.xs, color: COLORS.textSecondary, fontWeight: '600' },
   timeChip: {
-    paddingHorizontal: 10, paddingVertical: 5,
+    paddingHorizontal: 10, paddingVertical: 12,
     borderRadius: RADIUS.full, borderWidth: 1,
     borderColor: COLORS.border, backgroundColor: COLORS.bgCard,
   },

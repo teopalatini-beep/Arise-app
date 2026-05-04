@@ -350,7 +350,7 @@ export default function ProgresoScreen() {
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
             {/* Header */}
@@ -708,7 +708,7 @@ export default function ProgresoScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={{ height: 30 }} />
+            <View style={{ height: 100 }} />
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -726,8 +726,8 @@ export default function ProgresoScreen() {
       />
 
       <Modal visible={showStoryModal} transparent animationType="slide" onRequestClose={() => setShowStoryModal(false)}>
-        <Pressable style={storyStyles.backdrop} onPress={() => setShowStoryModal(false)}>
-          <View style={{ flex: 1 }} />
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowStoryModal(false)} />
           <View style={storyStyles.sheet}>
             <ViewShot
               ref={(ref) => { storyRef.current = ref; }}
@@ -757,7 +757,7 @@ export default function ProgresoScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Modal>
     </LinearGradient>
   );
@@ -793,8 +793,8 @@ function WeeklyReviewModal({ visible, onClose, stageTheme, weekNumber, weekDays,
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={weekStyles.backdrop} onPress={onClose}>
-        <View style={{ flex: 1 }} />
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
         <LinearGradient colors={[stageTheme.background[1], stageTheme.background[2]]} style={weekStyles.sheet}>
           <ScrollView contentContainerStyle={weekStyles.content} showsVerticalScrollIndicator={false}>
             <View style={weekStyles.handle} />
@@ -888,7 +888,7 @@ function WeeklyReviewModal({ visible, onClose, stageTheme, weekNumber, weekDays,
             </Pressable>
           </ScrollView>
         </LinearGradient>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -1038,7 +1038,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
+    paddingVertical: 12,
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
   coachChipActive: {
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
   saveText: { color: '#fff', fontWeight: '700', fontSize: FONT.base },
   ratingSection: { marginTop: SPACING.sm, marginBottom: SPACING.sm },
   ratingRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  ratingChip: { width: 30, height: 30, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
+  ratingChip: { minHeight: 44, flex: 1, paddingHorizontal: 4, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
   ratingText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
   moodChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
 });

@@ -281,7 +281,7 @@ const mStyles = StyleSheet.create({
   // Proportional counter
   counterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   counterBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -769,7 +769,7 @@ export default function HoyScreen() {
             <Text style={[styles.repoBtnText, { color: stageTheme.tabActive }]}>Ver repositorio de misiones</Text>
           </TouchableOpacity>
 
-          <View style={{ height: 32 }} />
+          <View style={{ height: 100 }} />
         </ScrollView>
 
         {/* ── Mission repository modal ── */}
@@ -778,7 +778,7 @@ export default function HoyScreen() {
             <SafeAreaView style={{ flex: 1 }}>
               <View style={repoStyles.header}>
                 <Text style={repoStyles.title}>Repositorio de misiones</Text>
-                <TouchableOpacity onPress={() => setShowMissionRepo(false)}>
+                <TouchableOpacity onPress={() => setShowMissionRepo(false)} style={{ padding: 8 }}>
                   <Ionicons name="close-circle" size={28} color={COLORS.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -854,7 +854,7 @@ const repoStyles = StyleSheet.create({
   repoDesc: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 2, lineHeight: 16 },
   repoPts: { fontSize: FONT.xs, color: COLORS.accent, fontWeight: '700', marginTop: 4 },
   pinBtn: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -1325,7 +1325,7 @@ function PenaltyScreen({
   return (
     <LinearGradient colors={['#0A0005', '#1A0008', '#0D0000']} style={styles.container}>
       <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
             <View style={penaltyStyles.header}>

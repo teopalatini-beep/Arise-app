@@ -275,7 +275,7 @@ export default function DiarioScreen() {
             </TouchableOpacity>
             <Text style={styles.viewerDay}>Día {viewingDay}</Text>
           </View>
-          <ScrollView contentContainerStyle={styles.scroll}>
+          <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
             <Text style={styles.viewerText}>{viewingRecord.journal}</Text>
           </ScrollView>
         </SafeAreaView>
@@ -287,7 +287,7 @@ export default function DiarioScreen() {
     <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
         >
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -401,7 +401,7 @@ export default function DiarioScreen() {
               </View>
             )}
 
-            <View style={{ height: 40 }} />
+            <View style={{ height: 100 }} />
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   charCount: { fontSize: FONT.xs, color: COLORS.textMuted },
   saveButton: { borderRadius: RADIUS.md, overflow: 'hidden' },
   saveGradient: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
     paddingHorizontal: SPACING.md, gap: 6,
   },
   saveText: { color: '#fff', fontWeight: '700', fontSize: FONT.sm },

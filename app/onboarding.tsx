@@ -237,7 +237,7 @@ export default function OnboardingScreen() {
           {step === 1 && (
             <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
             <View>
-              <Text style={styles.stepLabel}>PASO 1 DE 3</Text>
+              <Text style={styles.stepLabel}>PASO 1 DE 6</Text>
               <Text style={styles.stepTitle}>¿Cuál es tu{'\n'}objetivo principal?</Text>
               <Text style={styles.stepSubtitle}>Esto personaliza el enfoque de tu programa.</Text>
               <View style={styles.optionsGrid}>
@@ -262,7 +262,7 @@ export default function OnboardingScreen() {
           {step === 2 && (
             <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
             <View>
-              <Text style={styles.stepLabel}>PASO 2 DE 3</Text>
+              <Text style={styles.stepLabel}>PASO 2 DE 6</Text>
               <Text style={styles.stepTitle}>¿Cuál es tu nivel{'\n'}de fitness actual?</Text>
               <Text style={styles.stepSubtitle}>Sé honesto — el programa se adapta a vos.</Text>
               <View style={styles.optionsList}>
@@ -290,9 +290,9 @@ export default function OnboardingScreen() {
 
           {/* STEP 3 — Datos físicos */}
           {step === 3 && (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
               <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Text style={styles.stepLabel}>PASO 3 DE 5</Text>
+                <Text style={styles.stepLabel}>PASO 3 DE 6</Text>
                 <Text style={styles.stepTitle}>Tu punto{'\n'}de partida</Text>
                 <Text style={styles.stepSubtitle}>Datos opcionales para medir tu evolución real a lo largo de 90 días.</Text>
 
@@ -389,9 +389,9 @@ export default function OnboardingScreen() {
 
           {/* STEP 4 — Objetivos medibles */}
           {step === 4 && (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
               <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Text style={styles.stepLabel}>PASO 4 DE 5</Text>
+                <Text style={styles.stepLabel}>PASO 4 DE 6</Text>
                 <Text style={styles.stepTitle}>Tus objetivos{'\n'}en 90 días</Text>
                 <Text style={styles.stepSubtitle}>La app va a trackear tu progreso hacia estas metas. Podés saltear cualquiera.</Text>
 
@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: RADIUS.md,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 8,
+    paddingVertical: 12,
     color: COLORS.textPrimary,
     textAlign: 'center',
     fontWeight: '700',
@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
   },
 
   hoursGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
-  hourChip: { paddingHorizontal: SPACING.md, paddingVertical: 10,
+  hourChip: { paddingHorizontal: SPACING.md, paddingVertical: 14,
     borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
     backgroundColor: 'rgba(255,255,255,0.05)' },
   hourChipActive: { backgroundColor: '#E8460A', borderColor: '#E8460A' },
@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: RADIUS.full,
     borderWidth: 1,
     borderColor: COLORS.border,

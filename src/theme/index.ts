@@ -24,7 +24,7 @@ export const COLORS = {
   // Textos
   textPrimary:   '#F5F0FF',
   textSecondary: '#9490A8',
-  textMuted:     '#3D3A50',
+  textMuted:     '#6B6880',
 
   // Separadores
   border:     'rgba(255,255,255,0.07)',
