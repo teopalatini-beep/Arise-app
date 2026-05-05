@@ -22,6 +22,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "ARISE no usa tu cámara.",
         "NSPhotoLibraryUsageDescription": "ARISE no accede a tus fotos.",
+        "NSCalendarsUsageDescription": "ARISE agrega tus misiones y bloques de entrenamiento a tu calendario.",
+        "NSRemindersUsageDescription": "ARISE puede crear recordatorios para tus misiones diarias.",
         "UIBackgroundModes": [
           "fetch",
           "remote-notification"
@@ -38,7 +40,9 @@
       "versionCode": 1,
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -48,6 +52,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-calendar",
       [
         "expo-notifications",
         {

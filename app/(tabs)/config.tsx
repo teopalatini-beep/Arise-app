@@ -20,6 +20,7 @@ import {
   loadNotifSettings, saveNotifSettings,
   scheduleAllNotifications, requestPermissions,
 } from '../../src/lib/notifications';
+import { requestCalendarPermission, addMilestoneEvent } from '../../src/lib/calendar';
 
 export default function ConfigScreen() {
   const { data, resetProgram, canUseGrace, loading } = useApp();
@@ -382,6 +383,57 @@ export default function ConfigScreen() {
             </View>
           </View>
 
+          {/* Google Calendar */}
+          <Text style={styles.sectionTitle}>📅 CALENDARIO</Text>
+          <View style={styles.card}>
+            <Text style={[styles.aboutText, { marginBottom: SPACING.md }]}>
+              Sincronizá tus misiones diarias con Google Calendar (o el calendario nativo de tu teléfono).
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: stageTheme.tabActive + '60', backgroundColor: stageTheme.tabActive + '12' }]}
+              activeOpacity={0.8}
+              onPress={async () => {
+                const granted = await requestCalendarPermission();
+                if (granted) {
+                  Alert.alert('✅ Permiso concedido', 'Ahora podés agendar tus misiones desde la pantalla de inicio tocando "Agendar".');
+                } else {
+                  Alert.alert('Sin acceso', 'Habilitá el acceso al calendario en Ajustes del sistema para usar esta función.');
+                }
+              }}
+            >
+              <Ionicons name="calendar-outline" size={16} color={stageTheme.tabActive} />
+              <Text style={[styles.actionBtnText, { color: stageTheme.tabActive }]}>Activar integración de calendario</Text>
+            </TouchableOpacity>
+            {data?.user.startDate && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { marginTop: SPACING.sm, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)' }]}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  const start = new Date(data.user.startDate!);
+                  const milestones = [
+                    { name: '🌿 Fase 1 completa — 30 días', days: 30 },
+                    { name: '⚔️ Fase 2 completa — 60 días', days: 60 },
+                    { name: '👑 ARISE COMPLETO — 90 días', days: 90 },
+                  ];
+                  let count = 0;
+                  for (const m of milestones) {
+                    const date = new Date(start);
+                    date.setDate(start.getDate() + m.days - 1);
+                    date.setHours(20, 0, 0, 0);
+                    if (date > new Date()) {
+                      const ok = await addMilestoneEvent(m.name, date);
+                      if (ok) count++;
+                    }
+                  }
+                  Alert.alert('📅 Hitos agregados', count > 0 ? `${count} fechas importantes de ARISE fueron agregadas a tu calendario.` : 'Ya pasaron todos los hitos o no se pudo acceder al calendario.');
+                }}
+              >
+                <Ionicons name="flag-outline" size={16} color={COLORS.textSecondary} />
+                <Text style={[styles.actionBtnText, { color: COLORS.textSecondary }]}>Agregar hitos al calendario (días 30/60/90)</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* About */}
           <Text style={styles.sectionTitle}>SOBRE ARISE</Text>
           <View style={styles.card}>
@@ -619,6 +671,12 @@ const styles = StyleSheet.create({
     padding: SPACING.md, borderWidth: 1, borderColor: 'rgba(248,113,113,0.3)',
   },
   resetText: { fontSize: FONT.base, color: COLORS.danger, fontWeight: '600' },
+  actionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    borderWidth: 1, borderRadius: RADIUS.md,
+    padding: SPACING.md,
+  },
+  actionBtnText: { fontSize: FONT.sm, fontWeight: '600', flex: 1 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg, gap: 8 },
   emptyTitle: { color: COLORS.textPrimary, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center' },
   emptyText: { color: COLORS.textSecondary, fontSize: FONT.sm, textAlign: 'center' },

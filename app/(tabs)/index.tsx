@@ -13,6 +13,7 @@ import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId, M
 import { calcPoints, pointsByCategory, ALL_MISSIONS } from '../../src/data/missions';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
 import { getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
+import { addMissionsToCalendar } from '../../src/lib/calendar';
 
 const TRACK_DIRECTION: Record<string, string> = {
   fat_loss: 'Direccion: crear deficit sostenible sin perder masa muscular.',
@@ -302,6 +303,7 @@ export default function HoyScreen() {
   } = useApp();
 
   const [showMissionRepo, setShowMissionRepo] = useState(false);
+  const [addingToCalendar, setAddingToCalendar] = useState(false);
 
   // ── Loading skeleton ──────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -428,6 +430,28 @@ export default function HoyScreen() {
     shadowOffset: { width: 0, height: 5 },
     elevation: 10,
   } as const;
+
+  async function handleAddToCalendar() {
+    if (addingToCalendar) return;
+    setAddingToCalendar(true);
+    try {
+      const count = await addMissionsToCalendar(
+        todayMissions,
+        user.currentDay,
+        data?.user.goals ? 7 : 7,
+      );
+      if (count > 0) {
+        Alert.alert(
+          '📅 Agregado al calendario',
+          `${count} misiones del día ${user.currentDay} fueron agregadas a tu calendario ARISE.`,
+        );
+      }
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo acceder al calendario. Verificá los permisos en Ajustes.');
+    } finally {
+      setAddingToCalendar(false);
+    }
+  }
 
   function handleGrace() {
     if (!canUseGrace) {
@@ -731,8 +755,21 @@ export default function HoyScreen() {
 
           {/* ── Missions ── */}
           <View style={styles.missionsHeader}>
-            <Text style={styles.sectionTitle}>MISIONES DE HOY</Text>
-            <Text style={styles.missionsMeta}>{todayMissions.length} misiones · tope 10pt/categoría</Text>
+            <View>
+              <Text style={styles.sectionTitle}>MISIONES DE HOY</Text>
+              <Text style={styles.missionsMeta}>{todayMissions.length} misiones · tope 10pt/categoría</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.calendarBtn, addingToCalendar && { opacity: 0.5 }]}
+              onPress={handleAddToCalendar}
+              activeOpacity={0.8}
+              disabled={addingToCalendar}
+            >
+              <Ionicons name="calendar-outline" size={16} color={stageTheme.tabActive} />
+              <Text style={[styles.calendarBtnText, { color: stageTheme.tabActive }]}>
+                {addingToCalendar ? '...' : 'Agendar'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Fixed missions first */}
@@ -1079,7 +1116,15 @@ const styles = StyleSheet.create({
   catPillText: { fontSize: 10, fontWeight: '800' },
 
   // ── Missions section ─────────────────────────────────────────────────────
-  missionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
+  missionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  calendarBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: RADIUS.md, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  calendarBtnText: { fontSize: FONT.xs, fontWeight: '700' },
   missionsMeta: { fontSize: FONT.xs, color: COLORS.textMuted },
   missionGroupLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: COLORS.textMuted, marginBottom: SPACING.sm },
   repoBtn: {
