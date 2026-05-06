@@ -3,16 +3,17 @@ import * as Haptics from 'expo-haptics';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, SafeAreaView, Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
-  Animated,
+  Animated, Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp, xpForLevel, levelFromXP } from '../../src/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
 import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId, MissionDef } from '../../src/types';
 import { calcPoints, pointsByCategory, ALL_MISSIONS } from '../../src/data/missions';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
-import { getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
+import { buildWeeklyCoachReport, getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
 import { addMissionsToCalendar } from '../../src/lib/calendar';
 import PomodoroTimer from '../../src/components/PomodoroTimer';
 import CoachParticles from '../../src/components/CoachParticles';
@@ -322,6 +323,172 @@ const mStyles = StyleSheet.create({
   timerBtnText: { fontSize: FONT.sm, fontWeight: '700' },
 });
 
+// ─── Weekly Review Modal ──────────────────────────────────────────────────────
+const WEEKLY_REVIEW_KEY = (week: number) => `arise_weekly_review_v1_week_${week}`;
+
+function WeeklyReviewModal({
+  weekNumber,
+  stats,
+  coachName,
+  coachEmoji,
+  wins,
+  focus,
+  coachMessage,
+  onClose,
+}: {
+  weekNumber: number;
+  stats: { completed: number; trainMin: number; readPages: number; breathMin: number };
+  coachName: string;
+  coachEmoji: string;
+  wins: string[];
+  focus: string[];
+  coachMessage: string;
+  onClose: (intention: string) => void;
+}) {
+  const [intention, setIntention] = useState('');
+  const completionColor = stats.completed >= 6 ? COLORS.success : stats.completed >= 4 ? COLORS.warning : COLORS.danger;
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={() => onClose(intention)}>
+      <Pressable style={wrStyles.backdrop} onPress={() => onClose(intention)} />
+      <View style={wrStyles.sheet}>
+        <LinearGradient colors={['#111E35', '#0D1628']} style={wrStyles.content}>
+          <View style={wrStyles.handle} />
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Header */}
+            <View style={wrStyles.header}>
+              <View>
+                <Text style={wrStyles.weekLabel}>SEMANA {weekNumber - 1} — REVIEW</Text>
+                <Text style={wrStyles.headerTitle}>¿Cómo fue tu semana?</Text>
+              </View>
+              <Text style={{ fontSize: 32 }}>📋</Text>
+            </View>
+
+            {/* Stats row */}
+            <View style={wrStyles.statsRow}>
+              <View style={[wrStyles.statBox, { borderColor: completionColor + '50' }]}>
+                <Text style={[wrStyles.statNum, { color: completionColor }]}>{stats.completed}/7</Text>
+                <Text style={wrStyles.statLabel}>Días</Text>
+              </View>
+              <View style={wrStyles.statBox}>
+                <Text style={wrStyles.statNum}>{stats.trainMin}</Text>
+                <Text style={wrStyles.statLabel}>Min entreno</Text>
+              </View>
+              <View style={wrStyles.statBox}>
+                <Text style={wrStyles.statNum}>{stats.readPages}</Text>
+                <Text style={wrStyles.statLabel}>Págs leídas</Text>
+              </View>
+              {stats.breathMin > 0 && (
+                <View style={wrStyles.statBox}>
+                  <Text style={wrStyles.statNum}>{stats.breathMin}</Text>
+                  <Text style={wrStyles.statLabel}>Min resp.</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Coach assessment */}
+            <View style={wrStyles.coachCard}>
+              <View style={wrStyles.coachHeader}>
+                <Text style={{ fontSize: 20 }}>{coachEmoji}</Text>
+                <Text style={wrStyles.coachName}>{coachName} dice:</Text>
+              </View>
+              <Text style={wrStyles.coachMsg}>{coachMessage}</Text>
+            </View>
+
+            {/* Wins */}
+            <Text style={wrStyles.sectionLabel}>LO QUE FUNCIONÓ</Text>
+            {wins.slice(0, 3).map((w, i) => (
+              <View key={i} style={wrStyles.listRow}>
+                <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                <Text style={wrStyles.listText}>{w}</Text>
+              </View>
+            ))}
+
+            {/* Focus */}
+            <Text style={wrStyles.sectionLabel}>PRÓXIMA SEMANA — FOCO</Text>
+            {focus.slice(0, 2).map((f, i) => (
+              <View key={i} style={wrStyles.listRow}>
+                <Ionicons name="arrow-forward-circle" size={16} color={COLORS.accent} />
+                <Text style={wrStyles.listText}>{f}</Text>
+              </View>
+            ))}
+
+            {/* Intention input */}
+            <Text style={wrStyles.sectionLabel}>MI INTENCIÓN PARA LA SEMANA {weekNumber}</Text>
+            <TextInput
+              style={wrStyles.intentionInput}
+              placeholder="¿Qué vas a priorizar esta semana?"
+              placeholderTextColor={COLORS.textMuted}
+              value={intention}
+              onChangeText={setIntention}
+              multiline
+              numberOfLines={3}
+              maxLength={200}
+            />
+
+            {/* CTA */}
+            <TouchableOpacity
+              style={wrStyles.ctaBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onClose(intention); }}
+              activeOpacity={0.85}
+            >
+              <LinearGradient colors={[COLORS.accent, '#3A7BD5']} style={wrStyles.ctaGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <Text style={wrStyles.ctaText}>ARRANCAR SEMANA {weekNumber} →</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </LinearGradient>
+      </View>
+    </Modal>
+  );
+}
+
+const wrStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)' },
+  sheet: { maxHeight: '90%' },
+  content: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, paddingTop: SPACING.sm, flex: 1 },
+  handle: { width: 36, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.md },
+
+  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: SPACING.lg },
+  weekLabel: { fontSize: FONT.xs, color: COLORS.accent, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4 },
+  headerTitle: { fontSize: FONT.xl, fontWeight: '900', color: COLORS.textPrimary },
+
+  statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
+  statBox: { flex: 1, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  statNum: { fontSize: FONT.lg, fontWeight: '900', color: COLORS.textPrimary },
+  statLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600', textAlign: 'center' },
+
+  coachCard: { backgroundColor: 'rgba(72,149,239,0.1)', borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.accent + '30', marginBottom: SPACING.lg },
+  coachHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
+  coachName: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.accent },
+  coachMsg: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22, fontStyle: 'italic' },
+
+  sectionLabel: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.md },
+  listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: 8 },
+  listText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
+
+  intentionInput: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    color: COLORS.textPrimary,
+    fontSize: FONT.sm,
+    lineHeight: 22,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    marginBottom: SPACING.lg,
+  },
+
+  ctaBtn: { borderRadius: RADIUS.lg, overflow: 'hidden' },
+  ctaGradient: { paddingVertical: SPACING.md, alignItems: 'center' },
+  ctaText: { color: '#fff', fontWeight: '900', fontSize: FONT.base, letterSpacing: 1 },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HoyScreen() {
   const {
@@ -335,6 +502,29 @@ export default function HoyScreen() {
   const [showMissionRepo, setShowMissionRepo] = useState(false);
   const [addingToCalendar, setAddingToCalendar] = useState(false);
   const [timerMission, setTimerMission] = useState<MissionDef | null>(null);
+  const [showWeeklyReview, setShowWeeklyReview] = useState(false);
+
+  // ── Weekly review trigger ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!data) return;
+    const currentDay = data.user.currentDay;
+    const weekNumber = Math.ceil(currentDay / 7);
+    // Show on the first day of each week (after week 1)
+    if (currentDay % 7 !== 1 || weekNumber <= 1) return;
+    AsyncStorage.getItem(WEEKLY_REVIEW_KEY(weekNumber)).then(seen => {
+      if (!seen) setShowWeeklyReview(true);
+    });
+  }, [data?.user.currentDay]);
+
+  function handleCloseWeeklyReview(intention: string) {
+    if (!data) return;
+    const weekNumber = Math.ceil(data.user.currentDay / 7);
+    AsyncStorage.setItem(WEEKLY_REVIEW_KEY(weekNumber), 'seen');
+    if (intention.trim()) {
+      AsyncStorage.setItem(`arise_week_intention_${weekNumber}`, intention.trim());
+    }
+    setShowWeeklyReview(false);
+  }
 
   // ── Loading skeleton ──────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -462,6 +652,19 @@ export default function HoyScreen() {
     shadowOffset: { width: 0, height: 6 },
     elevation: 12,
   } as const;
+
+  // ── Weekly review data ────────────────────────────────────────────────
+  const currentWeekNum = Math.ceil(user.currentDay / 7);
+  const prevWeekStart = Math.max(1, (currentWeekNum - 2) * 7 + 1);
+  const prevWeekEnd = prevWeekStart + 6;
+  const prevWeekDays = data.days.filter(d => d.dayNumber >= prevWeekStart && d.dayNumber <= prevWeekEnd);
+  const weeklyStats = {
+    completed: prevWeekDays.filter(d => d.completed).length,
+    trainMin: prevWeekDays.reduce((s, d) => s + (d.metrics?.trainingMinutes ?? 0), 0),
+    readPages: prevWeekDays.reduce((s, d) => s + (d.metrics?.readingPages ?? 0), 0),
+    breathMin: prevWeekDays.reduce((s, d) => s + (d.metrics?.breathingMinutes ?? 0), 0),
+  };
+  const weeklyReport = buildWeeklyCoachReport(data, coachId);
 
   async function handleAddToCalendar() {
     if (addingToCalendar) return;
@@ -607,6 +810,20 @@ export default function HoyScreen() {
           <BadgeUnlockModal badges={newBadges} onClose={clearNewBadges} />
         )}
 
+        {/* Weekly review modal — triggers on first day of each new week */}
+        {showWeeklyReview && (
+          <WeeklyReviewModal
+            weekNumber={currentWeekNum}
+            stats={weeklyStats}
+            coachName={coach.name}
+            coachEmoji={coachVisual.overlays[0]?.emoji ?? '🏆'}
+            wins={weeklyReport.wins}
+            focus={weeklyReport.focus}
+            coachMessage={weeklyReport.message}
+            onClose={handleCloseWeeklyReview}
+          />
+        )}
+
         {/* Pomodoro / Deep Work timer modal */}
         {timerMission && (
           <PomodoroTimer
@@ -633,9 +850,21 @@ export default function HoyScreen() {
                 )}
               </View>
             </View>
-            <View style={styles.streakBadge}>
-              <Text style={styles.streakNumber}>{user.streak}</Text>
-              <Text style={styles.streakFire}>🔥</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+              {currentWeekNum > 1 && (
+                <TouchableOpacity
+                  style={styles.weekReviewBtn}
+                  onPress={() => setShowWeeklyReview(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="bar-chart-outline" size={14} color={COLORS.accent} />
+                  <Text style={styles.weekReviewBtnText}>Sem. {currentWeekNum - 1}</Text>
+                </TouchableOpacity>
+              )}
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakNumber}>{user.streak}</Text>
+                <Text style={styles.streakFire}>🔥</Text>
+              </View>
             </View>
           </View>
 
@@ -997,6 +1226,13 @@ const styles = StyleSheet.create({
     color: COLORS.streak,
   },
   streakFire: { fontSize: FONT.lg, marginLeft: 2 },
+  weekReviewBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: COLORS.accent + '15',
+    borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: COLORS.accent + '30',
+  },
+  weekReviewBtnText: { fontSize: FONT.xs, fontWeight: '700', color: COLORS.accent },
   syncBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: 'rgba(96,165,250,0.12)',
