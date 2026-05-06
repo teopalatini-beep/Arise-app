@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
 import { getStageTheme, StageTheme } from '../../src/lib/progression';
+import CoachParticles from '../../src/components/CoachParticles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Phase = 1 | 2 | 3;
@@ -846,6 +847,7 @@ export default function DiscoveryScreen() {
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
+      <CoachParticles coachId={user.preferredCoachId ?? 'goku'} screen="discovery" />
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 

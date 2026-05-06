@@ -14,6 +14,8 @@ import { calcPoints, pointsByCategory, ALL_MISSIONS } from '../../src/data/missi
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
 import { getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
 import { addMissionsToCalendar } from '../../src/lib/calendar';
+import PomodoroTimer from '../../src/components/PomodoroTimer';
+import CoachParticles from '../../src/components/CoachParticles';
 
 const TRACK_DIRECTION: Record<string, string> = {
   fat_loss: 'Direccion: crear deficit sostenible sin perder masa muscular.',
@@ -128,16 +130,20 @@ const badgeModalStyles = StyleSheet.create({
 });
 
 // ─── Mission card components ──────────────────────────────────────────────────
+const TIMER_MISSIONS = new Set(['deep_work', 'pomodoro']);
+
 function MissionCard({
   mission,
   currentUnits,
   onEarn,
   stageTheme,
+  onOpenTimer,
 }: {
   mission: MissionDef;
   currentUnits: number;
   onEarn: (missionId: string, units: number) => void;
   stageTheme: ReturnType<typeof getStageTheme>;
+  onOpenTimer?: (mission: MissionDef) => void;
 }) {
   const catInfo = CATEGORY_INFO[mission.category as TaskCategory];
   const pts = calcPoints(mission, currentUnits);
@@ -230,6 +236,20 @@ function MissionCard({
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Timer button — only for deep_work and pomodoro */}
+        {TIMER_MISSIONS.has(mission.id) && onOpenTimer && (
+          <TouchableOpacity
+            style={[mStyles.timerBtn, { borderColor: catInfo.color + '50' }]}
+            onPress={() => onOpenTimer(mission)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="timer-outline" size={15} color={catInfo.color} />
+            <Text style={[mStyles.timerBtnText, { color: catInfo.color }]}>
+              {currentUnits > 0 ? 'Continuar timer' : 'Iniciar timer'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -290,6 +310,16 @@ const mStyles = StyleSheet.create({
   counterDisplay: { alignItems: 'center', minWidth: 50 },
   counterValue: { fontSize: FONT.xl, fontWeight: '900' },
   counterUnit: { fontSize: FONT.xs, color: COLORS.textMuted },
+
+  // Timer button
+  timerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderRadius: RADIUS.md,
+    paddingHorizontal: 10, paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignSelf: 'flex-start',
+  },
+  timerBtnText: { fontSize: FONT.sm, fontWeight: '700' },
 });
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
@@ -304,6 +334,7 @@ export default function HoyScreen() {
 
   const [showMissionRepo, setShowMissionRepo] = useState(false);
   const [addingToCalendar, setAddingToCalendar] = useState(false);
+  const [timerMission, setTimerMission] = useState<MissionDef | null>(null);
 
   // ── Loading skeleton ──────────────────────────────────────────────────
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -317,6 +348,7 @@ export default function HoyScreen() {
       ).start();
     }
   }, [data]);
+
 
   if (!data || !todayDefinition) {
     const opacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
@@ -425,10 +457,10 @@ export default function HoyScreen() {
     backgroundColor: coachVisual.cardBackground,
     borderColor: coachVisual.cardBorder,
     shadowColor: coachVisual.glowColor,
-    shadowOpacity: 0.32,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 10,
+    shadowOpacity: 0.40,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   } as const;
 
   async function handleAddToCalendar() {
@@ -570,43 +602,20 @@ export default function HoyScreen() {
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
       <SafeAreaView style={styles.safe}>
-        <View pointerEvents="none" style={styles.overlayLayer}>
-          {coachVisual.overlays.map((overlay, idx) => (
-            <View
-              key={`${overlay.emoji}-${idx}`}
-              style={[
-                styles.overlayOrb,
-                {
-                  left: overlay.x,
-                  top: overlay.y,
-                  width: overlay.size * 2.4,
-                  height: overlay.size * 2.4,
-                  borderRadius: overlay.size * 1.2,
-                  backgroundColor: coachVisual.glowColor,
-                  opacity: overlay.opacity * 0.45,
-                },
-              ]}
-            />
-          ))}
-          {coachVisual.overlays.map((overlay, idx) => (
-            <Text
-              key={`${overlay.emoji}-txt-${idx}`}
-              style={[
-                styles.overlayGlyph,
-                {
-                  left: overlay.x,
-                  top: overlay.y,
-                  fontSize: overlay.size,
-                  opacity: overlay.opacity,
-                },
-              ]}
-            >
-              {overlay.emoji}
-            </Text>
-          ))}
-        </View>
+        <CoachParticles coachId={coachId ?? 'goku'} />
         {newBadges.length > 0 && (
           <BadgeUnlockModal badges={newBadges} onClose={clearNewBadges} />
+        )}
+
+        {/* Pomodoro / Deep Work timer modal */}
+        {timerMission && (
+          <PomodoroTimer
+            visible={!!timerMission}
+            mission={timerMission}
+            currentUnits={getMissionUnits(timerMission.id)}
+            onEarn={earnPoints}
+            onClose={() => setTimerMission(null)}
+          />
         )}
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -781,6 +790,7 @@ export default function HoyScreen() {
               currentUnits={getMissionUnits(mission.id)}
               onEarn={earnPoints}
               stageTheme={stageTheme}
+              onOpenTimer={setTimerMission}
             />
           ))}
 
@@ -793,6 +803,7 @@ export default function HoyScreen() {
               currentUnits={getMissionUnits(mission.id)}
               onEarn={earnPoints}
               stageTheme={stageTheme}
+              onOpenTimer={setTimerMission}
             />
           ))}
 

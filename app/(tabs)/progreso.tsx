@@ -12,6 +12,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
 import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, BadgeId, CoachId } from '../../src/types';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme, StageTheme } from '../../src/lib/progression';
 import { buildWeeklyCoachReport, COACH_STORAGE_KEY, COACHES } from '../../src/lib/coach';
+import CoachParticles from '../../src/components/CoachParticles';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
@@ -347,8 +348,11 @@ export default function ProgresoScreen() {
     .sort((a, b) => a.dayNumber - b.dayNumber)
     .map(d => ({ x: d.dayNumber, y: d.metrics!.weight! }));
 
+  const coachId = user.preferredCoachId ?? 'goku';
+
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
+      <CoachParticles coachId={coachId} screen="progreso" />
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

@@ -10,6 +10,7 @@ import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getStageTheme } from '../../src/lib/progression';
+import CoachParticles from '../../src/components/CoachParticles';
 
 // ─── Herramientas data ────────────────────────────────────────────────────────
 interface EmotionTool {
@@ -249,6 +250,7 @@ export default function DiarioScreen() {
 
   const { user, days } = data;
   const stageTheme = getStageTheme(user);
+  const coachId = user.preferredCoachId ?? 'goku';
 
   // Days with journal entries
   const journalDays = days
@@ -267,6 +269,7 @@ export default function DiarioScreen() {
   if (viewingDay && viewingRecord) {
     return (
       <LinearGradient colors={stageTheme.background} style={styles.container}>
+        <CoachParticles coachId={coachId} screen="diario" />
         <SafeAreaView style={styles.safe}>
           <View style={styles.viewerHeader}>
             <TouchableOpacity onPress={() => setViewingDay(null)} style={styles.backButton}>
@@ -285,6 +288,7 @@ export default function DiarioScreen() {
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
+      <CoachParticles coachId={coachId} screen="diario" />
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
