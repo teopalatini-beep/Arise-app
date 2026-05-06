@@ -19,9 +19,12 @@ import * as Sharing from 'expo-sharing';
 const SCREEN_W = Dimensions.get('window').width - SPACING.md * 2;
 
 // ─── Heatmap de 90 días ───────────────────────────────────────────────────────
-function Heatmap({ days, currentDay }: { days: any[]; currentDay: number }) {
+function Heatmap({ days, currentDay, onDayPress }: {
+  days: any[];
+  currentDay: number;
+  onDayPress: (dayNum: number) => void;
+}) {
   const cols = 10;
-  const rows = 9;
   const cellSize = Math.floor((SCREEN_W - 16) / cols);
   const gap = 3;
 
@@ -41,9 +44,13 @@ function Heatmap({ days, currentDay }: { days: any[]; currentDay: number }) {
           else if (record?.missed) bg = COLORS.danger;
           else if (isPast) bg = 'rgba(255,255,255,0.12)';
 
+          const tappable = !isFuture;
+
           return (
-            <View
+            <TouchableOpacity
               key={dayNum}
+              onPress={() => tappable && onDayPress(dayNum)}
+              activeOpacity={tappable ? 0.7 : 1}
               style={[
                 heatStyles.cell,
                 { width: cellSize - gap, height: cellSize - gap, backgroundColor: bg },
@@ -53,7 +60,7 @@ function Heatmap({ days, currentDay }: { days: any[]; currentDay: number }) {
               {isToday && (
                 <Text style={heatStyles.cellText}>{dayNum}</Text>
               )}
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -68,6 +75,219 @@ function Heatmap({ days, currentDay }: { days: any[]; currentDay: number }) {
     </View>
   );
 }
+
+// ─── Day Detail Sheet ─────────────────────────────────────────────────────────
+const MOOD_EMOJIS = ['', '😞', '😕', '😐', '🙂', '😄'];
+
+function DayDetailSheet({ dayNum, record, stageTheme, onClose }: {
+  dayNum: number | null;
+  record: any | null;
+  stageTheme: ReturnType<typeof getStageTheme>;
+  onClose: () => void;
+}) {
+  if (!dayNum) return null;
+
+  const statusColor = record?.completed ? COLORS.success : record?.missed ? COLORS.danger : COLORS.textMuted;
+  const statusLabel = record?.completed ? '✅ Completado' : record?.missed ? '❌ Fallado' : '⏳ Pendiente / sin datos';
+  const metrics = record?.metrics;
+  const journal = record?.journal;
+  const completedMissions = (record?.missionStates ?? []).filter((s: any) => s.points > 0).length;
+  const totalPoints = record?.totalPoints ?? 0;
+  const pointsTarget = record?.pointsTarget ?? 30;
+
+  return (
+    <Modal visible={!!dayNum} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <LinearGradient
+          colors={[stageTheme.background[1], stageTheme.background[2]]}
+          style={dayDetailStyles.sheet}
+        >
+          <ScrollView contentContainerStyle={dayDetailStyles.content} showsVerticalScrollIndicator={false}>
+            <View style={dayDetailStyles.handle} />
+
+            {/* Title */}
+            <View style={dayDetailStyles.titleRow}>
+              <Text style={dayDetailStyles.title}>DÍA {dayNum}</Text>
+              <Text style={[dayDetailStyles.status, { color: statusColor }]}>{statusLabel}</Text>
+            </View>
+
+            {/* Points bar */}
+            {record && (
+              <View style={dayDetailStyles.pointsBlock}>
+                <View style={dayDetailStyles.pointsHeader}>
+                  <Text style={dayDetailStyles.pointsLabel}>PUNTOS</Text>
+                  <Text style={[dayDetailStyles.pointsValue, { color: record.completed ? COLORS.success : stageTheme.tabActive }]}>
+                    {totalPoints} / {pointsTarget}
+                  </Text>
+                </View>
+                <View style={dayDetailStyles.barBg}>
+                  <LinearGradient
+                    colors={record.completed ? ['#22C55E', '#16A34A'] : stageTheme.accent}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={[dayDetailStyles.barFill, { width: `${Math.min(totalPoints / pointsTarget, 1) * 100}%` as any }]}
+                  />
+                </View>
+                {completedMissions > 0 && (
+                  <Text style={dayDetailStyles.missionsCount}>
+                    {completedMissions} misión{completedMissions !== 1 ? 'es' : ''} con puntos
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Metrics grid */}
+            {metrics && (
+              <>
+                <Text style={dayDetailStyles.sectionLabel}>MÉTRICAS</Text>
+                <View style={dayDetailStyles.metricsGrid}>
+                  {metrics.weight != null && (
+                    <View style={dayDetailStyles.metricBox}>
+                      <Text style={dayDetailStyles.metricEmoji}>⚖️</Text>
+                      <Text style={dayDetailStyles.metricVal}>{metrics.weight.toFixed(1)} kg</Text>
+                      <Text style={dayDetailStyles.metricKey}>Peso</Text>
+                    </View>
+                  )}
+                  {metrics.trainingMinutes != null && (
+                    <View style={dayDetailStyles.metricBox}>
+                      <Text style={dayDetailStyles.metricEmoji}>🏋️</Text>
+                      <Text style={dayDetailStyles.metricVal}>{metrics.trainingMinutes} min</Text>
+                      <Text style={dayDetailStyles.metricKey}>Entreno</Text>
+                    </View>
+                  )}
+                  {metrics.readingPages != null && (
+                    <View style={dayDetailStyles.metricBox}>
+                      <Text style={dayDetailStyles.metricEmoji}>📚</Text>
+                      <Text style={dayDetailStyles.metricVal}>{metrics.readingPages} p</Text>
+                      <Text style={dayDetailStyles.metricKey}>Lectura</Text>
+                    </View>
+                  )}
+                  {metrics.sleepHours != null && (
+                    <View style={dayDetailStyles.metricBox}>
+                      <Text style={dayDetailStyles.metricEmoji}>😴</Text>
+                      <Text style={dayDetailStyles.metricVal}>{metrics.sleepHours} hs</Text>
+                      <Text style={dayDetailStyles.metricKey}>Sueño</Text>
+                    </View>
+                  )}
+                  {metrics.energyLevel != null && (
+                    <View style={dayDetailStyles.metricBox}>
+                      <Text style={dayDetailStyles.metricEmoji}>⚡</Text>
+                      <Text style={dayDetailStyles.metricVal}>{metrics.energyLevel}/10</Text>
+                      <Text style={dayDetailStyles.metricKey}>Energía</Text>
+                    </View>
+                  )}
+                  {metrics.mood != null && (
+                    <View style={dayDetailStyles.metricBox}>
+                      <Text style={dayDetailStyles.metricEmoji}>{MOOD_EMOJIS[metrics.mood] ?? '😐'}</Text>
+                      <Text style={dayDetailStyles.metricVal}>{metrics.mood}/5</Text>
+                      <Text style={dayDetailStyles.metricKey}>Ánimo</Text>
+                    </View>
+                  )}
+                </View>
+                {metrics.notes ? (
+                  <View style={dayDetailStyles.notesBox}>
+                    <Text style={dayDetailStyles.notesLabel}>NOTAS</Text>
+                    <Text style={dayDetailStyles.notesText}>{metrics.notes}</Text>
+                  </View>
+                ) : null}
+              </>
+            )}
+
+            {/* Journal preview */}
+            {journal ? (
+              <>
+                <Text style={dayDetailStyles.sectionLabel}>DIARIO</Text>
+                <View style={dayDetailStyles.journalBox}>
+                  <Text style={dayDetailStyles.journalText} numberOfLines={5}>{journal}</Text>
+                </View>
+              </>
+            ) : null}
+
+            {!record && (
+              <View style={dayDetailStyles.emptyBox}>
+                <Text style={dayDetailStyles.emptyText}>Sin datos registrados para este día.</Text>
+              </View>
+            )}
+
+            <Pressable style={dayDetailStyles.closeBtn} onPress={onClose}>
+              <LinearGradient
+                colors={stageTheme.accent}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={dayDetailStyles.closeBtnInner}
+              >
+                <Text style={dayDetailStyles.closeBtnText}>Cerrar</Text>
+              </LinearGradient>
+            </Pressable>
+          </ScrollView>
+        </LinearGradient>
+      </View>
+    </Modal>
+  );
+}
+
+const dayDetailStyles = StyleSheet.create({
+  sheet: {
+    maxHeight: '78%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  content: { padding: SPACING.lg, paddingBottom: 32 },
+  handle: {
+    width: 36, height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: SPACING.lg,
+  },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  title: { fontSize: FONT.xxl, fontWeight: '900', color: COLORS.textPrimary },
+  status: { fontSize: FONT.sm, fontWeight: '700' },
+
+  pointsBlock: { marginBottom: SPACING.md },
+  pointsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  pointsLabel: { fontSize: FONT.xs, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1 },
+  pointsValue: { fontSize: FONT.base, fontWeight: '900' },
+  barBg: { height: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+  barFill: { height: '100%', borderRadius: 4, minWidth: 5 },
+  missionsCount: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 2 },
+
+  sectionLabel: {
+    fontSize: FONT.xs, fontWeight: '800', color: COLORS.textMuted,
+    letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.sm,
+  },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.sm },
+  metricBox: {
+    width: '30%', backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md, padding: SPACING.sm,
+    alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, gap: 2,
+  },
+  metricEmoji: { fontSize: 20 },
+  metricVal: { fontSize: FONT.sm, fontWeight: '900', color: COLORS.textPrimary },
+  metricKey: { fontSize: 9, color: COLORS.textMuted, fontWeight: '600' },
+
+  notesBox: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  notesLabel: { fontSize: FONT.xs, fontWeight: '700', color: COLORS.textMuted, marginBottom: 4, letterSpacing: 1 },
+  notesText: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
+
+  journalBox: {
+    backgroundColor: 'rgba(72,149,239,0.07)',
+    borderRadius: RADIUS.md, padding: SPACING.md,
+    borderWidth: 1, borderColor: 'rgba(72,149,239,0.2)',
+    marginBottom: SPACING.md,
+  },
+  journalText: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22, fontStyle: 'italic' },
+
+  emptyBox: { alignItems: 'center', paddingVertical: SPACING.xl },
+  emptyText: { color: COLORS.textMuted, fontSize: FONT.sm },
+
+  closeBtn: { borderRadius: RADIUS.xl, overflow: 'hidden', marginTop: SPACING.sm },
+  closeBtnInner: { paddingVertical: 14, alignItems: 'center' },
+  closeBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.base, letterSpacing: 1 },
+});
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
@@ -227,6 +447,7 @@ export default function ProgresoScreen() {
   const [showWeeklyReview, setShowWeeklyReview] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<CoachId>('goku');
   const [showStoryModal, setShowStoryModal] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [sharingStory, setSharingStory] = useState(false);
   const storyRef = useRef<ViewShot | null>(null);
 
@@ -495,8 +716,11 @@ export default function ProgresoScreen() {
 
             {/* Heatmap */}
             <Text style={styles.sectionTitle}>MAPA DE 90 DÍAS</Text>
+            <Text style={{ fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.sm, marginTop: -SPACING.sm }}>
+              Tocá cualquier día para ver el resumen.
+            </Text>
             <View style={styles.card}>
-              <Heatmap days={days} currentDay={user.currentDay} />
+              <Heatmap days={days} currentDay={user.currentDay} onDayPress={setSelectedDay} />
             </View>
 
             {/* Goals progress bars */}
@@ -727,6 +951,13 @@ export default function ProgresoScreen() {
         weekCompleted={weekCompleted}
         weekMissed={weekMissed}
         user={user}
+      />
+
+      <DayDetailSheet
+        dayNum={selectedDay}
+        record={selectedDay ? days.find(d => d.dayNumber === selectedDay) ?? null : null}
+        stageTheme={stageTheme}
+        onClose={() => setSelectedDay(null)}
       />
 
       <Modal visible={showStoryModal} transparent animationType="slide" onRequestClose={() => setShowStoryModal(false)}>
