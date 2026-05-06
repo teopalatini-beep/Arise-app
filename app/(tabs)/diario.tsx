@@ -7,10 +7,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
+import { DayMetrics } from '../../src/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getStageTheme } from '../../src/lib/progression';
 import CoachParticles from '../../src/components/CoachParticles';
+
+const MOOD_EMOJIS = ['😞', '😕', '😐', '🙂', '😄'];
 
 // ─── Herramientas data ────────────────────────────────────────────────────────
 interface EmotionTool {
@@ -224,14 +227,16 @@ const toolStyles = StyleSheet.create({
 });
 
 export default function DiarioScreen() {
-  const { data, todayRecord, saveJournal, getDayRecord, loading } = useApp();
+  const { data, todayRecord, saveJournal, saveMetrics, getDayRecord, loading } = useApp();
   const [text, setText] = useState(todayRecord?.journal ?? '');
+  const [mood, setMood] = useState(todayRecord?.metrics?.mood ?? 0);
   const [saved, setSaved] = useState(false);
   const [viewingDay, setViewingDay] = useState<number | null>(null);
 
   useEffect(() => {
     setText(todayRecord?.journal ?? '');
-  }, [todayRecord?.journal]);
+    setMood(todayRecord?.metrics?.mood ?? 0);
+  }, [todayRecord?.journal, todayRecord?.metrics?.mood]);
 
   if (!data) {
     return (
@@ -259,14 +264,23 @@ export default function DiarioScreen() {
 
   function handleSave() {
     saveJournal(text);
+    if (mood > 0) {
+      const existing = todayRecord?.metrics ?? {};
+      saveMetrics({ ...existing, mood } as DayMetrics);
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  function handleMoodSelect(value: number) {
+    setMood(v => v === value ? 0 : value);
   }
 
   const viewingRecord = viewingDay ? getDayRecord(viewingDay) : null;
 
   // ── Past entry viewer ──────────────────────────────────────────────────────
   if (viewingDay && viewingRecord) {
+    const m = viewingRecord.metrics;
     return (
       <LinearGradient colors={stageTheme.background} style={styles.container}>
         <CoachParticles coachId={coachId} screen="diario" />
@@ -276,9 +290,55 @@ export default function DiarioScreen() {
               <Ionicons name="arrow-back" size={20} color={COLORS.accent} />
               <Text style={styles.backText}>Volver</Text>
             </TouchableOpacity>
-            <Text style={styles.viewerDay}>Día {viewingDay}</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.viewerDay}>Día {viewingDay}</Text>
+              <Text style={[styles.viewerStatus, {
+                color: viewingRecord.completed ? COLORS.success : viewingRecord.missed ? COLORS.danger : COLORS.textMuted
+              }]}>
+                {viewingRecord.completed ? '✅ Completado' : viewingRecord.missed ? '❌ Fallado' : '—'}
+              </Text>
+            </View>
           </View>
           <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]}>
+            {/* Metrics snapshot */}
+            {m && (
+              <View style={styles.viewerMetricsRow}>
+                {m.mood != null && (
+                  <View style={styles.viewerMetricChip}>
+                    <Text style={styles.viewerMetricEmoji}>{MOOD_EMOJIS[m.mood - 1] ?? '😐'}</Text>
+                    <Text style={styles.viewerMetricLabel}>Ánimo</Text>
+                  </View>
+                )}
+                {m.energyLevel != null && (
+                  <View style={styles.viewerMetricChip}>
+                    <Text style={styles.viewerMetricEmoji}>⚡</Text>
+                    <Text style={styles.viewerMetricVal}>{m.energyLevel}/10</Text>
+                    <Text style={styles.viewerMetricLabel}>Energía</Text>
+                  </View>
+                )}
+                {m.trainingMinutes != null && (
+                  <View style={styles.viewerMetricChip}>
+                    <Text style={styles.viewerMetricEmoji}>🏋️</Text>
+                    <Text style={styles.viewerMetricVal}>{m.trainingMinutes}m</Text>
+                    <Text style={styles.viewerMetricLabel}>Entreno</Text>
+                  </View>
+                )}
+                {m.sleepHours != null && (
+                  <View style={styles.viewerMetricChip}>
+                    <Text style={styles.viewerMetricEmoji}>😴</Text>
+                    <Text style={styles.viewerMetricVal}>{m.sleepHours}h</Text>
+                    <Text style={styles.viewerMetricLabel}>Sueño</Text>
+                  </View>
+                )}
+                {m.readingPages != null && (
+                  <View style={styles.viewerMetricChip}>
+                    <Text style={styles.viewerMetricEmoji}>📚</Text>
+                    <Text style={styles.viewerMetricVal}>{m.readingPages}p</Text>
+                    <Text style={styles.viewerMetricLabel}>Lectura</Text>
+                  </View>
+                )}
+              </View>
+            )}
             <Text style={styles.viewerText}>{viewingRecord.journal}</Text>
           </ScrollView>
         </SafeAreaView>
@@ -317,6 +377,26 @@ export default function DiarioScreen() {
                     <Text style={styles.doneTagText}>Día completado</Text>
                   </View>
                 )}
+              </View>
+
+              {/* Mood quick-select */}
+              <View style={styles.moodRow}>
+                <Text style={styles.moodLabel}>¿Cómo te sentís hoy?</Text>
+                <View style={styles.moodButtons}>
+                  {MOOD_EMOJIS.map((emoji, i) => {
+                    const val = i + 1;
+                    return (
+                      <TouchableOpacity
+                        key={val}
+                        style={[styles.moodBtn, mood === val && styles.moodBtnActive]}
+                        onPress={() => handleMoodSelect(val)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.moodEmoji}>{emoji}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               <Text style={styles.promptLabel}>
@@ -377,22 +457,36 @@ export default function DiarioScreen() {
             {/* Past entries */}
             {journalDays.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>ENTRADAS ANTERIORES</Text>
-                {journalDays.map(d => (
-                  <TouchableOpacity
-                    key={d.dayNumber}
-                    style={styles.pastEntry}
-                    onPress={() => setViewingDay(d.dayNumber)}
-                  >
-                    <View style={styles.pastEntryLeft}>
-                      <Text style={styles.pastEntryDay}>Día {d.dayNumber}</Text>
-                      <Text style={styles.pastEntryPreview} numberOfLines={2}>
-                        {d.journal}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-                  </TouchableOpacity>
-                ))}
+                <Text style={styles.sectionTitle}>
+                  ENTRADAS ANTERIORES · {journalDays.length} {journalDays.length === 1 ? 'entrada' : 'entradas'}
+                </Text>
+                {journalDays.map(d => {
+                  const moodVal = d.metrics?.mood;
+                  const statusColor = d.completed ? COLORS.success : d.missed ? COLORS.danger : COLORS.textMuted;
+                  const statusDot = d.completed ? '●' : d.missed ? '●' : '○';
+                  return (
+                    <TouchableOpacity
+                      key={d.dayNumber}
+                      style={styles.pastEntry}
+                      onPress={() => setViewingDay(d.dayNumber)}
+                    >
+                      <View style={[styles.pastEntryAccent, { backgroundColor: statusColor }]} />
+                      <View style={styles.pastEntryLeft}>
+                        <View style={styles.pastEntryMeta}>
+                          <Text style={styles.pastEntryDay}>Día {d.dayNumber}</Text>
+                          {moodVal != null && (
+                            <Text style={styles.pastEntryMood}>{MOOD_EMOJIS[moodVal - 1]}</Text>
+                          )}
+                          <Text style={[styles.pastEntryDot, { color: statusColor }]}>{statusDot}</Text>
+                        </View>
+                        <Text style={styles.pastEntryPreview} numberOfLines={2}>
+                          {d.journal}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                  );
+                })}
               </>
             )}
 
@@ -508,5 +602,40 @@ const styles = StyleSheet.create({
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backText: { color: COLORS.accent, fontSize: FONT.base, fontWeight: '600' },
   viewerDay: { fontSize: FONT.base, color: COLORS.textSecondary, fontWeight: '700' },
+  viewerStatus: { fontSize: FONT.xs, fontWeight: '700', marginTop: 2 },
   viewerText: { fontSize: FONT.base, color: COLORS.textPrimary, lineHeight: 26, padding: SPACING.md },
+
+  viewerMetricsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm,
+    paddingHorizontal: SPACING.md, paddingTop: SPACING.md,
+  },
+  viewerMetricChip: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    padding: SPACING.sm, alignItems: 'center', borderWidth: 1,
+    borderColor: COLORS.border, minWidth: 64,
+  },
+  viewerMetricEmoji: { fontSize: 18 },
+  viewerMetricVal: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.textPrimary, marginTop: 2 },
+  viewerMetricLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '600', marginTop: 1 },
+
+  // Mood selector
+  moodRow: { marginBottom: SPACING.md },
+  moodLabel: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 1, marginBottom: SPACING.xs },
+  moodButtons: { flexDirection: 'row', gap: SPACING.sm },
+  moodBtn: {
+    flex: 1, paddingVertical: 8, alignItems: 'center',
+    borderRadius: RADIUS.md, borderWidth: 1,
+    borderColor: COLORS.border, backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  moodBtnActive: {
+    backgroundColor: 'rgba(72,149,239,0.18)',
+    borderColor: 'rgba(72,149,239,0.5)',
+  },
+  moodEmoji: { fontSize: 22 },
+
+  // Past entry enriched
+  pastEntryAccent: { width: 3, alignSelf: 'stretch', borderRadius: 2, marginRight: SPACING.sm },
+  pastEntryMeta: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, marginBottom: 4 },
+  pastEntryMood: { fontSize: 14 },
+  pastEntryDot: { fontSize: 10, fontWeight: '900' },
 });

@@ -416,6 +416,123 @@ const MINDSET_ITEMS: MindsetItem[] = [
   },
 ];
 
+// ─── Recomendado para vos ─────────────────────────────────────────────────────
+interface Recommendation {
+  label: string;
+  emoji: string;
+  color: string;
+  item: Exercise | Book | MindsetItem;
+}
+
+const TRACK_LABELS: Record<string, string> = {
+  fat_loss: 'Pérdida de grasa',
+  muscle_gain: 'Ganancia muscular',
+  recomposition: 'Recomposición corporal',
+  maintenance: 'Mantenimiento',
+};
+
+const TRACK_TIPS: Record<string, string> = {
+  fat_loss: 'Tu enfoque ahora: cardio de alta intensidad + déficit calórico moderado. El HIIT quema más grasa en menos tiempo que el cardio estático.',
+  muscle_gain: 'Tu enfoque ahora: sobrecarga progresiva + superávit calórico. Sin suficiente proteína y calorías, el músculo no aparece.',
+  recomposition: 'Tu enfoque ahora: combinar fuerza + cardio con calorías de mantenimiento. El proceso es más lento pero los resultados son permanentes.',
+  maintenance: 'Tu enfoque ahora: sostener lo construido con variedad. Explorá nuevas modalidades para evitar el estancamiento.',
+};
+
+function getRecommendations(track: string, phase: Phase): Recommendation[] {
+  const recs: Record<string, Recommendation[]> = {
+    fat_loss: [
+      { label: 'Ejercicio', emoji: '🔥', color: '#FF6B6B', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e5' : 'e1'))! },
+      { label: 'Mentalidad', emoji: '🔗', color: '#68D391', item: MINDSET_ITEMS.find(m => m.id === 'm1')! },
+      { label: 'Libro', emoji: '⚛️', color: '#F6E05E', item: BOOKS.find(b => b.id === 'b1')! },
+    ],
+    muscle_gain: [
+      { label: 'Ejercicio', emoji: '💪', color: '#4FC3F7', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e4' : 'e2'))! },
+      { label: 'Mentalidad', emoji: '📈', color: '#4895EF', item: MINDSET_ITEMS.find(m => m.id === 'm2')! },
+      { label: 'Libro', emoji: '💀', color: '#FF6B6B', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b4' : 'b3'))! },
+    ],
+    recomposition: [
+      { label: 'Ejercicio', emoji: '🔩', color: '#C084FC', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e6' : 'e2'))! },
+      { label: 'Mentalidad', emoji: '🚫', color: '#FF6B6B', item: MINDSET_ITEMS.find(m => m.id === (phase >= 2 ? 'm5' : 'm2'))! },
+      { label: 'Libro', emoji: '🎯', color: '#4895EF', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b5' : 'b1'))! },
+    ],
+    maintenance: [
+      { label: 'Ejercicio', emoji: '🏃', color: '#FF6B6B', item: EXERCISES.find(e => e.id === (phase >= 3 ? 'e7' : phase >= 2 ? 'e5' : 'e3'))! },
+      { label: 'Mentalidad', emoji: '🔥', color: '#C084FC', item: MINDSET_ITEMS.find(m => m.id === (phase >= 3 ? 'm7' : 'm3'))! },
+      { label: 'Libro', emoji: '🪨', color: '#C084FC', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b6' : 'b2'))! },
+    ],
+  };
+  return (recs[track] ?? recs['maintenance']).filter(r => r.item != null);
+}
+
+function RecomendadoSection({
+  track,
+  phase,
+  stageTheme,
+  onPress,
+}: {
+  track: string;
+  phase: Phase;
+  stageTheme: StageTheme;
+  onPress: (item: Exercise | Book | MindsetItem) => void;
+}) {
+  const recs = getRecommendations(track, phase);
+  const tip = TRACK_TIPS[track] ?? TRACK_TIPS['maintenance'];
+  const trackLabel = TRACK_LABELS[track] ?? track;
+
+  return (
+    <View style={recStyles.container}>
+      <View style={recStyles.header}>
+        <Text style={recStyles.title}>⭐ Recomendado para vos</Text>
+        <View style={recStyles.trackBadge}>
+          <Text style={recStyles.trackLabel}>{trackLabel}</Text>
+        </View>
+      </View>
+
+      <View style={recStyles.cards}>
+        {recs.map((rec, i) => (
+          <TouchableOpacity key={i} style={[recStyles.card, { borderColor: rec.color + '40' }]} onPress={() => onPress(rec.item)} activeOpacity={0.8}>
+            <View style={[recStyles.cardIcon, { backgroundColor: rec.color + '20' }]}>
+              <Text style={{ fontSize: 20 }}>{rec.emoji}</Text>
+            </View>
+            <Text style={[recStyles.cardType, { color: rec.color }]}>{rec.label}</Text>
+            <Text style={recStyles.cardName} numberOfLines={2}>
+              {'title' in rec.item ? (rec.item as Book).title : 'name' in rec.item ? (rec.item as Exercise).name : (rec.item as MindsetItem).title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={recStyles.tip}>
+        <Text style={recStyles.tipIcon}>💡</Text>
+        <Text style={recStyles.tipText}>{tip}</Text>
+      </View>
+    </View>
+  );
+}
+
+const recStyles = StyleSheet.create({
+  container: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.md },
+  title: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.textPrimary },
+  trackBadge: { backgroundColor: COLORS.accent + '20', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: COLORS.accent + '40' },
+  trackLabel: { fontSize: 9, fontWeight: '700', color: COLORS.accent, letterSpacing: 0.5 },
+  cards: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
+  card: { flex: 1, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', borderWidth: 1, gap: 4 },
+  cardIcon: { width: 40, height: 40, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  cardType: { fontSize: 8, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+  cardName: { fontSize: FONT.xs, color: COLORS.textPrimary, fontWeight: '600', textAlign: 'center', lineHeight: 16 },
+  tip: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: RADIUS.md, padding: SPACING.sm },
+  tipIcon: { fontSize: 14 },
+  tipText: { flex: 1, fontSize: FONT.xs, color: COLORS.textSecondary, lineHeight: 18 },
+});
+
 // ─── Phase helper ─────────────────────────────────────────────────────────────
 function getPhase(day: number): Phase {
   if (day <= 30) return 1;
@@ -872,6 +989,16 @@ export default function DiscoveryScreen() {
             />
           </View>
           <Text style={styles.phaseProgress}>Día {user.currentDay} de 90 — {90 - user.currentDay} días para desbloquear todo</Text>
+
+          {/* Personalized recommendations */}
+          {user.adaptiveProfile?.track && (
+            <RecomendadoSection
+              track={user.adaptiveProfile.track}
+              phase={currentPhase}
+              stageTheme={stageTheme}
+              onPress={item => setSelected(item)}
+            />
+          )}
 
           {/* Tab selector */}
           <View style={styles.tabRow}>
