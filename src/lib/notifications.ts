@@ -57,6 +57,18 @@ const MORNING_MESSAGES = [
   { title: '🌅 Primer movimiento', body: 'El secreto no es motivación. Es hacer el primer movimiento aunque cueste. Hacelo.' },
   { title: '🐉 Modo saiyan', body: 'Los saiyans se vuelven más fuertes después de cada derrota. Vos también. Hoy es un nuevo ciclo.' },
   { title: '⚔️ Lo que te define', body: 'Lo que hacés cuando no tenés ganas — ahí es exactamente donde se construye el carácter.' },
+  // Estoicismo
+  { title: '🧠 El obstáculo es el camino', body: 'No lo rodees. No lo evites. Atravesalo. Eso es exactamente lo que necesitás hoy. — Marco Aurelio' },
+  { title: '⚡ Poder real', body: '"Tú tienes poder sobre tu mente, no sobre los eventos externos." — Marco Aurelio. Enfocate en lo que depende de vos.' },
+  { title: '🌅 Conquistate', body: '"El hombre conquista el mundo al conquistarse a sí mismo." — Séneca. Hoy es tu campo de batalla.' },
+  { title: '🎯 Solo lo necesario', body: '"La atención que le das a cada acción debe ser proporcional a su valor." — Marco Aurelio. Hoy: primero lo que importa.' },
+  { title: '⚔️ Haz lo que toca', body: 'No busques que el día sea perfecto. Solo hacé lo que la naturaleza requiere ahora mismo. — Marco Aurelio' },
+  { title: '💪 Lo controlable', body: '"Algunas cosas dependen de nosotros y otras no." — Epicteto. Hoy solo te ocupás de las que sí.' },
+  { title: '🌅 Te convertís', body: '"Te convertís en lo que le das tu atención." Elegí bien dónde ponés el foco esta mañana.' },
+  // Mis agregados
+  { title: '🔥 No esperes el clima', body: 'No podés controlar el viento, pero sí ajustar la vela. Arrancá con lo que tenés ahora.' },
+  { title: '⚡ La hora más importante', body: 'La primera hora del día define el resto. Lo que hacés ahora mismo tiene más peso del que creés.' },
+  { title: '🌅 Naruto nunca bajó los brazos', body: 'Toda la aldea lo llamó fracasado. Él siguió de todas formas. Eso lo convirtió en Hokage.' },
 ];
 
 // TARDE — terminar fuerte, no dejar misiones pendientes
@@ -76,6 +88,15 @@ const AFTERNOON_MESSAGES = [
   { title: '🔥 Jiraiya lo haría', body: 'Jiraiya entrenó a Naruto incluso cuando estaba cansado. La grandeza no espera que pase el cansancio.' },
   { title: '💎 Sin negociación', body: 'Tu yo futuro no negocia excusas. Solo ve resultados. Dale algo de qué estar orgulloso.' },
   { title: '⚔️ El esfuerzo acumula', body: 'Cada acción de hoy se suma en silencio. En 30 días lo vas a ver clarísimo.' },
+  // Estoicismo
+  { title: '🧠 Lo que depende de vos', body: '"Algunas cosas dependen de nosotros y otras no." — Epicteto. Completá lo que sí depende. Soltá el resto.' },
+  { title: '💪 Las dificultades fortalecen', body: '"Las dificultades fortalecen la mente, como el trabajo fortalece el cuerpo." — Séneca. Este momento difícil te está construyendo.' },
+  { title: '🎯 Valor proporcional', body: 'No toda tarea vale lo mismo. Identificá la más importante que te falta y hacela primero. — Marco Aurelio' },
+  { title: '⚡ El bien que hacés', body: '"El que hace el bien a otro, también hace el bien a sí mismo." — Séneca. Cerrá el día siendo alguien de quien te orgullecés.' },
+  // Mis agregados
+  { title: '🔥 Perspectiva', body: '"Todo lo que escuchamos es solo una opinión, no un hecho." — Marco Aurelio. La excusa que estás escuchando ahora mismo no es real.' },
+  { title: '⚔️ Baja el ruido', body: 'El cerebro de la tarde fabrica urgencias falsas. Cerrá las distracciones. Abrí la app. Completá lo que queda.' },
+  { title: '🌿 Gojo lo haría sin quejarse', body: 'El más poderoso del mundo no necesita excusas. Vos tampoco. Terminá el día como un Limitless.' },
 ];
 
 // NOCHE — reflexión, orgullo sin arrogancia, preparar el descanso
@@ -95,6 +116,19 @@ const NIGHT_MESSAGES = [
   { title: '🌟 El proceso funciona', body: 'Confiá en el proceso aunque hoy no se vea el resultado. La semilla tarda en verse desde afuera.' },
   { title: '🌙 Sin culpa', body: 'Si hoy fue difícil, está bien. Mañana arrancás de nuevo. Lo importante es que seguís en el juego.' },
   { title: '💫 Escribí', body: 'Antes de dormir, una línea en el diario. Lo que sentís hoy es parte de tu historia de transformación.' },
+  // Tus frases — Estoicismo y reflexión
+  { title: '🌙 Nadie puede hundirte', body: '"Nadie puede hacerte sentir inferior sin tu consentimiento." — Eleanor Roosevelt. Lo que otros piensen no define lo que construiste hoy.' },
+  { title: '⭐ Solo imaginación', body: '"Sufrimos más en la imaginación que en la realidad." — Séneca. El día que viviste fue mejor que el que temías. Descansá.' },
+  { title: '🌟 Libertad real', body: '"La libertad y la felicidad vienen de entender y trabajar con nuestros límites." — Epicteto. Conocerse es la base de todo.' },
+  { title: '🌙 La tranquilidad', body: 'Soltá lo que dicen. Soltá lo que no salió. Quedate con lo que hiciste. Eso es lo único real esta noche.' },
+  { title: '💫 Sin miedo al futuro', body: '"La mente que está ansiosa por los eventos futuros es miserable." — Séneca. Hoy terminó. Mañana no llegó. Estás bien.' },
+  { title: '🌙 El cambio es la naturaleza', body: '"La pérdida no es más que cambio, y el cambio es el deleite de la naturaleza." — Marco Aurelio. Fluí hoy. Seguí mañana.' },
+  { title: '⭐ Sé estricto, sé generoso', body: '"Sé estricto contigo mismo y tolerante con los demás." Hoy cumpliste tu parte. Eso es suficiente.' },
+  { title: '🌟 La oscuridad enseña', body: '"El miedo lleva a la ira, la ira al odio, el odio al sufrimiento." — Yoda. Lo que enfrentaste hoy sin rendirte rompió ese ciclo.' },
+  // Mis agregados noche
+  { title: '🌙 Examiná el día', body: 'Antes de dormir: ¿en qué fallaste? ¿en qué triunfaste? Una respuesta honesta vale más que mil planes. — Séneca adaptado' },
+  { title: '💫 El descanso es parte', body: 'El descanso no es recompensa del perezoso — es la recarga del guerrero. Dormí bien. Mañana arrancás.' },
+  { title: '⭐ Perspectiva nocturna', body: '"Todo lo que vemos es una perspectiva, no la realidad." — Marco Aurelio. El día que viviste tuvo más de bueno de lo que notaste.' },
 ];
 
 // RECORDATORIO DE RACHA — aviso nocturno para no perder la racha
