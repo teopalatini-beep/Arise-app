@@ -333,6 +333,23 @@ export default function ConfigScreen() {
                   />
                 </View>
 
+                {/* Racha */}
+                <View style={styles.notifRow}>
+                  <View style={[styles.notifIcon, { backgroundColor: '#F59E0B20' }]}>
+                    <Text style={{ fontSize: 18 }}>🔥</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.notifTitle}>Racha · {notif.streakReminderHour}:00 hs</Text>
+                    <Text style={styles.notifDesc}>Recordatorio para no perder tu racha</Text>
+                  </View>
+                  <Switch
+                    value={notif.streakReminder}
+                    onValueChange={v => updateNotif({ streakReminder: v })}
+                    trackColor={{ true: '#F59E0B', false: COLORS.textMuted }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
                 <View style={styles.notifDivider} />
 
                 {/* Horarios */}
@@ -342,6 +359,7 @@ export default function ConfigScreen() {
                     { label: '🌅 Mañana', key: 'morningHour' as const, options: [7,8,9,10,11] },
                     { label: '🔥 Tarde', key: 'afternoonHour' as const, options: [13,14,15,16,17] },
                     { label: '🌙 Noche', key: 'nightHour' as const, options: [19,20,21,22,23] },
+                    { label: '🔥 Racha', key: 'streakReminderHour' as const, options: [18,19,20,21,22] },
                   ].map(item => (
                     <View key={item.key} style={styles.timeCol}>
                       <Text style={styles.timeLabel}>{item.label}</Text>
