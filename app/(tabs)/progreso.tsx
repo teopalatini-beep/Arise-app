@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Rect, G, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Rect, G, Text as SvgText, Line } from 'react-native-svg';
 import { useApp } from '../../src/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
@@ -392,6 +392,206 @@ function WeeklyBars({ days, field, color, unit }: {
     </Svg>
   );
 }
+
+// ─── Weight Chart ─────────────────────────────────────────────────────────────
+function linearRegression(points: { x: number; y: number }[]): { slope: number; intercept: number } {
+  const n = points.length;
+  if (n < 2) return { slope: 0, intercept: points[0]?.y ?? 0 };
+  const sumX = points.reduce((s, p) => s + p.x, 0);
+  const sumY = points.reduce((s, p) => s + p.y, 0);
+  const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+  const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
+  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+function WeightChart({
+  data,
+  initialWeight,
+  targetWeight,
+  currentDay,
+  track,
+}: {
+  data: { x: number; y: number }[];
+  initialWeight?: number;
+  targetWeight?: number;
+  currentDay: number;
+  track?: string;
+}) {
+  const W = SCREEN_W - 16;
+  const H = 140;
+  const pad = { top: 16, bottom: 28, left: 38, right: 16 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H;
+
+  const losing = track === 'fat_loss' || track === 'recomposition';
+
+  if (data.length < 2) {
+    return (
+      <View style={{ alignItems: 'center', paddingVertical: SPACING.xl, gap: 8 }}>
+        <Ionicons name="scale-outline" size={32} color={COLORS.textMuted} />
+        <Text style={[chartStyles.emptyText, { textAlign: 'center' }]}>
+          Registrá tu peso diariamente{'\n'}para ver la evolución y proyección
+        </Text>
+      </View>
+    );
+  }
+
+  const { slope, intercept } = linearRegression(data);
+  const proj90 = slope * 90 + intercept;
+  const latestWeight = data[data.length - 1].y;
+  const firstWeight = data[0].y;
+  const delta = latestWeight - firstWeight;
+  const weeklyRate = data.length > 1 ? (delta / ((data[data.length - 1].x - data[0].x) / 7)) : 0;
+
+  // Y-axis range: include initial, latest, target, and projected
+  const allY = [firstWeight, latestWeight, proj90, targetWeight ?? latestWeight];
+  const minY = Math.min(...allY) - 1.5;
+  const maxY = Math.max(...allY) + 1.5;
+  const rangeY = maxY - minY || 1;
+
+  const toX = (day: number) => pad.left + ((day - 1) / 89) * plotW;
+  const toY = (kg: number) => pad.top + plotH - ((kg - minY) / rangeY) * plotH;
+
+  // Measured path
+  const measuredPath = data
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.x).toFixed(1)},${toY(p.y).toFixed(1)}`)
+    .join(' ');
+  const areaPath = `${measuredPath} L${toX(data[data.length - 1].x).toFixed(1)},${(pad.top + plotH).toFixed(1)} L${toX(data[0].x).toFixed(1)},${(pad.top + plotH).toFixed(1)} Z`;
+
+  // Trend line from first data point to day 90
+  const trendX1 = toX(data[0].x);
+  const trendY1 = toY(slope * data[0].x + intercept);
+  const trendX2 = toX(90);
+  const trendY2 = toY(proj90);
+
+  // Y-axis tick values
+  const yTicks = [minY + 1, (minY + maxY) / 2, maxY - 1].map(v => Math.round(v * 2) / 2);
+
+  return (
+    <View>
+      <Svg width={W} height={H + pad.top + pad.bottom}>
+        <Defs>
+          <SvgGradient id="wGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={COLORS.accent} stopOpacity="0.25" />
+            <Stop offset="1" stopColor={COLORS.accent} stopOpacity="0.02" />
+          </SvgGradient>
+        </Defs>
+
+        {/* Grid lines */}
+        {yTicks.map((v, i) => (
+          <G key={i}>
+            <Line
+              x1={pad.left} y1={toY(v)}
+              x2={W - pad.right} y2={toY(v)}
+              stroke="rgba(255,255,255,0.06)" strokeWidth="1"
+            />
+            <SvgText x={pad.left - 4} y={toY(v) + 3} textAnchor="end" fontSize="9" fill={COLORS.textMuted}>
+              {v.toFixed(1)}
+            </SvgText>
+          </G>
+        ))}
+
+        {/* Target weight line */}
+        {targetWeight != null && (
+          <G>
+            <Line
+              x1={pad.left} y1={toY(targetWeight)}
+              x2={W - pad.right} y2={toY(targetWeight)}
+              stroke={losing ? COLORS.success : COLORS.warning}
+              strokeWidth="1.5"
+              strokeDasharray="5,4"
+            />
+            <SvgText x={W - pad.right + 2} y={toY(targetWeight) + 3} fontSize="8" fill={losing ? COLORS.success : COLORS.warning}>
+              Meta
+            </SvgText>
+          </G>
+        )}
+
+        {/* Trend line (projection) */}
+        <Line
+          x1={trendX1} y1={trendY1}
+          x2={trendX2} y2={trendY2}
+          stroke={COLORS.accent}
+          strokeWidth="1.5"
+          strokeDasharray="6,4"
+          opacity={0.5}
+        />
+
+        {/* Area fill */}
+        <Path d={areaPath} fill="url(#wGrad)" />
+
+        {/* Measured line */}
+        <Path d={measuredPath} stroke={COLORS.accent} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Dots */}
+        <Circle cx={toX(data[0].x)} cy={toY(data[0].y)} r={3.5} fill={COLORS.accent} opacity={0.7} />
+        <Circle cx={toX(data[data.length - 1].x)} cy={toY(data[data.length - 1].y)} r={5} fill={COLORS.accent} />
+
+        {/* Projection dot at day 90 */}
+        <Circle cx={toX(90)} cy={toY(proj90)} r={4} fill={COLORS.accent} opacity={0.4} strokeDasharray="3,2" stroke={COLORS.accent} strokeWidth="1" />
+
+        {/* X-axis labels */}
+        <SvgText x={toX(data[0].x)} y={H + pad.top + pad.bottom - 2} textAnchor="middle" fontSize="9" fill={COLORS.textMuted}>D{data[0].x}</SvgText>
+        <SvgText x={toX(currentDay)} y={H + pad.top + pad.bottom - 2} textAnchor="middle" fontSize="9" fill={COLORS.accent}>Hoy</SvgText>
+        <SvgText x={toX(90)} y={H + pad.top + pad.bottom - 2} textAnchor="middle" fontSize="9" fill={COLORS.textMuted}>D90</SvgText>
+      </Svg>
+
+      {/* Stats row */}
+      <View style={wchartStyles.statsRow}>
+        <View style={wchartStyles.stat}>
+          <Text style={wchartStyles.statVal}>{latestWeight.toFixed(1)} kg</Text>
+          <Text style={wchartStyles.statLabel}>Actual</Text>
+        </View>
+        <View style={wchartStyles.divider} />
+        <View style={wchartStyles.stat}>
+          <Text style={[wchartStyles.statVal, { color: delta === 0 ? COLORS.textMuted : (losing ? (delta < 0 ? COLORS.success : COLORS.danger) : (delta > 0 ? COLORS.success : COLORS.danger)) }]}>
+            {delta >= 0 ? '+' : ''}{delta.toFixed(1)} kg
+          </Text>
+          <Text style={wchartStyles.statLabel}>Vs inicio</Text>
+        </View>
+        <View style={wchartStyles.divider} />
+        <View style={wchartStyles.stat}>
+          <Text style={wchartStyles.statVal}>{weeklyRate >= 0 ? '+' : ''}{weeklyRate.toFixed(2)} kg/sem</Text>
+          <Text style={wchartStyles.statLabel}>Velocidad</Text>
+        </View>
+        <View style={wchartStyles.divider} />
+        <View style={wchartStyles.stat}>
+          <Text style={[wchartStyles.statVal, { color: COLORS.accent }]}>{proj90.toFixed(1)} kg</Text>
+          <Text style={wchartStyles.statLabel}>Proy. D90</Text>
+        </View>
+      </View>
+
+      {/* Progress toward target */}
+      {targetWeight != null && initialWeight != null && (
+        (() => {
+          const totalDelta = targetWeight - initialWeight;
+          const done = Math.abs(totalDelta) < 0.1 ? 1 : Math.max(0, Math.min(1, (latestWeight - initialWeight) / totalDelta));
+          const pct = Math.round(done * 100);
+          const color = losing ? COLORS.success : COLORS.warning;
+          return (
+            <View style={wchartStyles.targetRow}>
+              <Text style={wchartStyles.targetLabel}>Meta: {initialWeight.toFixed(1)} → {targetWeight.toFixed(1)} kg</Text>
+              <Text style={[wchartStyles.targetPct, { color }]}>{pct}%</Text>
+            </View>
+          );
+        })()
+      )}
+    </View>
+  );
+}
+
+const wchartStyles = StyleSheet.create({
+  statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: SPACING.sm, paddingHorizontal: 4 },
+  stat: { flex: 1, alignItems: 'center' },
+  statVal: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.textPrimary },
+  statLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
+  divider: { width: 1, height: 28, backgroundColor: COLORS.border },
+  targetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border },
+  targetLabel: { fontSize: FONT.xs, color: COLORS.textMuted },
+  targetPct: { fontSize: FONT.sm, fontWeight: '900' },
+});
 
 // ─── XP Ring ─────────────────────────────────────────────────────────────────
 function XPRing({ xp, level, xpForLevel }: { xp: number; level: number; xpForLevel: (l: number) => number }) {
@@ -782,27 +982,13 @@ export default function ProgresoScreen() {
             {/* Weight chart */}
             <Text style={styles.sectionTitle}>EVOLUCIÓN DE PESO</Text>
             <View style={styles.card}>
-              {weightData.length >= 2
-                ? <LineChart data={weightData} color={COLORS.accent} label="kg" />
-                : <View style={chartStyles.empty}>
-                    <Ionicons name="scale-outline" size={28} color={COLORS.textMuted} />
-                    <Text style={chartStyles.emptyText}>Cargá tu peso diariamente para ver la evolución</Text>
-                  </View>
-              }
-              {weightData.length > 0 && (
-                <View style={styles.chartFooter}>
-                  <Text style={styles.chartStat}>Inicio: {weightData[0].y.toFixed(1)} kg</Text>
-                  {weightData.length > 1 && (
-                    <Text style={[styles.chartStat, {
-                      color: weightData[weightData.length - 1].y < weightData[0].y ? COLORS.success : COLORS.danger
-                    }]}>
-                      Actual: {weightData[weightData.length - 1].y.toFixed(1)} kg
-                      {' '}({(weightData[weightData.length - 1].y - weightData[0].y > 0 ? '+' : '')}
-                      {(weightData[weightData.length - 1].y - weightData[0].y).toFixed(1)} kg)
-                    </Text>
-                  )}
-                </View>
-              )}
+              <WeightChart
+                data={weightData}
+                initialWeight={user.initialWeight}
+                targetWeight={user.goals?.targetWeight}
+                currentDay={user.currentDay}
+                track={user.adaptiveProfile?.track}
+              />
             </View>
 
             {/* Weekly training bars */}
