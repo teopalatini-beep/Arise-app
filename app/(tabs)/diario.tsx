@@ -226,12 +226,90 @@ const toolStyles = StyleSheet.create({
   phraseText: { fontSize: FONT.sm, color: COLORS.textPrimary, fontStyle: 'italic', lineHeight: 20 },
 });
 
+// ─── Mood Trend Strip ─────────────────────────────────────────────────────────
+function MoodTrendStrip({
+  days,
+  currentDay,
+  onPress,
+}: {
+  days: any[];
+  currentDay: number;
+  onPress: (day: number) => void;
+}) {
+  const MOOD_COLORS = ['#EF4444', '#F97316', '#A3A3A3', '#22C55E', '#10B981'];
+  const last14 = Array.from({ length: 14 }, (_, i) => currentDay - 13 + i).filter(d => d >= 1);
+
+  return (
+    <View style={trendStyles.container}>
+      <Text style={trendStyles.label}>ÁNIMO · ÚLTIMOS {last14.length} DÍAS</Text>
+      <View style={trendStyles.strip}>
+        {last14.map(dayNum => {
+          const record = days.find((d: any) => d.dayNumber === dayNum);
+          const moodVal = record?.metrics?.mood;
+          const hasEntry = record?.journal && record.journal.trim().length > 0;
+          const isToday = dayNum === currentDay;
+          const bgColor = record?.completed
+            ? 'rgba(34,197,94,0.15)'
+            : record?.missed
+            ? 'rgba(239,68,68,0.15)'
+            : 'rgba(255,255,255,0.05)';
+
+          return (
+            <TouchableOpacity
+              key={dayNum}
+              style={[trendStyles.cell, { backgroundColor: bgColor }, isToday && trendStyles.cellToday]}
+              onPress={() => hasEntry && onPress(dayNum)}
+              activeOpacity={hasEntry ? 0.7 : 1}
+            >
+              <Text style={trendStyles.cellDay}>{dayNum}</Text>
+              {moodVal != null ? (
+                <Text style={trendStyles.cellEmoji}>{MOOD_EMOJIS[moodVal - 1]}</Text>
+              ) : (
+                <View style={[trendStyles.cellDot, { backgroundColor: hasEntry ? COLORS.accent : 'rgba(255,255,255,0.1)' }]} />
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <View style={trendStyles.legend}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'rgba(34,197,94,0.4)' }} />
+          <Text style={trendStyles.legendText}>Completado</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: 'rgba(239,68,68,0.4)' }} />
+          <Text style={trendStyles.legendText}>Fallado</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.accent }} />
+          <Text style={trendStyles.legendText}>Con entrada</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const trendStyles = StyleSheet.create({
+  container: { marginBottom: SPACING.lg },
+  label: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm },
+  strip: { flexDirection: 'row', gap: 4 },
+  cell: { flex: 1, borderRadius: RADIUS.sm, paddingVertical: 6, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  cellToday: { borderColor: COLORS.accent + '60', borderWidth: 1.5 },
+  cellDay: { fontSize: 8, color: COLORS.textMuted, fontWeight: '700' },
+  cellEmoji: { fontSize: 13 },
+  cellDot: { width: 6, height: 6, borderRadius: 3 },
+  legend: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
+  legendText: { fontSize: 9, color: COLORS.textMuted },
+});
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function DiarioScreen() {
   const { data, todayRecord, saveJournal, saveMetrics, getDayRecord, loading } = useApp();
   const [text, setText] = useState(todayRecord?.journal ?? '');
   const [mood, setMood] = useState(todayRecord?.metrics?.mood ?? 0);
   const [saved, setSaved] = useState(false);
   const [viewingDay, setViewingDay] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setText(todayRecord?.journal ?? '');
@@ -261,6 +339,10 @@ export default function DiarioScreen() {
   const journalDays = days
     .filter(d => d.journal && d.journal.trim().length > 0)
     .sort((a, b) => b.dayNumber - a.dayNumber);
+
+  const filteredJournalDays = searchQuery.trim().length > 0
+    ? journalDays.filter(d => d.journal?.toLowerCase().includes(searchQuery.toLowerCase()))
+    : journalDays;
 
   function handleSave() {
     saveJournal(text);
@@ -454,13 +536,51 @@ export default function DiarioScreen() {
               <EmotionCard key={tool.id} tool={tool} />
             ))}
 
+            {/* Mood trend strip */}
+            {days.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>TENDENCIA DE ÁNIMO</Text>
+                <MoodTrendStrip
+                  days={days}
+                  currentDay={user.currentDay}
+                  onPress={setViewingDay}
+                />
+              </>
+            )}
+
             {/* Past entries */}
             {journalDays.length > 0 && (
               <>
                 <Text style={styles.sectionTitle}>
                   ENTRADAS ANTERIORES · {journalDays.length} {journalDays.length === 1 ? 'entrada' : 'entradas'}
                 </Text>
-                {journalDays.map(d => {
+
+                {/* Search bar */}
+                <View style={styles.searchRow}>
+                  <Ionicons name="search-outline" size={16} color={COLORS.textMuted} style={{ marginLeft: SPACING.sm }} />
+                  <TextInput
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Buscar en tus entradas..."
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={{ padding: SPACING.sm }}>
+                      <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {filteredJournalDays.length === 0 && searchQuery.length > 0 && (
+                  <View style={{ padding: SPACING.lg, alignItems: 'center' }}>
+                    <Text style={{ color: COLORS.textMuted, fontSize: FONT.sm }}>Sin resultados para "{searchQuery}"</Text>
+                  </View>
+                )}
+
+                {filteredJournalDays.map(d => {
                   const moodVal = d.metrics?.mood;
                   const statusColor = d.completed ? COLORS.success : d.missed ? COLORS.danger : COLORS.textMuted;
                   const statusDot = d.completed ? '●' : d.missed ? '●' : '○';
@@ -578,6 +698,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: SPACING.sm,
   },
   promptItemText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
+
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: SPACING.md, gap: 4,
+  },
+  searchInput: {
+    flex: 1, color: COLORS.textPrimary, fontSize: FONT.sm,
+    paddingVertical: SPACING.sm, paddingRight: SPACING.sm,
+  },
 
   pastEntry: {
     flexDirection: 'row', alignItems: 'center',
