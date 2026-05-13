@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadPhrases, getPhrasesForTurn, randomPhrase } from './phrases';
 
 // ─── Config global de notificaciones ─────────────────────────────────────────
 Notifications.setNotificationHandler({
@@ -143,6 +144,7 @@ const STREAK_REMINDER_MESSAGES = [
 ];
 
 
+// randomFrom kept for milestone messages only
 function randomFrom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -197,9 +199,12 @@ export async function scheduleAllNotifications(
   const hasPermission = await requestPermissions();
   if (!hasPermission) return;
 
+  // Load dynamic phrases from Supabase (falls back to hardcoded)
+  await loadPhrases();
+
   // ── Notificaciones diarias ─────────────────────────────────────────────
   if (settings.morning) {
-    const msg = randomFrom(MORNING_MESSAGES);
+    const msg = randomPhrase(getPhrasesForTurn('morning', MORNING_MESSAGES));
     await Notifications.scheduleNotificationAsync({
       content: { title: msg.title, body: msg.body, sound: true },
       trigger: {
@@ -211,7 +216,7 @@ export async function scheduleAllNotifications(
   }
 
   if (settings.afternoon) {
-    const msg = randomFrom(AFTERNOON_MESSAGES);
+    const msg = randomPhrase(getPhrasesForTurn('afternoon', AFTERNOON_MESSAGES));
     await Notifications.scheduleNotificationAsync({
       content: { title: msg.title, body: msg.body, sound: true },
       trigger: {
@@ -223,7 +228,7 @@ export async function scheduleAllNotifications(
   }
 
   if (settings.night) {
-    const msg = randomFrom(NIGHT_MESSAGES);
+    const msg = randomPhrase(getPhrasesForTurn('night', NIGHT_MESSAGES));
     await Notifications.scheduleNotificationAsync({
       content: { title: msg.title, body: msg.body, sound: true },
       trigger: {
@@ -235,7 +240,7 @@ export async function scheduleAllNotifications(
   }
 
   if (settings.streakReminder) {
-    const msg = randomFrom(STREAK_REMINDER_MESSAGES);
+    const msg = randomPhrase(getPhrasesForTurn('streak', STREAK_REMINDER_MESSAGES));
     await Notifications.scheduleNotificationAsync({
       content: { title: msg.title, body: msg.body, sound: true },
       trigger: {
