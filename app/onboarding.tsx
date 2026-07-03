@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   Animated, Dimensions, ScrollView, TextInput, KeyboardAvoidingView, Platform,
@@ -11,8 +11,20 @@ import { OnboardingData, UserGoals, AdaptiveChallenge, AdaptiveTrack, CoachId, D
 import { scheduleAllNotifications, loadNotifSettings, saveNotifSettings } from '../src/lib/notifications';
 import { deriveAdaptiveProfile } from '../src/data/program';
 import { initProgram, useApp } from '../src/context/AppContext';
+import { trackOnboardingStepViewed, trackOnboardingCompleted } from '../src/services/analytics';
 
 const { width } = Dimensions.get('window');
+
+// Nombres estables de cada paso para el embudo de onboarding (índice = step).
+const STEP_NAMES = [
+  'welcome',
+  'goal',
+  'fitness_level',
+  'physical_data',
+  'measurable_goals',
+  'sensei_selection',
+  'wake_hour',
+] as const;
 export const ONBOARDING_KEY = 'arise_onboarding_v1';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
@@ -109,6 +121,15 @@ export default function OnboardingScreen() {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const totalSteps = 7;
 
+  // Embudo: registrar cada paso visto (incluido el 0 al montar la pantalla).
+  useEffect(() => {
+    trackOnboardingStepViewed({
+      step_index: step,
+      step_name: STEP_NAMES[step] ?? `step_${step}`,
+      total_steps: totalSteps,
+    });
+  }, [step]);
+
   function nextStep() {
     Animated.sequence([
       Animated.timing(slideAnim, { toValue: -width, duration: 250, useNativeDriver: true }),
@@ -179,6 +200,18 @@ export default function OnboardingScreen() {
       preferredCoachId: selectedCoachId,
     };
     await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(onboarding));
+
+    // Embudo: onboarding completado — coach elegido + metas del usuario.
+    trackOnboardingCompleted({
+      coach: selectedCoachId,
+      goal,
+      track: adaptiveProfile.track,
+      training_days_per_week: trainingDays,
+      target_weight: parsedTargetWeight,
+      target_streak: goals.targetStreak,
+      target_reading_pages: goals.targetReadingPages,
+    });
+
     applyOnboardingProfile(onboarding);
     await initProgram();
 

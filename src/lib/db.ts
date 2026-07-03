@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { UserProfile, DayRecord, DayMetrics } from '../types';
+import { trackError } from '../services/errorTracking';
 
 function parseJson<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback;
@@ -75,7 +76,7 @@ export async function upsertProfile(userId: string, profile: UserProfile): Promi
     preferred_coach_id: profile.preferredCoachId ?? null,
     badges: profile.badges ?? [],
   });
-  if (error) console.error('upsertProfile error', error.message);
+  if (error) trackError(error, { scope: 'db.upsertProfile', extra: { userId } });
 }
 
 // ─── Day records ──────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export async function upsertDayRecord(userId: string, record: DayRecord): Promis
     missed: record.missed,
     penalty_completed: record.penaltyCompleted ?? false,
   }, { onConflict: 'user_id,day_number' });
-  if (error) console.error('upsertDayRecord error', error.message);
+  if (error) trackError(error, { scope: 'db.upsertDayRecord', extra: { userId, dayNumber: record.dayNumber } });
 }
 
 // ─── Metrics ──────────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ export async function upsertMetrics(userId: string, dayNumber: number, metrics: 
     mood: metrics.mood ?? null,
     notes: metrics.notes ?? null,
   }, { onConflict: 'user_id,day_number' });
-  if (error) console.error('upsertMetrics error', error.message);
+  if (error) trackError(error, { scope: 'db.upsertMetrics', extra: { userId, dayNumber } });
 }
 
 export async function fetchMetrics(userId: string): Promise<{ dayNumber: number; metrics: DayMetrics }[]> {
@@ -167,7 +168,7 @@ export async function upsertJournal(userId: string, dayNumber: number, content: 
     day_number: dayNumber,
     content,
   }, { onConflict: 'user_id,day_number' });
-  if (error) console.error('upsertJournal error', error.message);
+  if (error) trackError(error, { scope: 'db.upsertJournal', extra: { userId, dayNumber } });
 }
 
 export async function fetchJournal(userId: string): Promise<{ dayNumber: number; content: string }[]> {
@@ -192,5 +193,19 @@ export async function deleteUserData(userId: string): Promise<string | null> {
   ]);
 
   const firstError = journalRes.error ?? metricsRes.error ?? dayRes.error ?? profileRes.error;
+  if (firstError) {
+    // Con Promise.all el borrado puede quedar parcial: registrar qué tablas fallaron.
+    trackError(firstError, {
+      scope: 'db.deleteUserData',
+      severity: 'fatal',
+      extra: {
+        userId,
+        journal: journalRes.error?.message ?? 'ok',
+        metrics: metricsRes.error?.message ?? 'ok',
+        dayRecords: dayRes.error?.message ?? 'ok',
+        profiles: profileRes.error?.message ?? 'ok',
+      },
+    });
+  }
   return firstError ? firstError.message : null;
 }

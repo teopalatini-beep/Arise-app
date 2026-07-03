@@ -12,19 +12,18 @@ import {
   fetchMetrics, upsertMetrics,
   fetchJournal, upsertJournal,
 } from '../lib/db';
+import { trackError } from '../services/errorTracking';
+import { trackFirstMissionActivated, trackRpcSyncExecution } from '../services/analytics';
 
 const STORAGE_KEY = 'arise_data_v1';
 const TODAY = () => format(new Date(), 'yyyy-MM-dd');
 const MONTH_REF = () => format(new Date(), 'yyyy-MM');
 
-function isNetworkError(error: unknown): boolean {
-  const msg = String((error as any)?.message ?? error ?? '').toLowerCase();
-  return msg.includes('network request failed') || msg.includes('fetch failed');
-}
-
+// Todos los errores de red/sync/RPC pasan por el wrapper de telemetría unificado
+// (errorTracking.ts) para que nada quede sordo en producción. El wrapper degrada
+// automáticamente los errores de red a 'warning' y los registra igual.
 function logUnexpectedError(scope: string, error: unknown) {
-  if (isNetworkError(error)) return;
-  console.warn(`[AppContext] ${scope}`, error);
+  trackError(error, `AppContext.${scope}`);
 }
 
 // ── Programa adaptativo ──────────────────────────────────────────────────────
@@ -45,7 +44,10 @@ export async function initProgram(): Promise<void> {
         targetWeight: ob.goals?.targetWeight,
       });
     }
-  } catch {}
+  } catch (e) {
+    // Onboarding corrupto/ilegible → se cae a defaults, pero el fallo queda registrado
+    trackError(e, { scope: 'AppContext.initProgram', severity: 'warning' });
+  }
 }
 
 export function getProgram() { return _cachedProgram; }
@@ -184,6 +186,7 @@ const AppContext = createContext<AppContextType | null>(null);
 
 const HARD_MODE_KEY = 'arise_hard_mode';
 const PINNED_KEY    = 'arise_pinned_missions';
+const FIRST_MISSION_KEY = 'arise_first_mission_activated'; // flag: se dispara una sola vez
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
@@ -332,7 +335,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
           // Push local-ahead data to Supabase in background (no await — non-blocking)
-          if (needsRemoteSync) syncAllToSupabase(user.id, updated).catch(() => {});
+          if (needsRemoteSync) {
+            syncAllToSupabase(user.id, updated).catch((e) =>
+              trackError(e, 'AppContext.loadData.backgroundSync'),
+            );
+          }
 
           setLoading(false);
           return;
@@ -381,6 +388,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   async function syncAllToSupabase(userId: string, appData: AppData) {
     setSyncing(true);
+    const startedAt = Date.now();
     try {
       await upsertProfile(userId, appData.user);
       await Promise.all(appData.days.map(async (dr) => {
@@ -388,7 +396,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (dr.metrics) await upsertMetrics(userId, dr.dayNumber, dr.metrics);
         if (dr.journal) await upsertJournal(userId, dr.dayNumber, dr.journal);
       }));
+      // Salud de la RPC/sync: éxito + delta de tiempo + volumen sincronizado.
+      trackRpcSyncExecution({
+        endpoint: 'syncAllToSupabase',
+        success: true,
+        duration_ms: Date.now() - startedAt,
+        records_synced: appData.days.length,
+      });
     } catch (e) {
+      trackRpcSyncExecution({
+        endpoint: 'syncAllToSupabase',
+        success: false,
+        duration_ms: Date.now() - startedAt,
+        error_message: e instanceof Error ? e.message : String(e),
+      });
       logUnexpectedError('Sync error', e);
     } finally {
       setSyncing(false);
@@ -591,6 +612,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const currentStates = ensureMissionStates(record, missions);
 
     const points = calcPoints(mission, units);
+
+    // Activación: primera misión activada de la vida del usuario (dispara 1 sola vez).
+    if (units > 0) {
+      AsyncStorage.getItem(FIRST_MISSION_KEY)
+        .then((flag) => {
+          if (flag) return;
+          AsyncStorage.setItem(FIRST_MISSION_KEY, '1');
+          trackFirstMissionActivated({
+            mission_id: missionId,
+            day_number: record.dayNumber,
+            units,
+            points,
+          });
+        })
+        .catch((e) => trackError(e, 'AppContext.firstMissionActivated'));
+    }
+
     const updatedStates: MissionState[] = currentStates.map(s =>
       s.missionId === missionId ? { ...s, units, points } : s
     );
@@ -731,8 +769,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) upsertJournal(user.id, record.dayNumber, text);
-    });
+      if (user) {
+        upsertJournal(user.id, record.dayNumber, text).catch((e) =>
+          trackError(e, { scope: 'AppContext.saveJournal', extra: { dayNumber: record.dayNumber } }),
+        );
+      }
+    }).catch((e) => trackError(e, 'AppContext.saveJournal.getUser'));
   }, [data]);
 
   // ── Metrics ──────────────────────────────────────────────────────────────
@@ -749,8 +791,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) upsertMetrics(user.id, record.dayNumber, metrics);
-    });
+      if (user) {
+        upsertMetrics(user.id, record.dayNumber, metrics).catch((e) =>
+          trackError(e, { scope: 'AppContext.saveMetrics', extra: { dayNumber: record.dayNumber } }),
+        );
+      }
+    }).catch((e) => trackError(e, 'AppContext.saveMetrics.getUser'));
   }, [data]);
 
   // ── Grace day ────────────────────────────────────────────────────────────

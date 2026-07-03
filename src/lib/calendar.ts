@@ -78,7 +78,7 @@ export async function addMissionsToCalendar(
     startDate.setHours(startHour, 0, 0, 0);
 
     const endDate = new Date(startDate);
-    endDate.setMinutes(30); // 30-min blocks
+    endDate.setMinutes(startDate.getMinutes() + 30); // 30-min blocks
 
     const categoryEmoji: Record<string, string> = {
       cuerpo: '💪',
@@ -125,7 +125,7 @@ export async function addTrainingBlock(
   startDate.setHours(hour, 0, 0, 0);
 
   const endDate = new Date(startDate);
-  endDate.setMinutes(durationMinutes);
+  endDate.setMinutes(startDate.getMinutes() + durationMinutes);
 
   await Calendar.createEventAsync(calendarId, {
     title: `🔥 Entrenamiento — ARISE Día ${dayNumber}`,
