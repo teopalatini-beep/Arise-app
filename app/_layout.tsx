@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { ONBOARDING_KEY } from './onboarding';
 import { initErrorTracking, trackError } from '../src/services/errorTracking';
 import { initAnalytics } from '../src/services/analytics';
+import { CoachThemeProvider } from '../src/theme/useCoachTheme';
 
 // Expo Go no incluye el módulo nativo de Sentry: inicializarlo ahí crashea la app.
 // En Expo Go salteamos la telemetría remota; los servicios degradan solos a
@@ -169,7 +170,9 @@ export default function RootLayout() {
     <ErrorBoundary>
       <AuthProvider>
         <AppProvider>
-          <RootNavigator />
+          <CoachThemeProvider>
+            <RootNavigator />
+          </CoachThemeProvider>
         </AppProvider>
       </AuthProvider>
     </ErrorBoundary>
