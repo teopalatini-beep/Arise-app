@@ -3,6 +3,7 @@ import { useEffect, Component, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, LogBox } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import PostHog from 'posthog-react-native';
+import Constants from 'expo-constants';
 import { AppProvider } from '../src/context/AppContext';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { StatusBar } from 'expo-status-bar';
@@ -12,38 +13,37 @@ import { ONBOARDING_KEY } from './onboarding';
 import { initErrorTracking, trackError } from '../src/services/errorTracking';
 import { initAnalytics } from '../src/services/analytics';
 
-// ── Telemetría remota (Sentry) ────────────────────────────────────────────────
-// El DSN viene por env var: sin él, Sentry queda deshabilitado y trackError sigue
-// registrando en memoria + consola (nada se pierde). Con DSN, se activa el envío
-// remoto a producción a través del wrapper unificado.
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+// Expo Go no incluye el módulo nativo de Sentry: inicializarlo ahí crashea la app.
+// En Expo Go salteamos la telemetría remota; los servicios degradan solos a
+// consola + ring-buffer (nada se pierde). En builds reales (EAS) sí se activa.
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
-Sentry.init({
-  dsn: SENTRY_DSN,
-  enabled: !!SENTRY_DSN,
-  // Menos muestreo de performance en prod para no gastar cuota; full en dev.
-  tracesSampleRate: __DEV__ ? 1.0 : 0.2,
-});
+if (!isExpoGo) {
+  // ── Telemetría remota (Sentry) ──────────────────────────────────────────────
+  const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
-// Conecta el wrapper de telemetría al cliente remoto. A partir de acá, todo
-// trackError(...) del código reenvía a Sentry.captureException en producción.
-initErrorTracking({
-  captureException: (error, hint) => Sentry.captureException(error, hint as any),
-  captureMessage: (message, hint) => Sentry.captureMessage(message, hint as any),
-});
-
-// ── Analíticas de producto (PostHog) ──────────────────────────────────────────
-// Key por env var: sin ella, PostHog no se inicializa y los eventos quedan en el
-// ring-buffer + consola (nada se pierde). Con key, el embudo emite a un dashboard.
-const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY;
-const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
-
-if (POSTHOG_KEY) {
-  const posthog = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST });
-  initAnalytics({
-    capture: (event, properties) => posthog.capture(event, properties as any),
-    identify: (userId, traits) => posthog.identify(userId, traits as any),
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    enabled: !!SENTRY_DSN,
+    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
   });
+
+  initErrorTracking({
+    captureException: (error, hint) => Sentry.captureException(error, hint as any),
+    captureMessage: (message, hint) => Sentry.captureMessage(message, hint as any),
+  });
+
+  // ── Analíticas de producto (PostHog) ────────────────────────────────────────
+  const POSTHOG_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY;
+  const POSTHOG_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
+
+  if (POSTHOG_KEY) {
+    const posthog = new PostHog(POSTHOG_KEY, { host: POSTHOG_HOST });
+    initAnalytics({
+      capture: (event, properties) => posthog.capture(event, properties as any),
+      identify: (userId, traits) => posthog.identify(userId, traits as any),
+    });
+  }
 }
 
 LogBox.ignoreLogs([

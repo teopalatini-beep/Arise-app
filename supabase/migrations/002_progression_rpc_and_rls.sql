@@ -122,20 +122,24 @@ drop policy if exists profiles_delete_own on public.profiles;
 create policy profiles_delete_own on public.profiles
   for delete using (auth.uid() = id);
 
--- UPDATE propio, pero con las columnas de progresión CONGELADAS: solo la RPC
--- (SECURITY DEFINER) puede modificarlas. El cliente solo edita campos "de perfil".
+-- UPDATE propio con progresión MONOTÓNICA desde el cliente: las columnas de
+-- progresión solo pueden MANTENERSE o BAJAR (reset de programa, día de gracia).
+-- SUBIRLAS es exclusivo de la RPC complete_day (SECURITY DEFINER, bypassa RLS).
+-- Esto cierra el cheat (inflar stats) sin romper resetProgram / useGraceDay.
 drop policy if exists profiles_update_non_progression_own on public.profiles;
 create policy profiles_update_non_progression_own on public.profiles
   for update
   using (auth.uid() = id)
   with check (
     auth.uid() = id
-    and xp                = (select p.xp                from public.profiles p where p.id = profiles.id)
-    and streak            = (select p.streak            from public.profiles p where p.id = profiles.id)
-    and max_streak        = (select p.max_streak        from public.profiles p where p.id = profiles.id)
-    and level             = (select p.level             from public.profiles p where p.id = profiles.id)
-    and current_day       = (select p.current_day       from public.profiles p where p.id = profiles.id)
-    and program_completed = (select p.program_completed from public.profiles p where p.id = profiles.id)
+    and xp          <= (select p.xp          from public.profiles p where p.id = profiles.id)
+    and streak      <= (select p.streak      from public.profiles p where p.id = profiles.id)
+    and max_streak  <= (select p.max_streak  from public.profiles p where p.id = profiles.id)
+    and level       <= (select p.level       from public.profiles p where p.id = profiles.id)
+    and current_day <= (select p.current_day from public.profiles p where p.id = profiles.id)
+    -- program_completed: se puede apagar (reset) pero no encender desde el cliente
+    and (not program_completed
+         or (select p.program_completed from public.profiles p where p.id = profiles.id))
   );
 
 -- ─────────────────────────────────────────────────────────────────────────────
