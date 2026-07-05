@@ -11,6 +11,7 @@ import {
   fetchDayRecords, upsertDayRecord,
   fetchMetrics, upsertMetrics,
   fetchJournal, upsertJournal,
+  completeDayRpc,
 } from '../lib/db';
 import { trackError } from '../services/errorTracking';
 import { trackFirstMissionActivated, trackRpcSyncExecution } from '../services/analytics';
@@ -515,6 +516,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Persistencia para el momento de COMPLETAR un día. La progresión (XP/racha/día)
+  // la otorga el servidor vía RPC anti-cheat; el cliente hace update optimista local
+  // (offline-first) y luego reconcilia con la verdad autoritativa del server.
+  const persistWithRpcCompletion = useCallback(async (newData: AppData, record: DayRecord) => {
+    // 1. Update optimista local — la UI refleja el progreso al instante, aun offline.
+    setData(newData);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 2. La RPC es la autoridad: otorga XP/racha/día server-side y devuelve el perfil.
+      const authoritative = await completeDayRpc(record);
+      if (!authoritative) return; // offline/error → se conserva el estado optimista
+
+      // 3. Reconciliar SOLO las columnas de progresión con la verdad del server.
+      setData(prev => {
+        if (!prev) return prev;
+        const reconciled: AppData = {
+          ...prev,
+          user: {
+            ...prev.user,
+            xp: authoritative.xp,
+            level: authoritative.level,
+            streak: authoritative.streak,
+            maxStreak: authoritative.maxStreak,
+            currentDay: authoritative.currentDay,
+            programCompleted: authoritative.programCompleted,
+          },
+        };
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reconciled))
+          .catch((e) => trackError(e, 'AppContext.reconcile.save'));
+        return reconciled;
+      });
+    } catch (e) {
+      trackError(e, 'AppContext.persistWithRpcCompletion');
+    }
+  }, []);
+
   // ── Derived state ────────────────────────────────────────────────────────
   const todayDefinition = (() => {
     if (!data) return null;
@@ -647,9 +688,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     let user = { ...newData.user };
     const wasCompleted = record.completed;
+    const justCompleted = completed && !wasCompleted;
 
-    if (completed && !wasCompleted) {
-      // Day just got completed — award XP + advance streak
+    if (justCompleted) {
+      // Update optimista local (offline-first). El servidor re-otorga y reconcilia
+      // vía persistWithRpcCompletion; acá replicamos la misma matemática para la UI.
       const earned = xpForDay(user.currentDay);
       user.xp += earned;
       user.level = levelFromXP(user.xp);
@@ -666,8 +709,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ];
 
     const withBadges = applyBadges(newData);
-    persistWithRecord(withBadges, updatedRecord);
-  }, [data, hardMode, pinnedMissions, persistWithRecord]);
+    // Al completar → RPC anti-cheat (progresión server-side). Si no, persistencia normal.
+    if (justCompleted) {
+      persistWithRpcCompletion(withBadges, updatedRecord);
+    } else {
+      persistWithRecord(withBadges, updatedRecord);
+    }
+  }, [data, hardMode, pinnedMissions, persistWithRecord, persistWithRpcCompletion]);
 
   // ── Task operations ──────────────────────────────────────────────────────
   const completeTask = useCallback((taskId: string) => {

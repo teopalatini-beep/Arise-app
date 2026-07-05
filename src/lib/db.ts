@@ -17,15 +17,9 @@ function parseJson<T>(value: unknown, fallback: T): T {
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 
-export async function fetchProfile(userId: string): Promise<UserProfile | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (error || !data) return null;
-
+// Mapea una fila cruda de `profiles` (snake_case) al modelo UserProfile (camelCase).
+// Compartido entre fetchProfile y la RPC complete_day.
+function mapProfileRow(data: any): UserProfile {
   return {
     name: data.name,
     startDate: data.start_date,
@@ -49,6 +43,40 @@ export async function fetchProfile(userId: string): Promise<UserProfile | null> 
     preferredCoachId: data.preferred_coach_id ?? undefined,
     badges: parseJson(data.badges, []),
   };
+}
+
+export async function fetchProfile(userId: string): Promise<UserProfile | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) return null;
+  return mapProfileRow(data);
+}
+
+/**
+ * Completa el día actual vía la RPC server-side `complete_day` (anti-cheat).
+ * El servidor es la autoridad de la progresión (XP/racha/día): devuelve el perfil
+ * actualizado para que el cliente reconcilie su estado optimista con la verdad.
+ * Devuelve null si falla (offline/error) — el llamador conserva el estado local.
+ */
+export async function completeDayRpc(record: DayRecord): Promise<UserProfile | null> {
+  const { data, error } = await supabase.rpc('complete_day', {
+    p_day_number: record.dayNumber,
+    p_task_states: record.taskStates,
+    p_mission_states: record.missionStates ?? [],
+    p_total_points: record.totalPoints ?? 0,
+    p_points_target: record.pointsTarget ?? 30,
+  });
+
+  if (error || !data) {
+    if (error) trackError(error, { scope: 'db.completeDayRpc', extra: { dayNumber: record.dayNumber } });
+    return null;
+  }
+  // La función devuelve una fila composite; según el shape puede venir como objeto o array.
+  return mapProfileRow(Array.isArray(data) ? data[0] : data);
 }
 
 export async function upsertProfile(userId: string, profile: UserProfile): Promise<void> {
