@@ -110,7 +110,8 @@ function createInitialData(name: string, onboarding?: Partial<OnboardingData>): 
   const today = TODAY();
   return {
     user: {
-      name,
+      name: onboarding?.name?.trim() || name,
+      gender: onboarding?.gender,
       startDate: today,
       currentDay: 1,
       streak: 0,
@@ -889,6 +890,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...data,
       user: {
         ...data.user,
+        name: onboarding.name?.trim() || data.user.name,
+        gender: onboarding.gender ?? data.user.gender,
         fitnessLevel: onboarding.fitnessLevel ?? data.user.fitnessLevel,
         age: onboarding.age ?? data.user.age,
         initialWeight: onboarding.initialWeight ?? data.user.initialWeight,

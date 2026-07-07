@@ -40,7 +40,25 @@ export interface UserGoals {
   targetReadingPages?: number; // páginas totales en 90 días
   targetStreak?: number;       // racha objetivo
   targetTrainingDays?: number; // días de entrenamiento en 90 días
+  // Línea de tiempo del atleta (metas cualitativas para trazabilidad de cohortes)
+  milestone3Months?: string;
+  milestone6Months?: string;
+  milestone12Months?: string;
+  // Árbol de habilidades / enfoque elegido en el onboarding
+  focusAreas?: FocusArea[];
 }
+
+// Sexo del avatar (Fase 1 del onboarding)
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not';
+
+// Árbol de habilidades / enfoque (Fase 2 del onboarding, multi-selección)
+export type FocusArea =
+  | 'gain_mass'
+  | 'lose_weight'
+  | 'discipline'
+  | 'mental_focus'
+  | 'motivation'
+  | 'relaxation';
 
 export type AdaptiveTrack = 'fat_loss' | 'muscle_gain' | 'recomposition' | 'maintenance';
 export type AdaptiveChallenge = 'consistency' | 'nutrition' | 'time' | 'stress' | 'sleep';
@@ -90,10 +108,15 @@ export interface OnboardingData {
   goal: 'fitness' | 'mental' | 'discipline' | 'all';
   fitnessLevel: FitnessLevel;
   wakeUpHour: number;
+  // Fase 1 — Estadísticas del personaje
+  name?: string;
+  gender?: Gender;
   age?: number;
   initialWeight?: number;
   height?: number;
   trainingDaysPerWeek?: number;
+  // Fase 2 — Árbol de habilidades / enfoque
+  focusAreas?: FocusArea[];
   goals?: UserGoals;
   adaptiveProfile?: AdaptiveProfile;
   nutritionProfile?: NutritionProfile;
@@ -163,6 +186,7 @@ export interface UserProfile {
   programActive: boolean;
   programCompleted: boolean;
   // Extended profile
+  gender?: Gender;
   fitnessLevel?: FitnessLevel;
   age?: number;
   initialWeight?: number;

@@ -14,6 +14,7 @@ import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId, M
 import { calcPoints, pointsByCategory, ALL_MISSIONS } from '../../src/data/missions';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
 import { buildWeeklyCoachReport, getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
+import { getCoachVoice } from '../../src/lib/coachVoice';
 import { addMissionsToCalendar } from '../../src/lib/calendar';
 import PomodoroTimer from '../../src/components/PomodoroTimer';
 import CoachParticles from '../../src/components/CoachParticles';
@@ -634,6 +635,7 @@ export default function HoyScreen() {
   const coachId = user.preferredCoachId ?? 'goku';
   const coach = getCoachById(coachId);
   const coachVisual = getCoachVisualProfile(coachId);
+  const coachVoice = getCoachVoice(coachId); // tono RPG del coach para copies del Home
   const coachPhraseIndex = Math.min(
     coachVisual.homePhrases.length - 1,
     Math.floor(avgGoalProgress * coachVisual.homePhrases.length)
@@ -995,6 +997,7 @@ export default function HoyScreen() {
           <View style={styles.missionsHeader}>
             <View>
               <Text style={styles.sectionTitle}>MISIONES DE HOY</Text>
+              <Text style={[styles.missionsMeta, { color: coachVisual.glowColor, fontWeight: '700' }]}>{coachVoice.missionIntro}</Text>
               <Text style={styles.missionsMeta}>{todayMissions.length} misiones · tope 10pt/categoría</Text>
             </View>
             <TouchableOpacity
