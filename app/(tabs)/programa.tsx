@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions, Modal, Pressable } from 'react-native';
+import React, { useState, useRef, useEffect, memo } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions, Modal, Pressable, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
-import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
-import { getStageTheme } from '../../src/lib/progression';
-import { getMissionById } from '../../src/data/missions';
-import type { DayRecord } from '../../src/types';
+import { useApp } from '@/context/AppContext';
+import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { getStageTheme } from '@/lib/progression';
+import { getMissionById } from '@/data/missions';
+import CoachParticles from '@components/CoachParticles';
+import ScreenLoadingState from '@components/ui/ScreenLoadingState';
+import StaggerIn from '@components/ui/StaggerIn';
+import type { DayRecord } from '@/types';
+import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
 
 const COLS = 9; // 9 columnas × 10 filas = 90 días
 const SCREEN_W = Dimensions.get('window').width;
@@ -169,8 +173,166 @@ function PhaseCelebrationModal({ day, onClose }: { day: 30 | 60; onClose: () => 
   );
 }
 
+// ─── Phase definitions ────────────────────────────────────────────────────────
+const PHASES = [
+  { id: 1, label: 'FASE 1 — DESPERTAR',   range: [1,  10], subtitle: 'Los primeros 10 días. El hábito empieza aquí.',      accent: '#10B981', boss: 10 },
+  { id: 2, label: 'FASE 2 — CONSTRUCCIÓN', range: [11, 30], subtitle: 'Días 11–30. El ciclo se asienta y el cuerpo cambia.',  accent: '#3B82F6', boss: 30 },
+  { id: 3, label: 'FASE 3 — MOMENTUM',     range: [31, 60], subtitle: 'Días 31–60. Se agrega ducha fría y trabajo profundo.', accent: '#F59E0B', boss: 60 },
+  { id: 4, label: 'FASE 4 — ÉLITE',        range: [61, 90], subtitle: 'Días 61–90. Territorio final. Pocos llegan aquí.',    accent: '#EF4444', boss: 90 },
+] as const;
+
+const BOSS_LABELS: Record<number, { emoji: string; title: string }> = {
+  10:  { emoji: '⚔️',  title: 'CHECKPOINT' },
+  30:  { emoji: '🔥',  title: 'BOSS FIGHT' },
+  60:  { emoji: '⚡',  title: 'BOSS FIGHT' },
+  90:  { emoji: '👑',  title: 'FINAL BOSS' },
+};
+
+type DayStatus = 'completed' | 'current' | 'missed' | 'future';
+
+// ─── Memoized day node ────────────────────────────────────────────────────────
+const DayNode = memo(function DayNode({
+  day, status, isBoss, phaseAccent, onPress,
+}: {
+  day: number;
+  status: DayStatus;
+  isBoss: boolean;
+  phaseAccent: string;
+  onPress: (day: number) => void;
+}) {
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (status !== 'current') return;
+    Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1.18, duration: 700, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1.00, duration: 700, useNativeDriver: true }),
+    ])).start();
+  }, [status]);
+
+  if (isBoss) {
+    const bossInfo = BOSS_LABELS[day];
+    const bossComplete = status === 'completed';
+    const bossCurrent = status === 'current';
+    return (
+      <TouchableOpacity
+        style={[
+          bossStyles.node,
+          bossComplete && { backgroundColor: phaseAccent + '30', borderColor: phaseAccent },
+          bossCurrent  && { backgroundColor: phaseAccent + '20', borderColor: phaseAccent + 'CC' },
+          !bossComplete && !bossCurrent && bossStyles.nodeLocked,
+        ]}
+        onPress={() => onPress(day)}
+        activeOpacity={0.75}
+      >
+        <Text style={bossStyles.emoji}>{bossComplete ? bossInfo.emoji : status === 'missed' ? '💀' : '🔒'}</Text>
+        <Text style={[bossStyles.title, bossComplete && { color: phaseAccent }]}>{bossInfo.title}</Text>
+        <Text style={[bossStyles.day, bossComplete && { color: phaseAccent }]}>DÍA {day}</Text>
+        {bossComplete && (
+          <View style={[bossStyles.clearedBadge, { backgroundColor: phaseAccent + '20', borderColor: phaseAccent + '60' }]}>
+            <Text style={[bossStyles.clearedText, { color: phaseAccent }]}>CLEARED</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  }
+
+  const bg =
+    status === 'completed' ? COLORS.success + 'CC' :
+    status === 'current'   ? COLORS.accent :
+    status === 'missed'    ? 'rgba(248,113,113,0.18)' :
+    'rgba(255,255,255,0.05)';
+
+  const borderColor =
+    status === 'completed' ? COLORS.success + '80' :
+    status === 'current'   ? COLORS.accent :
+    status === 'missed'    ? COLORS.danger + '50' :
+    'rgba(255,255,255,0.07)';
+
+  return (
+    <Animated.View style={status === 'current' ? { transform: [{ scale: pulse }] } : undefined}>
+      <TouchableOpacity
+        style={[nodeStyles.cell, { backgroundColor: bg, borderColor, borderWidth: 1 }]}
+        onPress={() => onPress(day)}
+        activeOpacity={0.7}
+      >
+        {status === 'completed' && <Ionicons name="checkmark" size={10} color="#fff" />}
+        {status === 'current'   && <Text style={nodeStyles.currentNum}>{day}</Text>}
+        {status === 'missed'    && <Ionicons name="close" size={10} color={COLORS.danger} />}
+        {status === 'future'    && <Text style={nodeStyles.futureNum}>{day}</Text>}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+});
+
+// ─── Phase section ────────────────────────────────────────────────────────────
+function PhaseSection({
+  phase, days, getDayStatus, onDayPress,
+}: {
+  phase: typeof PHASES[number];
+  days: number[];
+  getDayStatus: (d: number) => DayStatus;
+  onDayPress: (d: number) => void;
+}) {
+  const [from, to] = phase.range;
+  const total    = to - from + 1;
+  const done     = days.filter(d => getDayStatus(d) === 'completed').length;
+  const pct      = Math.round((done / total) * 100);
+  const isActive = days.some(d => getDayStatus(d) === 'current');
+
+  const regularDays = days.filter(d => d !== phase.boss);
+  const bossDay     = phase.boss;
+  const bossStatus  = getDayStatus(bossDay);
+
+  return (
+    <View style={[phaseStyles.section, isActive && { borderColor: phase.accent + '40' }]}>
+      {/* Phase header */}
+      <View style={phaseStyles.header}>
+        <View style={[phaseStyles.dot, { backgroundColor: phase.accent }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={[phaseStyles.label, { color: phase.accent }]}>{phase.label}</Text>
+          <Text style={phaseStyles.subtitle}>{phase.subtitle}</Text>
+        </View>
+        <Text style={[phaseStyles.pct, { color: pct === 100 ? phase.accent : COLORS.textMuted }]}>
+          {pct}%
+        </Text>
+      </View>
+
+      {/* Mini progress */}
+      <View style={phaseStyles.progressBg}>
+        <View style={[phaseStyles.progressFill, { width: `${pct}%` as any, backgroundColor: phase.accent }]} />
+      </View>
+
+      {/* Regular day nodes */}
+      <View style={phaseStyles.grid}>
+        {regularDays.map(d => (
+          <DayNode
+            key={d}
+            day={d}
+            status={getDayStatus(d)}
+            isBoss={false}
+            phaseAccent={phase.accent}
+            onPress={onDayPress}
+          />
+        ))}
+      </View>
+
+      {/* Boss node — full width at the bottom */}
+      <DayNode
+        key={bossDay}
+        day={bossDay}
+        status={bossStatus}
+        isBoss
+        phaseAccent={phase.accent}
+        onPress={onDayPress}
+      />
+    </View>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ProgramaScreen() {
+  const { reducedMotion, screenAnimStyle } = useTabScreenMotion('programa');
   const { data, getDayRecord, loading } = useApp();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState<30 | 60 | null>(null);
@@ -179,15 +341,31 @@ export default function ProgramaScreen() {
   const isMilestoneDay = currentDay === 30 || currentDay === 60;
 
   if (!data) {
+    const fallbackTheme = getStageTheme();
     return (
-      <LinearGradient colors={getStageTheme().background} style={styles.container}>
+      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>{loading ? 'Cargando programa...' : 'No pudimos cargar tu programa'}</Text>
-            <Text style={styles.emptyText}>
-              Verifica conexión e inicia sesión nuevamente desde Config si es necesario.
-            </Text>
-          </View>
+          {loading ? (
+            <ScreenLoadingState
+              title="Mapa de Campaña"
+              subtitle="Construyendo nodos, fases y checkpoints..."
+              icon="map-outline"
+              accent={fallbackTheme.tabActive}
+              reducedMotion={reducedMotion}
+              hints={[
+                'Leyendo progreso de 90 dias',
+                'Marcando jefes y fases',
+                'Preparando detalle por dia',
+              ]}
+            />
+          ) : (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyTitle}>No pudimos cargar tu programa</Text>
+              <Text style={styles.emptyText}>
+                Verifica conexión e inicia sesión nuevamente desde Config si es necesario.
+              </Text>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
     );
@@ -195,8 +373,9 @@ export default function ProgramaScreen() {
 
   const { user } = data;
   const stageTheme = getStageTheme(user);
+  const coachId = user.preferredCoachId ?? 'goku';
 
-  function getDayStatus(day: number): 'completed' | 'current' | 'missed' | 'future' {
+  function getDayStatus(day: number): DayStatus {
     if (day > currentDay) return 'future';
     if (day === currentDay) return 'current';
     const record = getDayRecord(day);
@@ -207,49 +386,47 @@ export default function ProgramaScreen() {
 
   const completedDays = Array.from({ length: 90 }, (_, i) => i + 1)
     .filter(d => getDayRecord(d)?.completed).length;
-
   const progressPercent = Math.round((completedDays / 90) * 100);
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <SafeAreaView style={styles.safe}>
+      <CoachParticles coachId={coachId} screen="programa" tappable reducedMotion={reducedMotion} />
+      <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+        <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Tu Programa</Text>
-            <Text style={styles.subtitle}>90 días para transformarte</Text>
+            <Text style={styles.title}>Mapa de Campaña</Text>
+            <Text style={styles.subtitle}>90 días · Tocá cualquier nodo para el detalle</Text>
           </View>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{completedDays}</Text>
-              <Text style={styles.statLabel}>Completados</Text>
+              <Text style={styles.statLabel}>Conquistados</Text>
             </View>
             <View style={[styles.statCard, styles.statCardCenter]}>
               <Text style={[styles.statNumber, { color: COLORS.accent }]}>{progressPercent}%</Text>
               <Text style={styles.statLabel}>Progreso</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, { color: COLORS.streak }]}>
-                {90 - completedDays}
-              </Text>
+              <Text style={[styles.statNumber, { color: COLORS.streak }]}>{90 - completedDays}</Text>
               <Text style={styles.statLabel}>Restantes</Text>
             </View>
           </View>
 
-          {/* Progress bar */}
+          {/* Master progress bar */}
           <View style={styles.bigProgressBg}>
             <LinearGradient
               colors={stageTheme.accent}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={[styles.bigProgressFill, { width: `${progressPercent}%` as any }]}
             />
           </View>
 
-          {/* Phase milestone banner */}
+          {/* Phase unlock banner */}
           {isMilestoneDay && (
             <TouchableOpacity
               style={styles.milestoneBanner}
@@ -259,80 +436,44 @@ export default function ProgramaScreen() {
               <Text style={styles.milestoneBannerEmoji}>{currentDay === 30 ? '🔥' : '⚡'}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={styles.milestoneBannerTitle}>
-                  {currentDay === 30 ? '¡Fase 2 desbloqueada!' : '¡Fase 3 desbloqueada!'}
+                  {currentDay === 30 ? '¡Fase 3 desbloqueada!' : '¡Fase 4 desbloqueada!'}
                 </Text>
-                <Text style={styles.milestoneBannerSub}>Tocá para ver el mensaje</Text>
+                <Text style={styles.milestoneBannerSub}>Tocá para ver el mensaje del coach</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.accent} />
             </TouchableOpacity>
           )}
 
-          {/* Grid */}
-          <Text style={styles.gridTitle}>MAPA DE 90 DÍAS</Text>
-          <Text style={styles.gridHint}>Tocá cualquier día para ver el detalle</Text>
-          <View style={styles.grid}>
-            {Array.from({ length: 90 }, (_, i) => {
-              const day = i + 1;
-              const status = getDayStatus(day);
-              const isMilestone = day === 30 || day === 60 || day === 90;
-              return (
-                <TouchableOpacity
-                  key={day}
-                  style={[
-                    styles.dayCell,
-                    styles[`cell_${status}`],
-                    isMilestone && status !== 'future' && styles.cellMilestone,
-                  ]}
-                  onPress={() => setSelectedDay(day)}
-                  activeOpacity={0.7}
-                >
-                  {status === 'completed' && (
-                    <Ionicons name={isMilestone ? 'star' : 'checkmark'} size={10} color="#fff" />
-                  )}
-                  {status === 'current' && (
-                    <Text style={styles.dayCellTextCurrent}>{day}</Text>
-                  )}
-                  {status === 'missed' && (
-                    <Ionicons name="close" size={10} color={COLORS.danger} />
-                  )}
-                  {status === 'future' && (
-                    <Text style={styles.dayCellTextFuture}>{isMilestone ? '★' : `${day}`}</Text>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
           {/* Legend */}
           <View style={styles.legend}>
-            <LegendItem color={COLORS.success} label="Completado" />
-            <LegendItem color={COLORS.accent} label="Hoy" />
-            <LegendItem color={COLORS.danger} label="Fallado" />
-            <LegendItem color={COLORS.bgCard} label="Futuro" />
+            <LegendItem color={COLORS.success}   label="Completado" />
+            <LegendItem color={COLORS.accent}    label="Hoy" />
+            <LegendItem color={COLORS.danger}    label="Fallado" />
+            <LegendItem color="rgba(255,255,255,0.07)" label="Futuro" />
           </View>
 
-          {/* Milestones */}
-          <Text style={[styles.gridTitle, { marginTop: SPACING.xl }]}>HITOS</Text>
-          {MILESTONES.map(m => {
-            const reached = currentDay > m.day;
-            const isCurrent = currentDay >= m.day && currentDay < (m.nextDay ?? 91);
+          {/* ── RPG Phase Sections ── */}
+          {PHASES.map((phase, index) => {
+            const days = Array.from(
+              { length: phase.range[1] - phase.range[0] + 1 },
+              (_, i) => phase.range[0] + i,
+            );
             return (
-              <View key={m.day} style={[styles.milestone, isCurrent && styles.milestoneCurrent]}>
-                <View style={[styles.milestoneDot, reached && styles.milestoneDotDone]} />
-                <View style={styles.milestoneInfo}>
-                  <Text style={[styles.milestoneName, reached && styles.milestoneNameDone]}>
-                    Día {m.day} — {m.name}
-                  </Text>
-                  <Text style={styles.milestoneDesc}>{m.description}</Text>
-                </View>
-                {reached && <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />}
-              </View>
+              <StaggerIn key={phase.id} index={index} reducedMotion={reducedMotion}>
+                <PhaseSection
+                  phase={phase}
+                  days={days}
+                  getDayStatus={getDayStatus}
+                  onDayPress={setSelectedDay}
+                />
+              </StaggerIn>
             );
           })}
 
           <View style={{ height: 100 }} />
         </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </Animated.View>
 
       {/* Day detail sheet */}
       {selectedDay !== null && (
@@ -378,6 +519,7 @@ const MILESTONES = [
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  motionLayer: { flex: 1 },
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
 
@@ -412,40 +554,6 @@ const styles = StyleSheet.create({
     minWidth: 8,
   },
 
-  gridTitle: {
-    fontSize: FONT.xs,
-    color: COLORS.textMuted,
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: SPACING.md,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: SPACING.md,
-  },
-  dayCell: {
-    width: CELL,
-    height: CELL,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cell_completed: { backgroundColor: COLORS.success },
-  cell_current: {
-    backgroundColor: COLORS.accent,
-    shadowColor: COLORS.accent,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  cell_missed: { backgroundColor: 'rgba(248,113,113,0.2)', borderWidth: 1, borderColor: COLORS.danger + '50' },
-  cell_future: { backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border },
-
-  dayCellTextCurrent: { fontSize: 10, fontWeight: '900', color: '#fff' },
-  dayCellTextFuture: { fontSize: 9, color: COLORS.textMuted },
 
   legend: {
     flexDirection: 'row',
@@ -457,39 +565,9 @@ const styles = StyleSheet.create({
   legendDot: { width: 10, height: 10, borderRadius: 3 },
   legendLabel: { fontSize: FONT.xs, color: COLORS.textSecondary },
 
-  milestone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.sm,
-  },
-  milestoneCurrent: {
-    borderColor: COLORS.accent + '50',
-    backgroundColor: 'rgba(72,149,239,0.08)',
-  },
-  milestoneDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: COLORS.textMuted,
-  },
-  milestoneDotDone: { backgroundColor: COLORS.success },
-  milestoneInfo: { flex: 1 },
-  milestoneName: { fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary },
-  milestoneNameDone: { color: COLORS.success },
-  milestoneDesc: { fontSize: FONT.sm, color: COLORS.textSecondary, marginTop: 2 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg },
   emptyTitle: { color: COLORS.textPrimary, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
   emptyText: { color: COLORS.textSecondary, fontSize: FONT.sm, textAlign: 'center', lineHeight: 20 },
-
-  gridHint: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.sm, marginTop: -SPACING.xs },
-
-  cellMilestone: { borderWidth: 1.5, borderColor: COLORS.accent + '80' },
 
   milestoneBanner: {
     flexDirection: 'row',
@@ -541,6 +619,60 @@ const sheetStyles = StyleSheet.create({
   emptyState: { alignItems: 'center', gap: 8, paddingVertical: SPACING.xl },
   emptyTitle: { fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary },
   emptyText: { fontSize: FONT.sm, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+});
+
+// ─── Day node styles ─────────────────────────────────────────────────────────
+const nodeStyles = StyleSheet.create({
+  cell: {
+    width: CELL, height: CELL,
+    borderRadius: 7,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  currentNum: { fontSize: 9, fontWeight: '900', color: '#fff' },
+  futureNum:  { fontSize: 8, color: COLORS.textMuted },
+});
+
+// ─── Boss node styles ─────────────────────────────────────────────────────────
+const bossStyles = StyleSheet.create({
+  node: {
+    width: '100%', borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginTop: SPACING.sm,
+    alignItems: 'center', gap: 4,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  nodeLocked: { opacity: 0.45 },
+  emoji:  { fontSize: 28 },
+  title:  { fontSize: 10, fontWeight: '900', letterSpacing: 2, color: COLORS.textMuted },
+  day:    { fontSize: FONT.sm, fontWeight: '900', color: COLORS.textPrimary },
+  clearedBadge: {
+    marginTop: 4, paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: RADIUS.full, borderWidth: 1,
+  },
+  clearedText: { fontSize: 9, fontWeight: '900', letterSpacing: 2 },
+});
+
+// ─── Phase section styles ─────────────────────────────────────────────────────
+const phaseStyles = StyleSheet.create({
+  section: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
+  dot:    { width: 8, height: 8, borderRadius: 4, marginTop: 5, flexShrink: 0 },
+  label:  { fontSize: FONT.xs, fontWeight: '900', letterSpacing: 1.5 },
+  subtitle: { fontSize: 10, color: COLORS.textMuted, marginTop: 2, lineHeight: 15 },
+  pct:    { fontSize: FONT.xs, fontWeight: '900', letterSpacing: 0.5, marginTop: 2 },
+  progressBg: {
+    height: 3, backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: SPACING.sm,
+  },
+  progressFill: { height: '100%', borderRadius: RADIUS.full, minWidth: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
 });
 
 // ─── Celebration styles ───────────────────────────────────────────────────────

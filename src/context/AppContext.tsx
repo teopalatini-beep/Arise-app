@@ -1,22 +1,39 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
 import { AppData, UserProfile, DayRecord, TaskState, MissionState, DayMetrics, BadgeId, BADGE_DEFINITIONS, FitnessLevel, OnboardingData, CoachId } from '../types';
 import { buildProgram } from '../data/program';
 import { getMissionById, getDailyMissions, calcPoints, sumPoints, POINTS_TARGET_NORMAL, POINTS_TARGET_HARD, ALL_MISSIONS } from '../data/missions';
-import { ONBOARDING_KEY } from '../../app/onboarding';
+import { APP_DATA_KEY, ONBOARDING_KEY, ONBOARDING_STATUS_KEY } from '../lib/storageKeys';
 import { supabase, SUPABASE_CONFIG_ERROR } from '../lib/supabase';
 import {
   fetchProfile, upsertProfile,
   fetchDayRecords, upsertDayRecord,
-  fetchMetrics, upsertMetrics,
+  fetchMetrics, upsertMetrics, upsertUserMetricsDaily,
   fetchJournal, upsertJournal,
+  rpcCompleteUserMissionSecure,
+  clearUserProgress,
 } from '../lib/db';
+import {
+  requestNotificationPermissions,
+  syncNotificationSchedule,
+} from '../lib/notifications';
+import {
+  trackAppOpened,
+  trackMissionProgress,
+  trackDayCompleted,
+  trackGraceDayActivated,
+  trackPenitenceTriggered,
+  trackOnboardingCompleted,
+  trackFirstMissionActivation,
+  trackRpcMissionResult,
+  trackRpcMissionFallback,
+  trackReconcileDelta,
+} from '../services/analytics';
 
-const STORAGE_KEY = 'arise_data_v1';
+const STORAGE_KEY = APP_DATA_KEY;
 const TODAY = () => format(new Date(), 'yyyy-MM-dd');
 const MONTH_REF = () => format(new Date(), 'yyyy-MM');
-
 function isNetworkError(error: unknown): boolean {
   const msg = String((error as any)?.message ?? error ?? '').toLowerCase();
   return msg.includes('network request failed') || msg.includes('fetch failed');
@@ -45,7 +62,9 @@ export async function initProgram(): Promise<void> {
         targetWeight: ob.goals?.targetWeight,
       });
     }
-  } catch {}
+  } catch (error) {
+    console.error('[AppContext Error]: initProgram failed', error);
+  }
 }
 
 export function getProgram() { return _cachedProgram; }
@@ -127,6 +146,8 @@ function createInitialData(name: string, onboarding?: Partial<OnboardingData>): 
       adaptiveProfile: onboarding?.adaptiveProfile,
       nutritionProfile: onboarding?.nutritionProfile,
       preferredCoachId: onboarding?.preferredCoachId,
+      focusAreas: onboarding?.focusAreas,
+      hasCompletedOnboarding: Boolean(onboarding?.completed),
     },
     days: [],
     lastOpenedDate: today,
@@ -150,6 +171,8 @@ function xpForDay(dayNumber: number): number {
 interface AppContextType {
   data: AppData | null;
   loading: boolean;
+  hasRemoteProfile: boolean;
+  hasCompletedOnboarding: boolean;
   syncing: boolean;
   todayRecord: DayRecord | null;
   todayDefinition: ReturnType<typeof getProgram>[0] | null;
@@ -162,10 +185,6 @@ interface AppContextType {
   pinnedMissions: string[];
   pinMission: (missionId: string) => void;
   unpinMission: (missionId: string) => void;
-  // Legacy task helpers (still used by penalty screen)
-  completeTask: (taskId: string) => void;
-  uncompleteTask: (taskId: string) => void;
-  markDayComplete: () => void;
   saveJournal: (text: string) => void;
   newBadges: BadgeId[];
   clearNewBadges: () => void;
@@ -176,7 +195,12 @@ interface AppContextType {
   resetProgram: () => void;
   hasPenalty: boolean;
   completePenalty: () => void;
+  xpLastEarned: number;
+  clearXpEarned: () => void;
   setPreferredCoach: (coachId: CoachId) => void;
+  completeOnboarding: (
+    onboardingData: OnboardingData
+  ) => Promise<{ synced: boolean; warning?: string }>;
   applyOnboardingProfile: (onboarding: Partial<OnboardingData>) => void;
 }
 
@@ -188,12 +212,30 @@ const PINNED_KEY    = 'arise_pinned_missions';
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasRemoteProfile, setHasRemoteProfile] = useState(false);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [newBadges, setNewBadges] = useState<BadgeId[]>([]);
   const [hardMode, setHardModeState] = useState(false);
   const [pinnedMissions, setPinnedMissions] = useState<string[]>([]);
+  const [xpLastEarned, setXpLastEarned] = useState(0);
+  const hasTrackedOpen = useRef(false);
+  const hasTrackedFirstMission = useRef(false);
+  const scheduledNotifKeyRef = useRef('');
+
+  const clearXpEarned = useCallback(() => setXpLastEarned(0), []);
 
   const clearNewBadges = useCallback(() => setNewBadges([]), []);
+
+  function resolveOnboardingStatus(
+    profile?: Partial<UserProfile>,
+    onboarding?: Partial<OnboardingData>,
+    onboardingFlagRaw?: string | null,
+  ): boolean {
+    if (profile?.hasCompletedOnboarding) return true;
+    if (onboardingFlagRaw === 'true') return true;
+    return Boolean(onboarding?.completed);
+  }
 
   function applyBadges(d: AppData): AppData {
     const earned = checkBadges(d);
@@ -210,10 +252,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.multiGet([HARD_MODE_KEY, PINNED_KEY]).then(([hm, pm]) => {
       if (hm[1] === 'true') setHardModeState(true);
       if (pm[1]) {
-        try { setPinnedMissions(JSON.parse(pm[1])); } catch {}
+        try {
+          setPinnedMissions(JSON.parse(pm[1]));
+        } catch (error) {
+          console.error('[AppContext Error]: failed to parse pinned missions', error);
+        }
       }
     });
   }, []);
+
+  // ── Analytics: track app open once after data is fully hydrated ──────────
+  useEffect(() => {
+    if (!loading && data && !hasTrackedOpen.current) {
+      hasTrackedOpen.current = true;
+      void trackAppOpened(data.user.currentDay, data.user.level, data.user.streak, {
+        installDate: data.user.startDate,
+        coachId: data.user.preferredCoachId,
+        hasCompletedOnboarding: data.user.hasCompletedOnboarding,
+        hardMode,
+      });
+    }
+  }, [loading, data, hardMode]);
+
+  // ── Coach notifications: hydrate/on-day-change ────────────────────────────
+  useEffect(() => {
+    if (loading || !data || !data.user.hasCompletedOnboarding) return;
+
+    const coachId = data.user.preferredCoachId ?? 'goku';
+    const goals = data.user.goals;
+    const scheduleKey = [
+      coachId,
+      data.user.currentDay,
+      goals?.targetWaterLitersPerDay ?? '-',
+      goals?.targetMeditationMinutesPerDay ?? '-',
+      goals?.targetReadingPagesPerDay ?? '-',
+    ].join(':');
+    if (scheduledNotifKeyRef.current === scheduleKey) return;
+    scheduledNotifKeyRef.current = scheduleKey;
+
+    void (async () => {
+      const granted = await requestNotificationPermissions('app_context');
+      if (!granted) return;
+      await syncNotificationSchedule(data.user, { requestPermission: false });
+    })();
+  }, [
+    loading,
+    data?.user.hasCompletedOnboarding,
+    data?.user.preferredCoachId,
+    data?.user.currentDay,
+    data?.user.goals?.targetWaterLitersPerDay,
+    data?.user.goals?.targetMeditationMinutesPerDay,
+    data?.user.goals?.targetReadingPagesPerDay,
+  ]);
 
   // ── Load & sync on mount ─────────────────────────────────────────────────
   useEffect(() => {
@@ -223,6 +313,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_IN') loadData();
       if (event === 'SIGNED_OUT') {
         setData(null);
+        setHasRemoteProfile(false);
+        setHasCompletedOnboarding(false);
         setLoading(false);
       }
     });
@@ -231,19 +323,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function loadLocalDataFallback(defaultName = 'Usuario') {
-    const [raw, onboardingRaw] = await Promise.all([
+    const [raw, onboardingRaw, onboardingStatusRaw] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEY),
       AsyncStorage.getItem(ONBOARDING_KEY),
+      AsyncStorage.getItem(ONBOARDING_STATUS_KEY),
     ]);
     if (raw) {
       const stored: AppData = JSON.parse(raw);
-      setData(handleDayTransition(stored));
+      const transitioned = handleDayTransition(stored);
+      setData(transitioned);
+      const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
+      setHasCompletedOnboarding(resolveOnboardingStatus(transitioned.user, onboarding, onboardingStatusRaw));
+      setHasRemoteProfile(Boolean(transitioned.user.name));
       return;
     }
     const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
     const initial = createInitialData(defaultName, onboarding);
     setData(initial);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+    setHasCompletedOnboarding(resolveOnboardingStatus(initial.user, onboarding, onboardingStatusRaw));
+    setHasRemoteProfile(false);
   }
 
   async function loadData() {
@@ -266,9 +365,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ]);
 
         if (profile) {
-          const [storedRaw, onboardingRaw] = await Promise.all([
+          const [storedRaw, onboardingRaw, onboardingStatusRaw] = await Promise.all([
             AsyncStorage.getItem(STORAGE_KEY),
             AsyncStorage.getItem(ONBOARDING_KEY),
+            AsyncStorage.getItem(ONBOARDING_STATUS_KEY),
           ]);
           const stored = storedRaw ? JSON.parse(storedRaw) as AppData : undefined;
           const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
@@ -321,6 +421,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               adaptiveProfile: stored?.user.adaptiveProfile ?? onboarding?.adaptiveProfile,
               nutritionProfile: stored?.user.nutritionProfile ?? onboarding?.nutritionProfile,
               preferredCoachId: stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'goku',
+              focusAreas: stored?.user.focusAreas ?? profile.focusAreas ?? onboarding?.focusAreas,
+              hasCompletedOnboarding: resolveOnboardingStatus(
+                stored?.user,
+                onboarding,
+                onboardingStatusRaw
+              ) || profile.hasCompletedOnboarding,
               badges: mergeBadges(profile.badges, stored?.user.badges),
             },
             days: mergedDays,
@@ -329,50 +435,80 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           const updated = handleDayTransition(appData);
           setData(updated);
+          setHasRemoteProfile(true);
+          setHasCompletedOnboarding(Boolean(updated.user.hasCompletedOnboarding));
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
           // Push local-ahead data to Supabase in background (no await — non-blocking)
-          if (needsRemoteSync) syncAllToSupabase(user.id, updated).catch(() => {});
+          if (needsRemoteSync) {
+            syncAllToSupabase(user.id, updated).catch((error) => {
+              console.error('[AppContext Error]: background syncAllToSupabase failed', error);
+            });
+          }
 
           setLoading(false);
           return;
         }
 
         // No profile in Supabase — check AsyncStorage
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const [raw, onboardingRaw, onboardingStatusRaw] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem(ONBOARDING_KEY),
+          AsyncStorage.getItem(ONBOARDING_STATUS_KEY),
+        ]);
         if (raw) {
           const stored: AppData = JSON.parse(raw);
           const updated = handleDayTransition(stored);
           setData(updated);
+          setHasRemoteProfile(true);
+          const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
+          setHasCompletedOnboarding(resolveOnboardingStatus(updated.user, onboarding, onboardingStatusRaw));
           // Migrate to Supabase
           await syncAllToSupabase(user.id, updated);
         } else {
           // Brand new user
           const userName = user.user_metadata?.name ?? 'Usuario';
-          const onboardingRaw = await AsyncStorage.getItem(ONBOARDING_KEY);
+          const [onboardingRaw, onboardingStatusRaw] = await Promise.all([
+            AsyncStorage.getItem(ONBOARDING_KEY),
+            AsyncStorage.getItem(ONBOARDING_STATUS_KEY),
+          ]);
           const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
           const initial = createInitialData(userName, onboarding);
           setData(initial);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-          await upsertProfile(user.id, initial.user);
+          setHasRemoteProfile(false);
+          setHasCompletedOnboarding(resolveOnboardingStatus(initial.user, onboarding, onboardingStatusRaw));
+          if (resolveOnboardingStatus(initial.user, onboarding, onboardingStatusRaw)) {
+            await upsertProfile(user.id, { ...initial.user, hasCompletedOnboarding: true });
+            setHasRemoteProfile(true);
+          }
         }
       } else {
         // Not logged in — load from AsyncStorage
         await loadLocalDataFallback();
+        setHasRemoteProfile(false);
       }
     } catch (e) {
       logUnexpectedError('Failed to load data', e);
       try {
-        const [onboardingRaw, sessionRes] = await Promise.all([
+        const [onboardingRaw, onboardingStatusRaw, sessionRes] = await Promise.all([
           AsyncStorage.getItem(ONBOARDING_KEY),
-          supabase.auth.getSession().catch(() => ({ data: { session: null } as any })),
+          AsyncStorage.getItem(ONBOARDING_STATUS_KEY),
+          supabase.auth.getSession().catch((error) => {
+            console.error('[AppContext Error]: getSession fallback failed', error);
+            return { data: { session: null } as any };
+          }),
         ]);
         const fallbackName = sessionRes?.data?.session?.user?.user_metadata?.name ?? 'Usuario';
         const onboarding = onboardingRaw ? JSON.parse(onboardingRaw) as Partial<OnboardingData> : undefined;
         await loadLocalDataFallback(fallbackName || 'Usuario');
-      } catch {
+        setHasCompletedOnboarding(resolveOnboardingStatus(undefined, onboarding, onboardingStatusRaw));
+      } catch (error) {
+        console.error('[AppContext Error]: local fallback boot failed', error);
         const initial = createInitialData('Usuario');
         setData(initial);
+        setHasRemoteProfile(false);
+        setHasCompletedOnboarding(false);
       }
     } finally {
       setLoading(false);
@@ -383,11 +519,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSyncing(true);
     try {
       await upsertProfile(userId, appData.user);
-      await Promise.all(appData.days.map(async (dr) => {
-        await upsertDayRecord(userId, dr);
-        if (dr.metrics) await upsertMetrics(userId, dr.dayNumber, dr.metrics);
-        if (dr.journal) await upsertJournal(userId, dr.dayNumber, dr.journal);
-      }));
+      // Each day fires all 3 upserts in parallel, and all days run concurrently
+      await Promise.all(appData.days.map(dr =>
+        Promise.all([
+          upsertDayRecord(userId, dr),
+          dr.metrics ? upsertMetrics(userId, dr.dayNumber, dr.metrics) : Promise.resolve(),
+          dr.journal ? upsertJournal(userId, dr.dayNumber, dr.journal) : Promise.resolve(),
+        ])
+      ));
     } catch (e) {
       logUnexpectedError('Sync error', e);
     } finally {
@@ -451,6 +590,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           updated.days = [...updated.days, missedRecord];
         }
 
+        // Penitence is now active — fire non-blocking analytics signal
+        void trackPenitenceTriggered(user.currentDay, {
+          installDate: user.startDate,
+          coachId: user.preferredCoachId,
+          hasCompletedOnboarding: user.hasCompletedOnboarding,
+          hardMode,
+        });
+
         // For multiple missed days, advance currentDay so user stays on calendar
         if (daysDiff > 1) {
           const skipDays = Math.min(daysDiff - 1, 90 - user.currentDay);
@@ -467,6 +614,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Persist (local + Supabase) ───────────────────────────────────────────
   const persist = useCallback(async (newData: AppData) => {
     setData(newData);
+    setHasCompletedOnboarding(Boolean(newData.user.hasCompletedOnboarding));
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
     try {
@@ -479,6 +627,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const persistWithRecord = useCallback(async (newData: AppData, record: DayRecord) => {
     setData(newData);
+    setHasCompletedOnboarding(Boolean(newData.user.hasCompletedOnboarding));
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
     try {
@@ -591,6 +740,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const currentStates = ensureMissionStates(record, missions);
 
     const points = calcPoints(mission, units);
+    if (points > 0) {
+      void trackMissionProgress(missionId, mission.category, newData.user.currentDay, points, {
+        installDate: newData.user.startDate,
+        coachId: newData.user.preferredCoachId,
+        hasCompletedOnboarding: newData.user.hasCompletedOnboarding,
+        hardMode,
+        units,
+      });
+      if (!hasTrackedFirstMission.current) {
+        hasTrackedFirstMission.current = true;
+        void trackFirstMissionActivation(
+          missionId,
+          mission.category,
+          newData.user.currentDay,
+          {
+            installDate: newData.user.startDate,
+            coachId: newData.user.preferredCoachId,
+            hasCompletedOnboarding: newData.user.hasCompletedOnboarding,
+            hardMode,
+          }
+        );
+      }
+    }
+
     const updatedStates: MissionState[] = currentStates.map(s =>
       s.missionId === missionId ? { ...s, units, points } : s
     );
@@ -607,115 +780,146 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       completed,
     };
 
-    let user = { ...newData.user };
     const wasCompleted = record.completed;
-
-    if (completed && !wasCompleted) {
-      // Day just got completed — award XP + advance streak
-      const earned = xpForDay(user.currentDay);
-      user.xp += earned;
-      user.level = levelFromXP(user.xp);
-      user.streak += 1;
-      if (user.streak > user.maxStreak) user.maxStreak = user.streak;
-      user.currentDay = Math.min(user.currentDay + 1, 90);
-      if (user.currentDay >= 90) user.programCompleted = true;
-    }
-
-    newData.user = user;
     newData.days = [
       ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
       updatedRecord,
     ];
 
     const withBadges = applyBadges(newData);
-    persistWithRecord(withBadges, updatedRecord);
-  }, [data, hardMode, pinnedMissions, persistWithRecord]);
 
-  // ── Task operations ──────────────────────────────────────────────────────
-  const completeTask = useCallback((taskId: string) => {
-    if (!data) return;
-    const newData = { ...data };
-    const record = ensureTodayRecord(newData);
+    // ── Optimistic local save (immediate, offline-safe) ─────────────────
+    setData(withBadges);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(withBadges)).catch((error) => {
+      console.error('[AppContext Error]: failed to persist optimistic state', error);
+    });
 
-    const updatedRecord = {
-      ...record,
-      taskStates: record.taskStates.map(ts =>
-        ts.taskId === taskId ? { ...ts, completed: true } : ts
-      ),
-    };
+    // ── Background RPC (server-authoritative anti-cheat) ───────────────────
+    void (async () => {
+      try {
+        const rpcStartedAt = Date.now();
+        const secureResult = await rpcCompleteUserMissionSecure(missionId, record.dayNumber);
+        const rpcLatency = Date.now() - rpcStartedAt;
 
-    const allDone = updatedRecord.taskStates.every(ts => ts.completed);
-    updatedRecord.completed = allDone;
+        if (secureResult) {
+          void trackRpcMissionResult(true, {
+            missionId,
+            dayNumber: record.dayNumber,
+            latencyMs: rpcLatency,
+          });
+          if (secureResult.profile.xp !== withBadges.user.xp) {
+            void trackReconcileDelta('xp', withBadges.user.xp, secureResult.profile.xp);
+          }
+          if (secureResult.profile.streak !== withBadges.user.streak) {
+            void trackReconcileDelta('streak', withBadges.user.streak, secureResult.profile.streak);
+          }
+          if (secureResult.profile.current_day !== withBadges.user.currentDay) {
+            void trackReconcileDelta('current_day', withBadges.user.currentDay, secureResult.profile.current_day);
+          }
+          if (secureResult.day_record.total_points !== updatedRecord.totalPoints) {
+            void trackReconcileDelta('total_points', updatedRecord.totalPoints, secureResult.day_record.total_points);
+          }
+          if (secureResult.xp_earned > 0) {
+            setXpLastEarned(secureResult.xp_earned);
+          }
+          if (secureResult.day_completed) {
+            void trackDayCompleted(
+              secureResult.day_record.day_number,
+              secureResult.day_record.total_points,
+              secureResult.profile.streak
+            );
+          }
 
-    newData.days = [
-      ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
-      updatedRecord,
-    ];
+          setData(prev => {
+            if (!prev) return prev;
+            const existingRecord = prev.days.find(d => d.dayNumber === secureResult.day_record.day_number);
+            const reconciledRecord: DayRecord = {
+              ...(existingRecord ?? updatedRecord),
+              dayNumber: secureResult.day_record.day_number,
+              totalPoints: secureResult.day_record.total_points,
+              pointsTarget: secureResult.day_record.points_target,
+              completed: secureResult.day_record.completed,
+              taskStates: secureResult.day_record.task_states,
+              missionStates: secureResult.day_record.mission_states,
+            };
 
-    if (allDone) {
-      const user = { ...newData.user };
-      const earned = xpForDay(user.currentDay);
-      user.xp += earned;
-      user.level = levelFromXP(user.xp);
-      user.streak += 1;
-      if (user.streak > user.maxStreak) user.maxStreak = user.streak;
-      user.currentDay = Math.min(user.currentDay + 1, 90);
-      if (user.currentDay > 90) user.programCompleted = true;
-      newData.user = user;
-    }
+            const nextData: AppData = {
+              ...prev,
+              user: {
+                ...prev.user,
+                xp: secureResult.profile.xp,
+                level: secureResult.profile.level,
+                streak: secureResult.profile.streak,
+                maxStreak: secureResult.profile.max_streak,
+                currentDay: Math.min(secureResult.profile.current_day, 90),
+                programCompleted: secureResult.profile.program_completed,
+              },
+              days: [
+                ...prev.days.filter(d => d.dayNumber !== secureResult.day_record.day_number),
+                reconciledRecord,
+              ],
+            };
 
-    const withBadges = applyBadges(newData);
-    persistWithRecord(withBadges, updatedRecord);
-  }, [data, persistWithRecord]);
+            AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextData)).catch((error) => {
+              console.error('[AppContext Error]: failed to persist reconciled rpc state', error);
+            });
 
-  const uncompleteTask = useCallback((taskId: string) => {
-    if (!data) return;
-    const newData = { ...data };
-    const record = ensureTodayRecord(newData);
+            return nextData;
+          });
+          return;
+        }
 
-    const updatedRecord = {
-      ...record,
-      taskStates: record.taskStates.map(ts =>
-        ts.taskId === taskId ? { ...ts, completed: false } : ts
-      ),
-      completed: false,
-    };
+        // RPC failed (offline/network/server). Keep the app usable locally,
+        // but do not upsert authoritative progression fields directly.
+        void trackRpcMissionResult(false, {
+          missionId,
+          dayNumber: record.dayNumber,
+          latencyMs: rpcLatency,
+          errorCode: 'rpc_unavailable',
+        });
+        void trackRpcMissionFallback(missionId, record.dayNumber, 'rpc_unavailable');
+        const fallbackData: AppData = {
+          ...withBadges,
+          user: { ...withBadges.user },
+        };
 
-    newData.days = [
-      ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
-      updatedRecord,
-    ];
-    persistWithRecord(newData, updatedRecord);
-  }, [data, persistWithRecord]);
+        if (completed && !wasCompleted) {
+          const earned = xpForDay(fallbackData.user.currentDay);
+          fallbackData.user.xp += earned;
+          fallbackData.user.level = levelFromXP(fallbackData.user.xp);
+          fallbackData.user.streak += 1;
+          if (fallbackData.user.streak > fallbackData.user.maxStreak) {
+            fallbackData.user.maxStreak = fallbackData.user.streak;
+          }
+          fallbackData.user.currentDay = Math.min(fallbackData.user.currentDay + 1, 90);
+          if (fallbackData.user.currentDay > 90) {
+            fallbackData.user.programCompleted = true;
+          }
+          setXpLastEarned(earned);
+          void trackDayCompleted(record.dayNumber, totalPoints, fallbackData.user.streak);
+        }
 
-  const markDayComplete = useCallback(() => {
-    if (!data) return;
-    const newData = { ...data };
-    const record = ensureTodayRecord(newData);
+        setData(fallbackData);
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackData)).catch((error) => {
+          console.error('[AppContext Error]: failed to persist fallback mission state', error);
+        });
 
-    const updatedRecord = {
-      ...record,
-      taskStates: record.taskStates.map(ts => ({ ...ts, completed: true })),
-      completed: true,
-    };
-    newData.days = [
-      ...newData.days.filter(d => d.dayNumber !== record.dayNumber),
-      updatedRecord,
-    ];
+        if (__DEV__) {
+          console.warn('[ANTI-CHEAT] RPC unavailable, applied local fallback only (no direct profile/day upsert).');
+        }
+      } catch (error) {
+        void trackRpcMissionResult(false, {
+          missionId,
+          dayNumber: record.dayNumber,
+          latencyMs: 0,
+          errorCode: 'exception',
+        });
+        void trackRpcMissionFallback(missionId, record.dayNumber, 'exception');
+        console.error('[AppContext Error]: failed to execute rpc mission flow', error);
+      }
+    })();
+  }, [data, hardMode, pinnedMissions]);
 
-    const user = { ...newData.user };
-    const earned = xpForDay(user.currentDay);
-    user.xp += earned;
-    user.level = levelFromXP(user.xp);
-    user.streak += 1;
-    if (user.streak > user.maxStreak) user.maxStreak = user.streak;
-    user.currentDay = Math.min(user.currentDay + 1, 90);
-    if (user.currentDay >= 90) user.programCompleted = true;
-    newData.user = user;
-
-    const withBadges = applyBadges(newData);
-    persistWithRecord(withBadges, updatedRecord);
-  }, [data, persistWithRecord]);
 
   // ── Journal ──────────────────────────────────────────────────────────────
   const saveJournal = useCallback((text: string) => {
@@ -754,12 +958,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [data]);
 
   // ── Grace day ────────────────────────────────────────────────────────────
+  // Grace day FREEZES the streak (does not reset it) and advances the day.
   const useGraceDay = useCallback(() => {
     if (!data || data.user.graceUsedThisMonth) return;
     const newData = { ...data };
     const user = { ...newData.user };
+    void trackGraceDayActivated(user.currentDay, user.streak, {
+      installDate: user.startDate,
+      coachId: user.preferredCoachId,
+      hasCompletedOnboarding: user.hasCompletedOnboarding,
+      hardMode,
+    });
     user.graceUsedThisMonth = true;
-    user.streak = 0;
+    // streak is intentionally preserved — grace days exist to protect it
+    user.currentDay = Math.min(user.currentDay + 1, 90);
+    if (user.currentDay > 90) user.programCompleted = true;
     newData.user = user;
     persist(newData);
   }, [data, persist]);
@@ -789,12 +1002,123 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persist(newData);
   }, [data, persist]);
 
+  const completeOnboarding = useCallback(async (onboardingData: OnboardingData) => {
+    const profileName = onboardingData.name?.trim() || data?.user.name || 'Usuario';
+    const base = data ?? createInitialData(profileName, onboardingData);
+    const normalizedGoals = {
+      ...(base.user.goals ?? {}),
+      ...(onboardingData.goals ?? {}),
+    };
+
+    const newData: AppData = {
+      ...base,
+      user: {
+        ...base.user,
+        name: profileName,
+        fitnessLevel: onboardingData.fitnessLevel ?? base.user.fitnessLevel,
+        age: onboardingData.age ?? base.user.age,
+        initialWeight: onboardingData.initialWeight ?? base.user.initialWeight,
+        height: onboardingData.height ?? base.user.height,
+        trainingDaysPerWeek: onboardingData.trainingDaysPerWeek ?? base.user.trainingDaysPerWeek,
+        goals: normalizedGoals,
+        adaptiveProfile: onboardingData.adaptiveProfile ?? base.user.adaptiveProfile,
+        nutritionProfile: onboardingData.nutritionProfile ?? base.user.nutritionProfile,
+        preferredCoachId: onboardingData.preferredCoachId ?? base.user.preferredCoachId ?? 'goku',
+        focusAreas: onboardingData.focusAreas ?? base.user.focusAreas ?? [],
+        hasCompletedOnboarding: true,
+      },
+      lastOpenedDate: TODAY(),
+    };
+
+    // Zero-latency local apply (always succeed first, even offline).
+    setData(newData);
+    setHasCompletedOnboarding(true);
+    setHasRemoteProfile(true);
+    await AsyncStorage.multiSet([
+      [STORAGE_KEY, JSON.stringify(newData)],
+      [ONBOARDING_KEY, JSON.stringify({ ...onboardingData, completed: true, name: profileName })],
+      [ONBOARDING_STATUS_KEY, 'true'],
+    ]);
+
+    // Rebuild adaptive program from the newly stored onboarding.
+    initProgram().catch((error) => {
+      console.error('[AppContext Error]: initProgram after onboarding failed', error);
+    });
+
+    scheduledNotifKeyRef.current = '';
+
+    void trackOnboardingCompleted(
+      newData.user.preferredCoachId ?? 'goku',
+      newData.user.focusAreas ?? [],
+      {
+        targetReadingPagesPerDay: normalizedGoals.targetReadingPagesPerDay,
+        targetMeditationMinutesPerDay: normalizedGoals.targetMeditationMinutesPerDay,
+        targetWaterLitersPerDay: normalizedGoals.targetWaterLitersPerDay,
+        targetWeight: normalizedGoals.targetWeight,
+      }
+    );
+    void trackAppOpened(newData.user.currentDay, newData.user.level, newData.user.streak, {
+      installDate: newData.user.startDate,
+      coachId: newData.user.preferredCoachId,
+      hasCompletedOnboarding: true,
+      hardMode,
+    });
+
+    if (SUPABASE_CONFIG_ERROR) {
+      return {
+        synced: false,
+        warning: 'Guardado local activo. Conecta Supabase para sincronizar en la nube.',
+      };
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return {
+          synced: false,
+          warning: 'No encontramos sesion de Supabase. Se guardo localmente.',
+        };
+      }
+
+      await upsertProfile(user.id, newData.user);
+
+      const onboardingMetrics: DayMetrics = {
+        weight: onboardingData.initialWeight,
+        readingPages: onboardingData.goals?.targetReadingPagesPerDay,
+        breathingMinutes: onboardingData.goals?.targetMeditationMinutesPerDay,
+        notes: JSON.stringify({
+          source: 'onboarding',
+          waterLitersPerDay: onboardingData.goals?.targetWaterLitersPerDay ?? null,
+          focusAreas: onboardingData.focusAreas ?? [],
+          coach: onboardingData.preferredCoachId ?? 'goku',
+        }),
+      };
+      await upsertMetrics(user.id, 1, onboardingMetrics);
+      await upsertUserMetricsDaily(user.id, {
+        date: newData.user.startDate,
+        currentWeight: onboardingData.initialWeight,
+        waterLiters: onboardingData.goals?.targetWaterLitersPerDay,
+        meditationMinutes: onboardingData.goals?.targetMeditationMinutesPerDay,
+        readingPages: onboardingData.goals?.targetReadingPagesPerDay,
+      });
+      setHasRemoteProfile(true);
+      return { synced: true };
+    } catch (error) {
+      logUnexpectedError('completeOnboarding remote sync failed', error);
+      return {
+        synced: false,
+        warning: 'No pudimos sincronizar con la nube. Tu onboarding quedo guardado localmente.',
+      };
+    }
+  }, [data]);
+
   const applyOnboardingProfile = useCallback((onboarding: Partial<OnboardingData>) => {
     if (!data) return;
     const newData: AppData = {
       ...data,
       user: {
         ...data.user,
+        name: onboarding.name ?? data.user.name,
         fitnessLevel: onboarding.fitnessLevel ?? data.user.fitnessLevel,
         age: onboarding.age ?? data.user.age,
         initialWeight: onboarding.initialWeight ?? data.user.initialWeight,
@@ -804,6 +1128,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         adaptiveProfile: onboarding.adaptiveProfile ?? data.user.adaptiveProfile,
         nutritionProfile: onboarding.nutritionProfile ?? data.user.nutritionProfile,
         preferredCoachId: onboarding.preferredCoachId ?? data.user.preferredCoachId,
+        focusAreas: onboarding.focusAreas ?? data.user.focusAreas,
+        hasCompletedOnboarding: onboarding.completed ?? data.user.hasCompletedOnboarding,
       },
     };
     persist(newData);
@@ -813,10 +1139,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetProgram = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     const name = user?.user_metadata?.name ?? data?.user.name ?? 'Usuario';
-    const initial = createInitialData(name);
+    const initial = createInitialData(name, {
+      completed: data?.user.hasCompletedOnboarding ?? true,
+      goal: 'all',
+      fitnessLevel: data?.user.fitnessLevel ?? 'intermediate',
+      wakeUpHour: 7,
+      age: data?.user.age,
+      initialWeight: data?.user.initialWeight,
+      height: data?.user.height,
+      trainingDaysPerWeek: data?.user.trainingDaysPerWeek,
+      goals: data?.user.goals,
+      adaptiveProfile: data?.user.adaptiveProfile,
+      nutritionProfile: data?.user.nutritionProfile,
+      preferredCoachId: data?.user.preferredCoachId,
+      focusAreas: data?.user.focusAreas,
+    });
     setData(initial);
+    setHasCompletedOnboarding(Boolean(initial.user.hasCompletedOnboarding));
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
     if (user) {
+      const clearError = await clearUserProgress(user.id);
+      if (clearError) {
+        logUnexpectedError('resetProgram clearUserProgress failed', clearError);
+      }
       await upsertProfile(user.id, initial.user);
     }
   }, [data]);
@@ -829,6 +1174,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       data,
       loading,
+      hasRemoteProfile,
+      hasCompletedOnboarding,
       syncing,
       todayRecord,
       todayDefinition,
@@ -841,10 +1188,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       pinnedMissions,
       pinMission,
       unpinMission,
-      // Legacy
-      completeTask,
-      uncompleteTask,
-      markDayComplete,
       saveJournal,
       saveMetrics,
       useGraceDay,
@@ -854,9 +1197,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hasPenalty,
       completePenalty,
       setPreferredCoach,
+      completeOnboarding,
       applyOnboardingProfile,
       newBadges,
       clearNewBadges,
+      xpLastEarned,
+      clearXpEarned,
     }}>
       {children}
     </AppContext.Provider>

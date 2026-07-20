@@ -118,18 +118,23 @@ export default function PomodoroTimer({ visible, mission, currentUnits, onEarn, 
 
   const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef   = useRef(AppState.currentState);
+  const targetEndRef  = useRef<number | null>(null);
   const pausedAtRef   = useRef<number | null>(null);
 
   // Reset state when modal opens fresh
   useEffect(() => {
     if (visible) {
       const init = isDeepWork ? Math.floor(currentUnits / 25) : currentUnits;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      targetEndRef.current = null;
+      pausedAtRef.current = null;
       setCompleted(init);
       setPhase('idle');
       setSecondsLeft(WORK_SECS);
       setRunning(false);
     }
-  }, [visible]);
+  }, [visible, isDeepWork, currentUnits]);
 
   const totalSecs = phase === 'break' ? BREAK_SECS : WORK_SECS;
   const accentColor = isDeepWork ? COLORS.productividad : COLORS.accent;
@@ -140,76 +145,132 @@ export default function PomodoroTimer({ visible, mission, currentUnits, onEarn, 
     onEarn(mission.id, units);
   }, [isDeepWork, mission.id, onEarn]);
 
-  // ── Tick ────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (running) {
-      intervalRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
-          if (prev <= 1) {
-            // Phase done
-            clearInterval(intervalRef.current!);
-            setRunning(false);
+  const handlePhaseComplete = useCallback(() => {
+    targetEndRef.current = null;
+    setRunning(false);
 
-            if (phase === 'work') {
-              // Completed a pomodoro
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Vibration.vibrate([0, 400, 200, 400]);
+    if (phase === 'work') {
+      // Completed a pomodoro
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Vibration.vibrate([0, 400, 200, 400]);
 
-              setCompleted(prevCount => {
-                const next = prevCount + 1;
-                earnForCompleted(next);
-                return next;
-              });
-              setPhase('break');
-              return BREAK_SECS;
-            } else {
-              // Break done
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-              setPhase('idle');
-              return WORK_SECS;
-            }
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      setCompleted(prevCount => {
+        const next = prevCount + 1;
+        earnForCompleted(next);
+        return next;
+      });
+      setPhase('break');
+      setSecondsLeft(BREAK_SECS);
+      return;
     }
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [running, phase, earnForCompleted]);
+    // Break done
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setPhase('idle');
+    setSecondsLeft(WORK_SECS);
+  }, [phase, earnForCompleted]);
 
-  // ── Handle app going to background (pause) ───────────────────────────────
+  // ── Tick (delta-based with Date.now to prevent drift) ─────────────────────
+  useEffect(() => {
+    if (!running) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    if (!targetEndRef.current) {
+      targetEndRef.current = Date.now() + secondsLeft * 1000;
+    }
+
+    const tick = () => {
+      if (!targetEndRef.current) return;
+
+      const remainingMs = targetEndRef.current - Date.now();
+      const nextSecondsLeft = Math.max(0, Math.ceil(remainingMs / 1000));
+
+      setSecondsLeft(prev => (prev === nextSecondsLeft ? prev : nextSecondsLeft));
+
+      if (remainingMs <= 0) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        handlePhaseComplete();
+      }
+    };
+
+    tick();
+    intervalRef.current = setInterval(tick, 250);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [running, handlePhaseComplete]);
+
+  // ── Handle app going to background (pause + resume accurately) ───────────
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
       if (appStateRef.current === 'active' && next !== 'active' && running) {
         pausedAtRef.current = Date.now();
+        if (targetEndRef.current) {
+          const remaining = Math.max(0, Math.ceil((targetEndRef.current - Date.now()) / 1000));
+          setSecondsLeft(remaining);
+        }
+        targetEndRef.current = null;
         setRunning(false);
       }
-      if (appStateRef.current !== 'active' && next === 'active' && pausedAtRef.current) {
-        const elapsed = Math.floor((Date.now() - pausedAtRef.current) / 1000);
-        setSecondsLeft(prev => Math.max(0, prev - elapsed));
+      if (
+        appStateRef.current !== 'active' &&
+        next === 'active' &&
+        pausedAtRef.current &&
+        phase !== 'idle' &&
+        secondsLeft > 0
+      ) {
         pausedAtRef.current = null;
+        targetEndRef.current = Date.now() + secondsLeft * 1000;
         setRunning(true);
       }
       appStateRef.current = next;
     });
     return () => sub.remove();
-  }, [running]);
+  }, [running, phase, secondsLeft]);
 
   // ── Controls ─────────────────────────────────────────────────────────────
   function handleStartPause() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     if (phase === 'idle') {
       setPhase('work');
       setSecondsLeft(WORK_SECS);
+      targetEndRef.current = Date.now() + WORK_SECS * 1000;
+      setRunning(true);
+      return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setRunning(r => !r);
+
+    if (running) {
+      if (targetEndRef.current) {
+        const remaining = Math.max(0, Math.ceil((targetEndRef.current - Date.now()) / 1000));
+        setSecondsLeft(remaining);
+      }
+      targetEndRef.current = null;
+      setRunning(false);
+      return;
+    }
+
+    targetEndRef.current = Date.now() + secondsLeft * 1000;
+    setRunning(true);
   }
 
   function handleReset() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    targetEndRef.current = null;
+    pausedAtRef.current = null;
     setRunning(false);
     setPhase('idle');
     setSecondsLeft(WORK_SECS);
@@ -218,6 +279,9 @@ export default function PomodoroTimer({ visible, mission, currentUnits, onEarn, 
 
   function handleSkipBreak() {
     if (phase !== 'break') return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    targetEndRef.current = null;
     setRunning(false);
     setPhase('idle');
     setSecondsLeft(WORK_SECS);
@@ -225,6 +289,9 @@ export default function PomodoroTimer({ visible, mission, currentUnits, onEarn, 
   }
 
   function handleClose() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    targetEndRef.current = null;
     setRunning(false);
     onClose();
   }

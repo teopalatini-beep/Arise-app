@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../src/context/AuthContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '../src/theme';
+import { useAuth } from '@/context/AuthContext';
+import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '@/theme';
 
 type Mode = 'login' | 'register' | 'reset';
 
@@ -87,7 +87,12 @@ export default function LoginScreen() {
       const err = await register(name.trim(), email.trim(), password);
       setLoading(false);
       if (err) { showError(err); }
-      else { setSuccessMsg('¡Cuenta creada! Revisá tu email para confirmar.'); }
+      else {
+        setMode('login');
+        setPassword('');
+        setConfirmPassword('');
+        setSuccessMsg('Cuenta creada. Confirma tu email y luego inicia sesion.');
+      }
       return;
     }
 

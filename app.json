@@ -20,7 +20,6 @@
       "bundleIdentifier": "com.teopalatini.arise",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "ARISE no usa tu cámara.",
         "NSPhotoLibraryUsageDescription": "ARISE no accede a tus fotos.",
         "NSCalendarsUsageDescription": "ARISE agrega tus misiones y bloques de entrenamiento a tu calendario.",
         "NSRemindersUsageDescription": "ARISE puede crear recordatorios para tus misiones diarias.",

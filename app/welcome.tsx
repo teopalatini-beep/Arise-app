@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useApp } from '../src/context/AppContext';
-import { useAuth } from '../src/context/AuthContext';
-import { FONT, RADIUS, SPACING } from '../src/theme';
+import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
+import { FONT, RADIUS, SPACING } from '@/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -44,11 +44,11 @@ export default function WelcomeScreen() {
     // Secuencia de animación de entrada
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, tension: 75, friction: 10, useNativeDriver: true }),
       ]),
-      Animated.timing(quoteAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(btnAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(quoteAnim, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.timing(btnAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
     ]).start();
 
     // Pulso del glow
@@ -116,7 +116,12 @@ export default function WelcomeScreen() {
 
         {/* Botón */}
         <Animated.View style={{ opacity: btnAnim, width: '100%' }}>
-          <TouchableOpacity onPress={handleEnter} activeOpacity={0.85}>
+          <TouchableOpacity
+            onPress={handleEnter}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Comenzar jornada"
+          >
             <LinearGradient
               colors={['#E8460A', '#7C3AED']}
               start={{ x: 0, y: 0 }}
@@ -126,6 +131,15 @@ export default function WelcomeScreen() {
               <Text style={styles.btnText}>COMENZAR JORNADA</Text>
               <Text style={styles.btnIcon}>⚔️</Text>
             </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleEnter}
+            style={styles.skipBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Entrar rapido al inicio"
+          >
+            <Text style={styles.skipText}>Entrar rapido</Text>
           </TouchableOpacity>
         </Animated.View>
 
@@ -263,4 +277,15 @@ const styles = StyleSheet.create({
     fontWeight: '900', letterSpacing: 2,
   },
   btnIcon: { fontSize: 18 },
+  skipBtn: {
+    marginTop: SPACING.sm,
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  skipText: {
+    color: '#A8A1C5',
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
 });

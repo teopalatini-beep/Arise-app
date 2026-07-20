@@ -1,80 +1,32 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TextInput,
-  TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Dimensions, Share, Modal, Pressable, ActivityIndicator,
+  View, Text, ScrollView, StyleSheet,
+  TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform, Dimensions, Share, Modal, Pressable, ActivityIndicator, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Rect, G, Text as SvgText, Line } from 'react-native-svg';
-import { useApp } from '../../src/context/AppContext';
+import { useApp } from '@/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
-import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, BadgeId, CoachId } from '../../src/types';
-import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme, StageTheme } from '../../src/lib/progression';
-import { buildWeeklyCoachReport, COACH_STORAGE_KEY, COACHES } from '../../src/lib/coach';
-import CoachParticles from '../../src/components/CoachParticles';
+import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, BadgeId, CoachId } from '@/types';
+import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme, StageTheme } from '@/lib/progression';
+import { buildWeeklyCoachReport, COACH_STORAGE_KEY, COACHES } from '@/lib/coach';
+import CoachParticles from '@components/CoachParticles';
+import ScreenLoadingState from '@components/ui/ScreenLoadingState';
+import { useMetrics } from '@/hooks/useMetrics';
+import Heatmap from '@components/progreso/Heatmap';
+import WeightChart from '@components/progreso/WeightChart';
+import XPRing from '@components/progreso/XPRing';
+import MetricsForm from '@components/progreso/MetricsForm';
+import StaggerIn from '@components/ui/StaggerIn';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import { trackMissionProgress } from '@/services/analytics';
+import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
+import { dateFromDayNumber } from '@/lib/dates';
 
 const SCREEN_W = Dimensions.get('window').width - SPACING.md * 2;
-
-// ─── Heatmap de 90 días ───────────────────────────────────────────────────────
-function Heatmap({ days, currentDay, onDayPress }: {
-  days: any[];
-  currentDay: number;
-  onDayPress: (dayNum: number) => void;
-}) {
-  const cols = 10;
-  const cellSize = Math.floor((SCREEN_W - 16) / cols);
-  const gap = 3;
-
-  return (
-    <View style={heatStyles.container}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
-        {Array.from({ length: 90 }, (_, i) => {
-          const dayNum = i + 1;
-          const record = days.find(d => d.dayNumber === dayNum);
-          const isPast = dayNum < currentDay;
-          const isToday = dayNum === currentDay;
-          const isFuture = dayNum > currentDay;
-
-          let bg = 'rgba(255,255,255,0.05)';
-          if (isToday) bg = COLORS.accent;
-          else if (record?.completed) bg = COLORS.success;
-          else if (record?.missed) bg = COLORS.danger;
-          else if (isPast) bg = 'rgba(255,255,255,0.12)';
-
-          const tappable = !isFuture;
-
-          return (
-            <TouchableOpacity
-              key={dayNum}
-              onPress={() => tappable && onDayPress(dayNum)}
-              activeOpacity={tappable ? 0.7 : 1}
-              style={[
-                heatStyles.cell,
-                { width: cellSize - gap, height: cellSize - gap, backgroundColor: bg },
-                isToday && heatStyles.cellToday,
-              ]}
-            >
-              {isToday && (
-                <Text style={heatStyles.cellText}>{dayNum}</Text>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Legend */}
-      <View style={heatStyles.legend}>
-        <LegendDot color={COLORS.success} label="Completado" />
-        <LegendDot color={COLORS.accent} label="Hoy" />
-        <LegendDot color={COLORS.danger} label="Fallado" />
-        <LegendDot color="rgba(255,255,255,0.12)" label="Pendiente" />
-      </View>
-    </View>
-  );
-}
 
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 const MOOD_EMOJIS = ['', '😞', '😕', '😐', '🙂', '😄'];
@@ -289,15 +241,6 @@ const dayDetailStyles = StyleSheet.create({
   closeBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.base, letterSpacing: 1 },
 });
 
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-      <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: color }} />
-      <Text style={{ fontSize: 9, color: COLORS.textMuted }}>{label}</Text>
-    </View>
-  );
-}
-
 // ─── Line chart (peso) ────────────────────────────────────────────────────────
 function LineChart({ data, color, label }: { data: { x: number; y: number }[]; color: string; label: string }) {
   const W = SCREEN_W - 32;
@@ -325,17 +268,18 @@ function LineChart({ data, color, label }: { data: { x: number; y: number }[]; c
 
   const linePath = data.map((d, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(d.y).toFixed(1)}`).join(' ');
   const areaPath = `${linePath} L${toX(data.length - 1).toFixed(1)},${(pad.top + totalH).toFixed(1)} L${toX(0).toFixed(1)},${(pad.top + totalH).toFixed(1)} Z`;
+  const gradId = `lineGrad_${label.replace(/\s/g, '_')}`;
 
   return (
     <Svg width={W} height={H + pad.top + pad.bottom}>
       <Defs>
-        <SvgGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+        <SvgGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={color} stopOpacity="0.3" />
           <Stop offset="1" stopColor={color} stopOpacity="0" />
         </SvgGradient>
       </Defs>
       {/* Area */}
-      <Path d={areaPath} fill="url(#lineGrad)" />
+      <Path d={areaPath} fill={`url(#${gradId})`} />
       {/* Line */}
       <Path d={linePath} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
       {/* Dots for first and last */}
@@ -393,257 +337,83 @@ function WeeklyBars({ days, field, color, unit }: {
   );
 }
 
-// ─── Weight Chart ─────────────────────────────────────────────────────────────
-function linearRegression(points: { x: number; y: number }[]): { slope: number; intercept: number } {
-  const n = points.length;
-  if (n < 2) return { slope: 0, intercept: points[0]?.y ?? 0 };
-  const sumX = points.reduce((s, p) => s + p.x, 0);
-  const sumY = points.reduce((s, p) => s + p.y, 0);
-  const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
-  const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / n;
-  return { slope, intercept };
-}
-
-function WeightChart({
-  data,
-  initialWeight,
-  targetWeight,
-  currentDay,
-  track,
-}: {
-  data: { x: number; y: number }[];
-  initialWeight?: number;
-  targetWeight?: number;
-  currentDay: number;
-  track?: string;
-}) {
-  const W = SCREEN_W - 16;
-  const H = 140;
-  const pad = { top: 16, bottom: 28, left: 38, right: 16 };
-  const plotW = W - pad.left - pad.right;
-  const plotH = H;
-
-  const losing = track === 'fat_loss' || track === 'recomposition';
-
-  if (data.length < 2) {
+// ─── Energy Trend Strip ───────────────────────────────────────────────────────
+function EnergyTrendStrip({ data }: { data: { dayNumber: number; level: number }[] }) {
+  if (data.length === 0) {
     return (
-      <View style={{ alignItems: 'center', paddingVertical: SPACING.xl, gap: 8 }}>
-        <Ionicons name="scale-outline" size={32} color={COLORS.textMuted} />
-        <Text style={[chartStyles.emptyText, { textAlign: 'center' }]}>
-          Registrá tu peso diariamente{'\n'}para ver la evolución y proyección
-        </Text>
+      <View style={[chartStyles.empty, { height: 60 }]}>
+        <Text style={chartStyles.emptyText}>Registrá tu energía diaria para ver la tendencia</Text>
       </View>
     );
   }
 
-  const { slope, intercept } = linearRegression(data);
-  const proj90 = slope * 90 + intercept;
-  const latestWeight = data[data.length - 1].y;
-  const firstWeight = data[0].y;
-  const delta = latestWeight - firstWeight;
-  const weeklyRate = data.length > 1 ? (delta / ((data[data.length - 1].x - data[0].x) / 7)) : 0;
+  const recent = data.slice(-14);
+  const avg = recent.reduce((s, d) => s + d.level, 0) / recent.length;
 
-  // Y-axis range: include initial, latest, target, and projected
-  const allY = [firstWeight, latestWeight, proj90, targetWeight ?? latestWeight];
-  const minY = Math.min(...allY) - 1.5;
-  const maxY = Math.max(...allY) + 1.5;
-  const rangeY = maxY - minY || 1;
-
-  const toX = (day: number) => pad.left + ((day - 1) / 89) * plotW;
-  const toY = (kg: number) => pad.top + plotH - ((kg - minY) / rangeY) * plotH;
-
-  // Measured path
-  const measuredPath = data
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.x).toFixed(1)},${toY(p.y).toFixed(1)}`)
-    .join(' ');
-  const areaPath = `${measuredPath} L${toX(data[data.length - 1].x).toFixed(1)},${(pad.top + plotH).toFixed(1)} L${toX(data[0].x).toFixed(1)},${(pad.top + plotH).toFixed(1)} Z`;
-
-  // Trend line from first data point to day 90
-  const trendX1 = toX(data[0].x);
-  const trendY1 = toY(slope * data[0].x + intercept);
-  const trendX2 = toX(90);
-  const trendY2 = toY(proj90);
-
-  // Y-axis tick values
-  const yTicks = [minY + 1, (minY + maxY) / 2, maxY - 1].map(v => Math.round(v * 2) / 2);
+  const energyColor = (level: number) => {
+    if (level <= 3) return COLORS.danger;
+    if (level <= 6) return COLORS.warning;
+    return COLORS.success;
+  };
 
   return (
     <View>
-      <Svg width={W} height={H + pad.top + pad.bottom}>
-        <Defs>
-          <SvgGradient id="wGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={COLORS.accent} stopOpacity="0.25" />
-            <Stop offset="1" stopColor={COLORS.accent} stopOpacity="0.02" />
-          </SvgGradient>
-        </Defs>
-
-        {/* Grid lines */}
-        {yTicks.map((v, i) => (
-          <G key={i}>
-            <Line
-              x1={pad.left} y1={toY(v)}
-              x2={W - pad.right} y2={toY(v)}
-              stroke="rgba(255,255,255,0.06)" strokeWidth="1"
-            />
-            <SvgText x={pad.left - 4} y={toY(v) + 3} textAnchor="end" fontSize="9" fill={COLORS.textMuted}>
-              {v.toFixed(1)}
-            </SvgText>
-          </G>
+      <View style={energyStyles.strip}>
+        {recent.map(d => (
+          <View key={d.dayNumber} style={energyStyles.dotCol}>
+            <View style={[energyStyles.dot, { backgroundColor: energyColor(d.level) }]} />
+            <Text style={energyStyles.dotNum}>{d.level}</Text>
+          </View>
         ))}
-
-        {/* Target weight line */}
-        {targetWeight != null && (
-          <G>
-            <Line
-              x1={pad.left} y1={toY(targetWeight)}
-              x2={W - pad.right} y2={toY(targetWeight)}
-              stroke={losing ? COLORS.success : COLORS.warning}
-              strokeWidth="1.5"
-              strokeDasharray="5,4"
-            />
-            <SvgText x={W - pad.right + 2} y={toY(targetWeight) + 3} fontSize="8" fill={losing ? COLORS.success : COLORS.warning}>
-              Meta
-            </SvgText>
-          </G>
-        )}
-
-        {/* Trend line (projection) */}
-        <Line
-          x1={trendX1} y1={trendY1}
-          x2={trendX2} y2={trendY2}
-          stroke={COLORS.accent}
-          strokeWidth="1.5"
-          strokeDasharray="6,4"
-          opacity={0.5}
-        />
-
-        {/* Area fill */}
-        <Path d={areaPath} fill="url(#wGrad)" />
-
-        {/* Measured line */}
-        <Path d={measuredPath} stroke={COLORS.accent} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Dots */}
-        <Circle cx={toX(data[0].x)} cy={toY(data[0].y)} r={3.5} fill={COLORS.accent} opacity={0.7} />
-        <Circle cx={toX(data[data.length - 1].x)} cy={toY(data[data.length - 1].y)} r={5} fill={COLORS.accent} />
-
-        {/* Projection dot at day 90 */}
-        <Circle cx={toX(90)} cy={toY(proj90)} r={4} fill={COLORS.accent} opacity={0.4} strokeDasharray="3,2" stroke={COLORS.accent} strokeWidth="1" />
-
-        {/* X-axis labels */}
-        <SvgText x={toX(data[0].x)} y={H + pad.top + pad.bottom - 2} textAnchor="middle" fontSize="9" fill={COLORS.textMuted}>D{data[0].x}</SvgText>
-        <SvgText x={toX(currentDay)} y={H + pad.top + pad.bottom - 2} textAnchor="middle" fontSize="9" fill={COLORS.accent}>Hoy</SvgText>
-        <SvgText x={toX(90)} y={H + pad.top + pad.bottom - 2} textAnchor="middle" fontSize="9" fill={COLORS.textMuted}>D90</SvgText>
-      </Svg>
-
-      {/* Stats row */}
-      <View style={wchartStyles.statsRow}>
-        <View style={wchartStyles.stat}>
-          <Text style={wchartStyles.statVal}>{latestWeight.toFixed(1)} kg</Text>
-          <Text style={wchartStyles.statLabel}>Actual</Text>
-        </View>
-        <View style={wchartStyles.divider} />
-        <View style={wchartStyles.stat}>
-          <Text style={[wchartStyles.statVal, { color: delta === 0 ? COLORS.textMuted : (losing ? (delta < 0 ? COLORS.success : COLORS.danger) : (delta > 0 ? COLORS.success : COLORS.danger)) }]}>
-            {delta >= 0 ? '+' : ''}{delta.toFixed(1)} kg
-          </Text>
-          <Text style={wchartStyles.statLabel}>Vs inicio</Text>
-        </View>
-        <View style={wchartStyles.divider} />
-        <View style={wchartStyles.stat}>
-          <Text style={wchartStyles.statVal}>{weeklyRate >= 0 ? '+' : ''}{weeklyRate.toFixed(2)} kg/sem</Text>
-          <Text style={wchartStyles.statLabel}>Velocidad</Text>
-        </View>
-        <View style={wchartStyles.divider} />
-        <View style={wchartStyles.stat}>
-          <Text style={[wchartStyles.statVal, { color: COLORS.accent }]}>{proj90.toFixed(1)} kg</Text>
-          <Text style={wchartStyles.statLabel}>Proy. D90</Text>
-        </View>
       </View>
-
-      {/* Progress toward target */}
-      {targetWeight != null && initialWeight != null && (
-        (() => {
-          const totalDelta = targetWeight - initialWeight;
-          const done = Math.abs(totalDelta) < 0.1 ? 1 : Math.max(0, Math.min(1, (latestWeight - initialWeight) / totalDelta));
-          const pct = Math.round(done * 100);
-          const color = losing ? COLORS.success : COLORS.warning;
-          return (
-            <View style={wchartStyles.targetRow}>
-              <Text style={wchartStyles.targetLabel}>Meta: {initialWeight.toFixed(1)} → {targetWeight.toFixed(1)} kg</Text>
-              <Text style={[wchartStyles.targetPct, { color }]}>{pct}%</Text>
+      <View style={energyStyles.footer}>
+        <View style={energyStyles.legendRow}>
+          {[{ color: COLORS.success, label: '7-10' }, { color: COLORS.warning, label: '4-6' }, { color: COLORS.danger, label: '1-3' }].map(l => (
+            <View key={l.label} style={energyStyles.legendItem}>
+              <View style={[energyStyles.legendDot, { backgroundColor: l.color }]} />
+              <Text style={energyStyles.legendText}>{l.label}</Text>
             </View>
-          );
-        })()
-      )}
-    </View>
-  );
-}
-
-const wchartStyles = StyleSheet.create({
-  statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: SPACING.sm, paddingHorizontal: 4 },
-  stat: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.textPrimary },
-  statLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
-  divider: { width: 1, height: 28, backgroundColor: COLORS.border },
-  targetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border },
-  targetLabel: { fontSize: FONT.xs, color: COLORS.textMuted },
-  targetPct: { fontSize: FONT.sm, fontWeight: '900' },
-});
-
-// ─── XP Ring ─────────────────────────────────────────────────────────────────
-function XPRing({ xp, level, xpForLevel }: { xp: number; level: number; xpForLevel: (l: number) => number }) {
-  const size = 120;
-  const stroke = 10;
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const xpCurrent = xpForLevel(level);
-  const xpNext = xpForLevel(level + 1);
-  const progress = Math.min((xp - xpCurrent) / (xpNext - xpCurrent), 1);
-  const dashOffset = circumference * (1 - progress);
-
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Svg width={size} height={size}>
-        <Defs>
-          <SvgGradient id="xpGrad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={COLORS.accent} />
-            <Stop offset="1" stopColor={COLORS.purple} />
-          </SvgGradient>
-        </Defs>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} fill="none" />
-        <Circle
-          cx={size / 2} cy={size / 2} r={r}
-          stroke="url(#xpGrad)" strokeWidth={stroke} fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          rotation="-90"
-          origin={`${size / 2}, ${size / 2}`}
-        />
-      </Svg>
-      <View style={ringStyles.center}>
-        <Text style={ringStyles.level}>{level}</Text>
-        <Text style={ringStyles.levelLabel}>NIV</Text>
+          ))}
+        </View>
+        <Text style={energyStyles.avg}>Promedio: {avg.toFixed(1)}/10</Text>
       </View>
     </View>
   );
 }
+
+const energyStyles = StyleSheet.create({
+  strip: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: SPACING.sm },
+  dotCol: { alignItems: 'center', gap: 2 },
+  dot: { width: 20, height: 20, borderRadius: 10 },
+  dotNum: { fontSize: 8, color: COLORS.textMuted, fontWeight: '600' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  legendRow: { flexDirection: 'row', gap: 10 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 9, color: COLORS.textMuted },
+  avg: { fontSize: FONT.xs, color: COLORS.textSecondary, fontWeight: '700' },
+});
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ProgresoScreen() {
+  const { reducedMotion, screenAnimStyle } = useTabScreenMotion('progreso');
   const { data, todayRecord, saveMetrics, newBadges, clearNewBadges, setPreferredCoach, loading } = useApp();
+  const {
+    syncing: metricsSyncing,
+    error: metricsError,
+    chartData: remoteWeightData,
+    heatmapDayNumbers,
+    saveDailyMetrics: saveDailyMetricsRemote,
+  } = useMetrics({ startDate: data?.user.startDate });
   const [weight, setWeight] = useState(todayRecord?.metrics?.weight?.toString() ?? '');
   const [trainMin, setTrainMin] = useState(todayRecord?.metrics?.trainingMinutes?.toString() ?? '');
   const [readPages, setReadPages] = useState(todayRecord?.metrics?.readingPages?.toString() ?? '');
   const [breathMin, setBreathMin] = useState(todayRecord?.metrics?.breathingMinutes?.toString() ?? '');
   const [sleepHours, setSleepHours] = useState(todayRecord?.metrics?.sleepHours?.toString() ?? '');
   const [energyLevel, setEnergyLevel] = useState(todayRecord?.metrics?.energyLevel ?? 0);
-  const [mood, setMood] = useState(todayRecord?.metrics?.mood ?? 0);
   const [metricNotes, setMetricNotes] = useState(todayRecord?.metrics?.notes ?? '');
   const [saved, setSaved] = useState(false);
+  const [savingMetrics, setSavingMetrics] = useState(false);
   const [showWeeklyReview, setShowWeeklyReview] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<CoachId>('goku');
   const [showStoryModal, setShowStoryModal] = useState(false);
@@ -656,12 +426,27 @@ export default function ProgresoScreen() {
     return (
       <LinearGradient colors={fallbackTheme.background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
-          <View style={chartStyles.empty}>
-            <Ionicons name="analytics-outline" size={40} color={COLORS.textMuted} />
-            <Text style={chartStyles.emptyText}>
-              {loading ? 'Cargando progreso...' : 'No pudimos cargar tu progreso.\nRevisa conexión e inicia sesión nuevamente.'}
-            </Text>
-          </View>
+          {loading ? (
+            <ScreenLoadingState
+              title="Progreso"
+              subtitle="Sincronizando métricas, badges y reportes..."
+              icon="analytics-outline"
+              accent={fallbackTheme.tabActive}
+              reducedMotion={reducedMotion}
+              hints={[
+                'Calculando estadisticas',
+                'Trayendo datos de metricas',
+                'Cargando reporte del coach',
+              ]}
+            />
+          ) : (
+            <View style={chartStyles.empty}>
+              <Ionicons name="analytics-outline" size={40} color={COLORS.textMuted} />
+              <Text style={chartStyles.emptyText}>
+                No pudimos cargar tu progreso.{'\n'}Revisa conexión e inicia sesión nuevamente.
+              </Text>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
     );
@@ -670,13 +455,25 @@ export default function ProgresoScreen() {
   const powerStage = getPowerStage(user);
   const stageTheme = getStageTheme(user);
   const nextStageHint = getNextStageHint(user);
-  const earnedBadges = (user.badges ?? []).map(id => ({ id, ...BADGE_DEFINITIONS[id] }));
-  const recentBadges = [...earnedBadges].reverse().slice(0, 6);
-  const lockedBadges = (Object.keys(BADGE_DEFINITIONS) as BadgeId[])
-    .filter(id => !(user.badges ?? []).includes(id))
-    .slice(0, 3)
-    .map(id => ({ id, ...BADGE_DEFINITIONS[id] }));
-  const dynamicChallenges = buildDynamicChallenges(user, days).slice(0, 3);
+  const earnedBadges = useMemo(
+    () => (user.badges ?? []).map(id => ({ id, ...BADGE_DEFINITIONS[id] })),
+    [user.badges],
+  );
+  const recentBadges = useMemo(
+    () => [...earnedBadges].reverse().slice(0, 6),
+    [earnedBadges],
+  );
+  const lockedBadges = useMemo(
+    () => (Object.keys(BADGE_DEFINITIONS) as BadgeId[])
+      .filter(id => !(user.badges ?? []).includes(id))
+      .slice(0, 3)
+      .map(id => ({ id, ...BADGE_DEFINITIONS[id] })),
+    [user.badges],
+  );
+  const dynamicChallenges = useMemo(
+    () => buildDynamicChallenges(user, days).slice(0, 3),
+    [user, days],
+  );
   const weeklyReport = useMemo(() => buildWeeklyCoachReport(data, selectedCoach), [data, selectedCoach]);
 
   useEffect(() => {
@@ -700,18 +497,55 @@ export default function ProgresoScreen() {
 
   function xpForLevel(level: number) { return level * level * 100; }
 
-  function handleSave() {
+  async function handleSave() {
+    if (savingMetrics) return;
+    setSavingMetrics(true);
+    const existingMetrics = todayRecord?.metrics ?? {};
     const metrics: DayMetrics = {
+      ...existingMetrics,
       weight: weight ? parseFloat(weight) : undefined,
       trainingMinutes: trainMin ? parseInt(trainMin) : undefined,
       readingPages: readPages ? parseInt(readPages) : undefined,
       breathingMinutes: breathMin ? parseInt(breathMin) : undefined,
       sleepHours: sleepHours ? parseFloat(sleepHours) : undefined,
       energyLevel: energyLevel || undefined,
-      mood: mood || undefined,
       notes: metricNotes || undefined,
     };
     saveMetrics(metrics);
+    try {
+      const metricDate = user.startDate
+        ? dateFromDayNumber(user.startDate, user.currentDay)
+        : new Date().toISOString().slice(0, 10);
+      const remotePayload = {
+        date: metricDate,
+        currentWeight: metrics.weight,
+        readingPages: metrics.readingPages,
+        meditationMinutes: metrics.breathingMinutes,
+        breathingMinutes: metrics.breathingMinutes,
+        trainingMinutes: metrics.trainingMinutes,
+        sleepHours: metrics.sleepHours,
+        energyLevel: metrics.energyLevel,
+        mood: metrics.mood,
+        notes: metrics.notes,
+      };
+      await saveDailyMetricsRemote(remotePayload);
+      const filledFields = [
+        remotePayload.currentWeight,
+        remotePayload.readingPages,
+        remotePayload.meditationMinutes,
+        remotePayload.trainingMinutes,
+        remotePayload.sleepHours,
+        remotePayload.energyLevel,
+        remotePayload.mood,
+      ].filter((value) => typeof value === 'number').length;
+      if (filledFields > 0) {
+        void trackMissionProgress('daily_metrics_saved', 'bienestar', user.currentDay, filledFields);
+      }
+    } catch (error) {
+      console.error('[Progreso] saveDailyMetricsRemote failed', error);
+    } finally {
+      setSavingMetrics(false);
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -748,33 +582,119 @@ export default function ProgresoScreen() {
     }
   }
 
-  // Calcular semana actual para revisión
-  const currentWeek = Math.ceil(user.currentDay / 7);
-  const weekStart = (currentWeek - 1) * 7 + 1;
-  const weekEnd = Math.min(currentWeek * 7, user.currentDay);
-  const weekDays = days.filter(d => d.dayNumber >= weekStart && d.dayNumber <= weekEnd);
-  const weekCompleted = weekDays.filter(d => d.completed).length;
-  const weekMissed = weekDays.filter(d => d.missed).length;
+  const currentWeek = useMemo(() => Math.ceil(user.currentDay / 7), [user.currentDay]);
+  const weekDays = useMemo(() => {
+    const weekStart = (currentWeek - 1) * 7 + 1;
+    const weekEnd = Math.min(currentWeek * 7, user.currentDay);
+    return days.filter(d => d.dayNumber >= weekStart && d.dayNumber <= weekEnd);
+  }, [days, currentWeek, user.currentDay]);
+  const weekCompleted = useMemo(() => weekDays.filter(d => d.completed).length, [weekDays]);
+  const weekMissed = useMemo(() => weekDays.filter(d => d.missed).length, [weekDays]);
 
-  const completedDays = days.filter(d => d.completed).length;
-  const missedDays = days.filter(d => d.missed).length;
-  const completionRate = user.currentDay > 1 ? Math.round((completedDays / (user.currentDay - 1)) * 100) : 0;
+  const {
+    completedDays,
+    missedDays,
+    totalTrainMin,
+    totalReadPages,
+    totalBreathMin,
+    trainedDaysCount,
+    latestWeight,
+  } = useMemo(() => {
+    let completed = 0;
+    let missed = 0;
+    let trainMin = 0;
+    let readPages = 0;
+    let breathMin = 0;
+    let trainedDays = 0;
+    let latestKnownWeight: number | undefined;
 
-  const totalTrainMin = days.reduce((sum, d) => sum + (d.metrics?.trainingMinutes ?? 0), 0);
-  const totalReadPages = days.reduce((sum, d) => sum + (d.metrics?.readingPages ?? 0), 0);
-  const totalBreathMin = days.reduce((sum, d) => sum + (d.metrics?.breathingMinutes ?? 0), 0);
+    for (const day of days) {
+      if (day.completed) completed++;
+      if (day.missed) missed++;
 
-  const weightData = days
-    .filter(d => d.metrics?.weight)
-    .sort((a, b) => a.dayNumber - b.dayNumber)
-    .map(d => ({ x: d.dayNumber, y: d.metrics!.weight! }));
+      const trainingMinutes = day.metrics?.trainingMinutes ?? 0;
+      if (trainingMinutes > 0) trainedDays++;
+
+      trainMin += trainingMinutes;
+      readPages += day.metrics?.readingPages ?? 0;
+      breathMin += day.metrics?.breathingMinutes ?? 0;
+
+      if (typeof day.metrics?.weight === 'number') latestKnownWeight = day.metrics.weight;
+    }
+
+    return {
+      completedDays: completed,
+      missedDays: missed,
+      totalTrainMin: trainMin,
+      totalReadPages: readPages,
+      totalBreathMin: breathMin,
+      trainedDaysCount: trainedDays,
+      latestWeight: latestKnownWeight,
+    };
+  }, [days]);
+
+  const completionRate = useMemo(
+    () => (user.currentDay > 1 ? Math.round((completedDays / (user.currentDay - 1)) * 100) : 0),
+    [completedDays, user.currentDay],
+  );
+
+  const weightData = useMemo(() => {
+    if (remoteWeightData.length >= 2) return remoteWeightData;
+    return days
+      .filter(d => typeof d.metrics?.weight === 'number')
+      .sort((a, b) => a.dayNumber - b.dayNumber)
+      .map(d => ({ x: d.dayNumber, y: d.metrics!.weight! }));
+  }, [days, remoteWeightData]);
+
+  const sleepData = useMemo(
+    () => days
+      .filter(d => typeof d.metrics?.sleepHours === 'number')
+      .sort((a, b) => a.dayNumber - b.dayNumber)
+      .map(d => ({ x: d.dayNumber, y: d.metrics!.sleepHours! })),
+    [days],
+  );
+
+  const energyData = useMemo(
+    () => days
+      .filter(d => typeof d.metrics?.energyLevel === 'number')
+      .sort((a, b) => a.dayNumber - b.dayNumber)
+      .map(d => ({ dayNumber: d.dayNumber, level: d.metrics!.energyLevel! })),
+    [days],
+  );
+
+  const avgSleep = useMemo(
+    () => (sleepData.length > 0 ? sleepData.reduce((s, d) => s + d.y, 0) / sleepData.length : 0),
+    [sleepData],
+  );
+
+  const hasAnyGoals = useMemo(
+    () => !!user.goals && Object.keys(user.goals).some(k => (user.goals as any)[k] != null),
+    [user.goals],
+  );
+
+  const weightGoalProgress = useMemo(() => {
+    if (
+      typeof user.goals?.targetWeight !== 'number' ||
+      typeof user.initialWeight !== 'number'
+    ) {
+      return null;
+    }
+
+    const latest = latestWeight ?? user.initialWeight;
+    const totalDelta = user.goals.targetWeight - user.initialWeight;
+    const doneDelta = latest - user.initialWeight;
+    const pct = Math.abs(totalDelta) < 0.1 ? 1 : Math.max(0, Math.min(1, doneDelta / totalDelta));
+
+    return { latest, pct };
+  }, [user.goals?.targetWeight, user.initialWeight, latestWeight]);
 
   const coachId = user.preferredCoachId ?? 'goku';
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={coachId} screen="progreso" />
-      <SafeAreaView style={styles.safe}>
+      <CoachParticles coachId={coachId} screen="progreso" tappable reducedMotion={reducedMotion} />
+      <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+        <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -788,12 +708,14 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Stats row */}
+            <StaggerIn index={0} reducedMotion={reducedMotion}>
             <View style={styles.statsRow}>
               <StatChip icon="flame" value={`${user.streak}`} label="Racha" color={COLORS.streak} />
               <StatChip icon="checkmark-circle" value={`${completedDays}`} label="Días OK" color={COLORS.success} />
               <StatChip icon="trending-up" value={`${completionRate}%`} label="Efectividad" color={COLORS.accent} />
               <StatChip icon="close-circle" value={`${missedDays}`} label="Fallados" color={COLORS.danger} />
             </View>
+            </StaggerIn>
 
             {newBadges.length > 0 && (
               <View style={styles.newBadgeBanner}>
@@ -808,6 +730,7 @@ export default function ProgresoScreen() {
             )}
 
             <Text style={styles.sectionTitle}>MODO ANIME ACTUAL</Text>
+            <StaggerIn index={1} reducedMotion={reducedMotion}>
             <View style={styles.card}>
               <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerPill}>
                 <Text style={styles.powerPillText}>{powerStage.auraLabel}</Text>
@@ -815,8 +738,34 @@ export default function ProgresoScreen() {
               <Text style={styles.powerTitle}>{powerStage.title}</Text>
               <Text style={styles.powerSubtitle}>{nextStageHint}</Text>
             </View>
+            </StaggerIn>
+
+            <StaggerIn index={2} reducedMotion={reducedMotion}>
+            <MetricsForm
+              dayNumber={user.currentDay}
+              weight={weight}
+              setWeight={setWeight}
+              trainMin={trainMin}
+              setTrainMin={setTrainMin}
+              readPages={readPages}
+              setReadPages={setReadPages}
+              breathMin={breathMin}
+              setBreathMin={setBreathMin}
+              sleepHours={sleepHours}
+              setSleepHours={setSleepHours}
+              energyLevel={energyLevel}
+              setEnergyLevel={setEnergyLevel}
+              metricNotes={metricNotes}
+              setMetricNotes={setMetricNotes}
+              saved={saved}
+              saving={savingMetrics}
+              accent={stageTheme.accent}
+              onSave={handleSave}
+            />
+            </StaggerIn>
 
             <Text style={styles.sectionTitle}>LOGROS Y BADGES</Text>
+            <StaggerIn index={3} reducedMotion={reducedMotion}>
             <View style={styles.card}>
               <Text style={styles.badgeSummary}>{earnedBadges.length} desbloqueados · {Object.keys(BADGE_DEFINITIONS).length - earnedBadges.length} pendientes</Text>
               <View style={styles.badgesGrid}>
@@ -829,6 +778,7 @@ export default function ProgresoScreen() {
                 ))}
               </View>
             </View>
+            </StaggerIn>
 
             <Text style={styles.sectionTitle}>PRÓXIMOS DESBLOQUEOS</Text>
             <View style={styles.card}>
@@ -920,63 +870,61 @@ export default function ProgresoScreen() {
               Tocá cualquier día para ver el resumen.
             </Text>
             <View style={styles.card}>
-              <Heatmap days={days} currentDay={user.currentDay} onDayPress={setSelectedDay} />
+              <Heatmap
+                days={days}
+                currentDay={user.currentDay}
+                metricDays={heatmapDayNumbers}
+                onDayPress={setSelectedDay}
+              />
+              {metricsSyncing ? (
+                <Text style={styles.chartFooterCenter}>Sincronizando en segundo plano...</Text>
+              ) : null}
             </View>
 
             {/* Goals progress bars */}
-            {user.goals && (
-              Object.keys(user.goals).some(k => (user.goals as any)[k] != null) && (
-                <>
-                  <Text style={styles.sectionTitle}>🎯 OBJETIVOS PERSONALES</Text>
-                  <View style={styles.card}>
-                    {typeof user.goals.targetStreak === 'number' && user.goals.targetStreak > 0 && (
-                      <GoalBar
-                        label="🔥 Racha objetivo"
-                        current={user.streak}
-                        target={user.goals.targetStreak}
-                        unit="días"
-                        color={COLORS.streak}
-                      />
-                    )}
-                    {typeof user.goals.targetReadingPages === 'number' && user.goals.targetReadingPages > 0 && (
-                      <GoalBar
-                        label="📚 Páginas leídas"
-                        current={totalReadPages}
-                        target={user.goals.targetReadingPages}
-                        unit="págs"
-                        color={COLORS.mente}
-                      />
-                    )}
-                    {typeof user.goals.targetWeight === 'number' && typeof user.initialWeight === 'number' && (
-                      (() => {
-                        const latestW = [...days].reverse().map(d => d.metrics?.weight).find((w): w is number => typeof w === 'number') ?? user.initialWeight;
-                        const totalDelta = user.goals.targetWeight! - user.initialWeight!;
-                        const doneDelta = latestW - user.initialWeight!;
-                        const pct = Math.abs(totalDelta) < 0.1 ? 1 : Math.max(0, Math.min(1, doneDelta / totalDelta));
-                        return (
-                          <GoalBar
-                            label="⚖️ Peso objetivo"
-                            current={parseFloat(latestW.toFixed(1))}
-                            target={user.goals.targetWeight!}
-                            unit="kg"
-                            color={COLORS.accent}
-                            forcePct={pct}
-                          />
-                        );
-                      })()
-                    )}
-                    {typeof user.goals.targetTrainingDays === 'number' && user.goals.targetTrainingDays > 0 && (
-                      <GoalBar
-                        label="🏋️ Días entrenados"
-                        current={days.filter(d => (d.metrics?.trainingMinutes ?? 0) > 0).length}
-                        target={user.goals.targetTrainingDays}
-                        unit="días"
-                        color={COLORS.cuerpo}
-                      />
-                    )}
-                  </View>
-                </>
-              )
+            {hasAnyGoals && (
+              <>
+                <Text style={styles.sectionTitle}>🎯 OBJETIVOS PERSONALES</Text>
+                <View style={styles.card}>
+                  {typeof user.goals?.targetStreak === 'number' && user.goals.targetStreak > 0 && (
+                    <GoalBar
+                      label="🔥 Racha objetivo"
+                      current={user.streak}
+                      target={user.goals.targetStreak}
+                      unit="días"
+                      color={COLORS.streak}
+                    />
+                  )}
+                  {typeof user.goals?.targetReadingPages === 'number' && user.goals.targetReadingPages > 0 && (
+                    <GoalBar
+                      label="📚 Páginas leídas"
+                      current={totalReadPages}
+                      target={user.goals.targetReadingPages}
+                      unit="págs"
+                      color={COLORS.mente}
+                    />
+                  )}
+                  {typeof user.goals?.targetWeight === 'number' && weightGoalProgress && (
+                    <GoalBar
+                      label="⚖️ Peso objetivo"
+                      current={parseFloat(weightGoalProgress.latest.toFixed(1))}
+                      target={user.goals.targetWeight}
+                      unit="kg"
+                      color={COLORS.accent}
+                      forcePct={weightGoalProgress.pct}
+                    />
+                  )}
+                  {typeof user.goals?.targetTrainingDays === 'number' && user.goals.targetTrainingDays > 0 && (
+                    <GoalBar
+                      label="🏋️ Días entrenados"
+                      current={trainedDaysCount}
+                      target={user.goals.targetTrainingDays}
+                      unit="días"
+                      color={COLORS.cuerpo}
+                    />
+                  )}
+                </View>
+              </>
             )}
 
             {/* Weight chart */}
@@ -988,7 +936,13 @@ export default function ProgresoScreen() {
                 targetWeight={user.goals?.targetWeight}
                 currentDay={user.currentDay}
                 track={user.adaptiveProfile?.track}
+                sourceLabel={remoteWeightData.length >= 2 ? 'Supabase user_metrics' : 'Cache local'}
               />
+              {metricsError ? (
+                <Text style={[styles.chartFooterCenter, { color: COLORS.warning }]}>
+                  {metricsError}
+                </Text>
+              ) : null}
             </View>
 
             {/* Weekly training bars */}
@@ -1016,6 +970,23 @@ export default function ProgresoScreen() {
               <Text style={styles.chartFooterCenter}>
                 Total: {Math.floor(totalBreathMin / 60)}h {totalBreathMin % 60}m de práctica
               </Text>
+            </View>
+
+            {/* Sleep chart */}
+            <Text style={styles.sectionTitle}>SUEÑO — EVOLUCIÓN</Text>
+            <View style={styles.card}>
+              <LineChart data={sleepData} color="#7B68EE" label="Sueno" />
+              {sleepData.length >= 2 && (
+                <Text style={styles.chartFooterCenter}>
+                  Promedio: {avgSleep.toFixed(1)}h por noche
+                </Text>
+              )}
+            </View>
+
+            {/* Energy trend */}
+            <Text style={styles.sectionTitle}>ENERGÍA DIARIA</Text>
+            <View style={styles.card}>
+              <EnergyTrendStrip data={energyData} />
             </View>
 
             {/* Totals */}
@@ -1053,79 +1024,11 @@ export default function ProgresoScreen() {
               </>
             )}
 
-            {/* Metrics input */}
-            <Text style={styles.sectionTitle}>MÉTRICAS DE HOY — DÍA {user.currentDay}</Text>
-            <View style={styles.metricsCard}>
-              <MetricInput icon="scale" label="Peso corporal" value={weight} onChangeText={setWeight} suffix="kg" placeholder="ej: 75.5" keyboardType="decimal-pad" />
-              <MetricInput icon="barbell" label="Entrenamiento" value={trainMin} onChangeText={setTrainMin} suffix="min" placeholder="ej: 65" keyboardType="numeric" />
-              <MetricInput icon="book" label="Páginas leídas" value={readPages} onChangeText={setReadPages} suffix="págs" placeholder="ej: 25" keyboardType="numeric" />
-              <MetricInput icon="leaf" label="Respiración" value={breathMin} onChangeText={setBreathMin} suffix="min" placeholder="ej: 10" keyboardType="numeric" />
-              <MetricInput icon="moon" label="Horas de sueño" value={sleepHours} onChangeText={setSleepHours} suffix="hs" placeholder="ej: 7.5" keyboardType="decimal-pad" />
-
-              {/* Energy level 1-10 */}
-              <View style={styles.ratingSection}>
-                <Text style={styles.metricLabel}>⚡ Nivel de energía</Text>
-                <View style={styles.ratingRow}>
-                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      style={[styles.ratingChip, energyLevel === n && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }]}
-                      onPress={() => setEnergyLevel(n)}
-                    >
-                      <Text style={[styles.ratingText, energyLevel === n && { color: '#fff' }]}>{n}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Mood 1-5 */}
-              <View style={styles.ratingSection}>
-                <Text style={styles.metricLabel}>😊 Estado de ánimo</Text>
-                <View style={styles.ratingRow}>
-                  {(['😞','😕','😐','🙂','😄'] as const).map((emoji, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={[styles.moodChip, mood === i + 1 && { backgroundColor: 'rgba(232,70,10,0.2)', borderColor: COLORS.accent }]}
-                      onPress={() => setMood(i + 1)}
-                    >
-                      <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.notesSection}>
-                <Text style={styles.metricLabel}>📝 Notas del día</Text>
-                <TextInput
-                  style={styles.notesInput}
-                  value={metricNotes}
-                  onChangeText={setMetricNotes}
-                  multiline
-                  placeholder="Cómo te sentiste, PR, observaciones..."
-                  placeholderTextColor={COLORS.textMuted}
-                  textAlignVertical="top"
-                />
-                <TouchableOpacity onPress={() => setMetricNotes('')} style={styles.clearNotesBtn}>
-                  <Text style={styles.clearNotesText}>Borrar nota</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                <LinearGradient
-                  colors={saved ? [COLORS.success, '#059669'] : stageTheme.accent}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={styles.saveGradient}
-                >
-                  <Ionicons name={saved ? 'checkmark' : 'save'} size={16} color="#fff" />
-                  <Text style={styles.saveText}>{saved ? '¡Guardado!' : 'Guardar métricas'}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-
             <View style={{ height: 100 }} />
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </Animated.View>
 
       {/* Weekly Review Modal */}
       <WeeklyReviewModal
@@ -1370,32 +1273,10 @@ function TotalBox({ icon, color, label, value }: { icon: string; color: string; 
   );
 }
 
-function MetricInput({ icon, label, value, onChangeText, suffix, placeholder, keyboardType }: {
-  icon: string; label: string; value: string;
-  onChangeText: (v: string) => void; suffix: string;
-  placeholder: string; keyboardType?: any;
-}) {
-  return (
-    <View style={inputStyles.row}>
-      <Ionicons name={icon as any} size={16} color={COLORS.textSecondary} style={inputStyles.icon} />
-      <Text style={inputStyles.label}>{label}</Text>
-      <TextInput
-        style={inputStyles.input}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.textMuted}
-        keyboardType={keyboardType ?? 'default'}
-        returnKeyType="done"
-      />
-      <Text style={inputStyles.suffix}>{suffix}</Text>
-    </View>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  motionLayer: { flex: 1 },
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md, marginTop: SPACING.sm },
@@ -1485,28 +1366,6 @@ const styles = StyleSheet.create({
   chartFooterCenter: { textAlign: 'center', color: COLORS.textMuted, fontSize: FONT.xs, marginTop: SPACING.sm },
   chartStat: { fontSize: FONT.xs, color: COLORS.textSecondary },
   totalsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  metricsCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  notesSection: { marginTop: SPACING.sm },
-  metricLabel: { fontSize: FONT.sm, color: COLORS.textSecondary, marginBottom: SPACING.xs, fontWeight: '600' },
-  notesInput: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: RADIUS.md, padding: SPACING.sm, color: COLORS.textPrimary, fontSize: FONT.base, minHeight: 80, borderWidth: 1, borderColor: COLORS.border },
-  clearNotesBtn: { alignSelf: 'flex-end', marginTop: 6 },
-  clearNotesText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
-  saveButton: { marginTop: SPACING.md, borderRadius: RADIUS.md, overflow: 'hidden' },
-  saveGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md, gap: 8 },
-  saveText: { color: '#fff', fontWeight: '700', fontSize: FONT.base },
-  ratingSection: { marginTop: SPACING.sm, marginBottom: SPACING.sm },
-  ratingRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  ratingChip: { minHeight: 44, flex: 1, paddingHorizontal: 4, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
-  ratingText: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700' },
-  moodChip: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgCard },
-});
-
-const heatStyles = StyleSheet.create({
-  container: { width: '100%' },
-  cell: { borderRadius: 3 },
-  cellToday: { borderWidth: 1.5, borderColor: '#fff' },
-  cellText: { fontSize: 7, color: '#fff', textAlign: 'center', lineHeight: 14 },
-  legend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.sm, flexWrap: 'wrap', gap: 4 },
 });
 
 const chipStyles = StyleSheet.create({
@@ -1521,23 +1380,9 @@ const totalStyles = StyleSheet.create({
   label: { fontSize: FONT.xs, color: COLORS.textMuted, marginTop: 2, textAlign: 'center' },
 });
 
-const ringStyles = StyleSheet.create({
-  center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  level: { fontSize: FONT.xxl, fontWeight: '900', color: COLORS.textPrimary },
-  levelLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 1 },
-});
-
 const chartStyles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.lg, gap: 8 },
   emptyText: { color: COLORS.textMuted, fontSize: FONT.sm, textAlign: 'center' },
-});
-
-const inputStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingVertical: SPACING.sm, gap: SPACING.xs },
-  icon: { marginRight: 4 },
-  label: { flex: 1, fontSize: FONT.base, color: COLORS.textSecondary, fontWeight: '500' },
-  input: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 6, color: COLORS.textPrimary, fontSize: FONT.base, minWidth: 70, textAlign: 'right', borderWidth: 1, borderColor: COLORS.border },
-  suffix: { fontSize: FONT.sm, color: COLORS.textMuted, minWidth: 30 },
 });
 
 const weekStyles = StyleSheet.create({

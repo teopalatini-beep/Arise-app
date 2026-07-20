@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  SafeAreaView, Modal, Pressable, Alert,
+  SafeAreaView, Modal, Pressable, Alert, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
-import { COLORS, GRADIENTS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
-import { getStageTheme, StageTheme } from '../../src/lib/progression';
-import CoachParticles from '../../src/components/CoachParticles';
+import { useApp } from '@/context/AppContext';
+import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { getStageTheme, StageTheme } from '@/lib/progression';
+import CoachParticles from '@components/CoachParticles';
+import StaggerIn from '@components/ui/StaggerIn';
+import DiscoveryToolCard from '@components/discovery/DiscoveryToolCard';
+import DiscoveryToolHeroModal from '@components/discovery/DiscoveryToolHeroModal';
+import DiscoverySkeleton from '@components/discovery/DiscoverySkeleton';
+import { DISCOVERY_TOOLS, DiscoveryTool } from '@/data/discoveryTools';
+import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Phase = 1 | 2 | 3;
@@ -733,207 +739,26 @@ function MindsetCard({ item, locked, onPress }: { item: MindsetItem; locked: boo
   );
 }
 
-// ─── Herramientas data ────────────────────────────────────────────────────────
-interface Tool {
-  id: string;
-  emotion: string;
-  emoji: string;
-  color: string;
-  description: string;
-  immediate: string[];
-  shortTerm: string[];
-  mindset: string;
-  stoic: string;
-}
-
-const TOOLS: Tool[] = [
-  {
-    id: 't1',
-    emotion: 'Tristeza',
-    emoji: '🌧️',
-    color: '#4FC3F7',
-    description: 'La tristeza es una señal, no una sentencia. Hay pasos concretos para no quedarte atrapado en ella.',
-    immediate: [
-      'Salí al aire libre aunque sea 10 minutos — la luz y el movimiento cambian la química del cerebro',
-      'Escribe 3 cosas que pasaron hoy, sin filtro. Solo sacarlas de la cabeza',
-      'Ponete agua fría en la cara o daté una ducha fría de 30 segundos',
-      'Llamá o mandá un mensaje a alguien de confianza — la conexión es el antídoto',
-    ],
-    shortTerm: [
-      'Mantené la rutina básica aunque no tengas ganas: comé, dormí, movete',
-      'Reducí las decisiones — hacé solo lo que ya está planeado',
-      'Evitá el aislamiento total: salí aunque no quieras socializar',
-      'Revisá si hay algo concreto que puedas resolver — la acción pequeña rompe la parálisis',
-    ],
-    mindset: 'La tristeza te dice que algo importaba. Escuchala sin dejarte hundir por ella. El dolor procesado se convierte en sabiduría; el evitado se vuelve carga.',
-    stoic: '"No sufras por lo imaginado — muchos se pierden en el miedo a algo que nunca llega." — Marco Aurelio. El momento presente siempre es manejable.',
-  },
-  {
-    id: 't2',
-    emotion: 'Ansiedad',
-    emoji: '⚡',
-    color: '#FBBF24',
-    description: 'La ansiedad es energía mal dirigida. Tu cuerpo se preparó para actuar — dale algo concreto que hacer.',
-    immediate: [
-      'Respiración 4-7-8: inhalá 4 seg, retené 7, exhalá 8. Repetí 4 veces',
-      'Nombrá lo que sentís en voz alta o por escrito: "Siento ansiedad porque..."',
-      'Hacé una actividad física intensa por 5-10 minutos — quemá la adrenalina',
-      'Grounding 5-4-3-2-1: nombrá 5 cosas que ves, 4 que tocás, 3 que escuchás, 2 que olés, 1 que saboreás',
-    ],
-    shortTerm: [
-      'Hacé una lista de lo que podés controlar vs lo que no — enfocate solo en lo primero',
-      'Reducí cafeína y azúcar hasta que baje la intensidad',
-      'Desarmá el problema en piezas pequeñas — "¿cuál es el próximo paso concreto?"',
-      'Establecé una hora del día para "preocuparte" — fuera de ese horario, redirigí el pensamiento',
-    ],
-    mindset: 'La ansiedad imagina el peor futuro posible. Preguntate: "¿Es esto real ahora mismo?" El 90% de lo que tememos nunca ocurre. Lo que sí ocurre, lo manejás.',
-    stoic: '"El hombre sabio no teme el futuro porque sabe que lo que venga, lo afrontará." — Séneca. Preparate para lo posible, no te paralices por lo imaginado.',
-  },
-  {
-    id: 't3',
-    emotion: 'Sin motivación',
-    emoji: '🔋',
-    color: '#C084FC',
-    description: 'La motivación no viene sola — se construye con acción. El truco es empezar sin esperar sentirla.',
-    immediate: [
-      'Empezá con 2 minutos de la tarea que evitás — el inicio genera momentum',
-      'Recordá tu "por qué" original: ¿para qué empezaste ARISE?',
-      'Ponete música que te active — el estado emocional cambia con el entorno auditivo',
-      'Hacé algo físico primero: 20 flexiones, una caminata corta — el cuerpo precede a la mente',
-    ],
-    shortTerm: [
-      'Reducí el objetivo al mínimo viable: ¿qué es lo más pequeño que puedo hacer hoy?',
-      'Eliminá fricciones: dejá lista la ropa de entrenamiento la noche anterior',
-      'Celebrá completar, no el nivel de calidad — el hábito importa más que la perfección',
-      'Revisá si estás durmiendo y comiendo bien — la motivación depende del combustible básico',
-    ],
-    mindset: 'La disciplina es la motivación que no necesita sentirse bien. Los grandes no esperan querer hacer algo — lo hacen igual. La motivación viene después de la acción, no antes.',
-    stoic: '"No actúes como si tuvieras diez mil años de vida. Lo urgente te espera." — Marco Aurelio. Cada día que postergás es un día que no volvés a recuperar.',
-  },
-  {
-    id: 't4',
-    emotion: 'Enojo',
-    emoji: '🔥',
-    color: '#F87171',
-    description: 'El enojo no controlado destruye lo que construiste. Aprendé a usarlo como combustible, no como explosivo.',
-    immediate: [
-      'Salí del espacio donde estás — el movimiento físico rompe el ciclo del enojo',
-      'Esperá 10 minutos antes de responder o actuar — el enojo tiene pico y baja',
-      'Respiración de caja: 4 seg inhalá, 4 retené, 4 exhalá, 4 retené. × 5 veces',
-      'Escribí lo que pensás sin filtro, en privado — sacarlo sin enviarlo a nadie',
-    ],
-    shortTerm: [
-      'Identificá qué valor fue violado: ¿respeto, justicia, control? Eso es lo real',
-      'Distinguí entre lo que pasó y la historia que te contás sobre lo que pasó',
-      'Usá el enojo como energía en el entrenamiento — conviértelo en algo productivo',
-      'Cuando baje la intensidad, revisá si hay algo concreto que quieras cambiar o hablar',
-    ],
-    mindset: 'El enojo dice "algo importa aquí". Pero actuar desde el enojo suele dañar lo que más querés proteger. La frialdad estratégica es más poderosa que el estallido reactivo.',
-    stoic: '"¿Cuánto daño te hace la ira? Más del que causó quien te enojó." — Séneca. La respuesta controlada demuestra más fuerza que la explosión emocional.',
-  },
-  {
-    id: 't5',
-    emotion: 'Perdido en la vida',
-    emoji: '🧭',
-    color: '#68D391',
-    description: 'Sentirse perdido no es el final — es el inicio de encontrar algo más real. Muchas veces significa que creciste y tus viejos mapas ya no sirven.',
-    immediate: [
-      'Escribí 10 respuestas a: "¿Qué me importa de verdad?" — sin filtro, sin juzgar',
-      'Identificá una sola cosa que podés hacer hoy que te dé un poco de sentido',
-      'Hablá con alguien que te inspire — el entorno clarifica el pensamiento',
-      'Salí a caminar sin destino por 30 minutos — el movimiento abre perspectiva',
-    ],
-    shortTerm: [
-      'Volvé a lo básico: ¿cómo dormís, comés, te movés? El caos interno empeora con el físico descuidado',
-      'Hacé algo concreto por otra persona — el servicio rompe el ensimismamiento',
-      'Explorá: probá algo nuevo, leé algo fuera de tu zona, hablá con alguien diferente',
-      'No busques LA respuesta — buscá una señal. Una pequeña dirección es suficiente para empezar',
-    ],
-    mindset: 'El sentido no se encuentra esperando — se construye eligiendo. Cada acción alineada con tus valores crea un poco más de claridad. No necesitás saber todo el camino, solo el próximo paso.',
-    stoic: '"No importa cuán despacio vayas, siempre que no te detengas." — Confucio. Los momentos de desorientación preceden los mayores saltos de crecimiento. ARISE existe exactamente para esto.',
-  },
-];
-
-function ToolCard({ tool, onPress }: { tool: Tool; onPress: () => void }) {
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
-      <View style={[cardStyles.card, { borderColor: tool.color + '30', backgroundColor: tool.color + '10' }]}>
-        <View style={[cardStyles.emoji, { backgroundColor: tool.color + '25' }]}>
-          <Text style={{ fontSize: 24 }}>{tool.emoji}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={cardStyles.name}>{tool.emotion}</Text>
-          <Text style={cardStyles.meta} numberOfLines={2}>{tool.description}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={tool.color} />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function ToolModal({ tool, onClose }: { tool: Tool | null; onClose: () => void }) {
-  if (!tool) return null;
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
-        <LinearGradient colors={['#0D1628', '#111E35']} style={modalStyles.sheet}>
-          <ScrollView contentContainerStyle={modalStyles.content} showsVerticalScrollIndicator={false}>
-            <View style={modalStyles.handle} />
-            <View style={[modalStyles.header, { borderColor: tool.color + '30', backgroundColor: tool.color + '10' }]}>
-              <Text style={modalStyles.emoji}>{tool.emoji}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={modalStyles.title}>Cuando estás {tool.emotion.toLowerCase()}</Text>
-                <Text style={[modalStyles.meta, { color: tool.color, marginTop: 4 }]}>Toolkit emocional</Text>
-              </View>
-            </View>
-
-            <Text style={[modalStyles.description, { marginBottom: SPACING.md }]}>{tool.description}</Text>
-
-            <Text style={modalStyles.sectionLabel}>ACCIÓN INMEDIATA</Text>
-            {tool.immediate.map((step, i) => (
-              <View key={i} style={modalStyles.listItem}>
-                <Text style={[modalStyles.stepNum, { color: tool.color }]}>{i + 1}</Text>
-                <Text style={modalStyles.listText}>{step}</Text>
-              </View>
-            ))}
-
-            <Text style={modalStyles.sectionLabel}>ESTRATEGIA A CORTO PLAZO</Text>
-            {tool.shortTerm.map((item, i) => (
-              <View key={i} style={modalStyles.listItem}>
-                <View style={[modalStyles.bullet, { backgroundColor: tool.color }]} />
-                <Text style={modalStyles.listText}>{item}</Text>
-              </View>
-            ))}
-
-            <Text style={modalStyles.sectionLabel}>CAMBIO DE MENTALIDAD</Text>
-            <View style={{ backgroundColor: tool.color + '15', borderRadius: RADIUS.md, padding: SPACING.md, borderLeftWidth: 3, borderLeftColor: tool.color, marginBottom: SPACING.md }}>
-              <Text style={[modalStyles.listText, { color: COLORS.textPrimary }]}>{tool.mindset}</Text>
-            </View>
-
-            <Text style={modalStyles.sectionLabel}>PERSPECTIVA ESTOICA</Text>
-            <View style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md }}>
-              <Text style={[modalStyles.listText, { color: COLORS.textSecondary, fontStyle: 'italic' }]}>{tool.stoic}</Text>
-            </View>
-
-            <Pressable style={[modalStyles.closeBtn, { backgroundColor: tool.color }]} onPress={onClose}>
-              <Text style={modalStyles.closeBtnText}>Cerrar</Text>
-            </Pressable>
-          </ScrollView>
-        </LinearGradient>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── Main screen ──────────────────────────────────────────────────────────────
 type Tab = 'ejercicios' | 'libros' | 'mentalidad' | 'herramientas';
 
 export default function DiscoveryScreen() {
+  const { reducedMotion, screenAnimStyle } = useTabScreenMotion('discovery');
   const { data, loading } = useApp();
   const [activeTab, setActiveTab] = useState<Tab>('ejercicios');
   const [selected, setSelected] = useState<Exercise | Book | MindsetItem | null>(null);
-  const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [selectedTool, setSelectedTool] = useState<DiscoveryTool | null>(null);
+
+  if (!data && loading) {
+    const fallbackTheme = getStageTheme();
+    return (
+      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
+        <SafeAreaView style={styles.safe}>
+          <DiscoverySkeleton />
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
 
   if (!data) {
     const fallbackTheme = getStageTheme();
@@ -942,7 +767,7 @@ export default function DiscoveryScreen() {
         <SafeAreaView style={styles.safe}>
           <View style={styles.emptyWrap}>
             <Ionicons name="compass-outline" size={40} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>{loading ? 'Cargando discovery...' : 'No pudimos cargar esta sección'}</Text>
+            <Text style={styles.emptyTitle}>No pudimos cargar esta sección</Text>
             <Text style={styles.emptyText}>Verifica conexión e inicia sesión nuevamente.</Text>
           </View>
         </SafeAreaView>
@@ -951,9 +776,11 @@ export default function DiscoveryScreen() {
   }
 
   const { user } = data;
+  const currentDay = user.currentDay;
   const stageTheme = getStageTheme(user);
-  const currentPhase = getPhase(user.currentDay);
+  const currentPhase = getPhase(currentDay);
   const phaseInfo = PHASE_INFO[currentPhase];
+  const coachId = user.preferredCoachId ?? 'goku';
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'ejercicios', label: 'Ejercicios', icon: 'barbell' },
@@ -964,8 +791,9 @@ export default function DiscoveryScreen() {
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={user.preferredCoachId ?? 'goku'} screen="discovery" />
-      <SafeAreaView style={styles.safe}>
+      <CoachParticles coachId={coachId} screen="discovery" tappable reducedMotion={reducedMotion} />
+      <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+        <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
@@ -985,10 +813,10 @@ export default function DiscoveryScreen() {
             <LinearGradient
               colors={[phaseInfo.color, phaseInfo.color + '80']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={[styles.phaseBarFill, { width: `${(user.currentDay / 90) * 100}%` as any }]}
+              style={[styles.phaseBarFill, { width: `${(currentDay / 90) * 100}%` as any }]}
             />
           </View>
-          <Text style={styles.phaseProgress}>Día {user.currentDay} de 90 — {90 - user.currentDay} días para desbloquear todo</Text>
+          <Text style={styles.phaseProgress}>Día {currentDay} de 90 — {90 - currentDay} días para desbloquear todo</Text>
 
           {/* Personalized recommendations */}
           {user.adaptiveProfile?.track && (
@@ -1028,13 +856,18 @@ export default function DiscoveryScreen() {
                       </Text>
                       {locked && <Ionicons name="lock-closed" size={12} color={COLORS.textMuted} />}
                     </View>
-                    {items.map(item => (
-                      <ExerciseCard
+                    {items.map((item, itemIndex) => (
+                      <StaggerIn
                         key={item.id}
-                        item={item}
-                        locked={locked}
-                        onPress={() => setSelected(item)}
-                      />
+                        index={(phase - 1) * 8 + itemIndex}
+                        reducedMotion={reducedMotion}
+                      >
+                        <ExerciseCard
+                          item={item}
+                          locked={locked}
+                          onPress={() => setSelected(item)}
+                        />
+                      </StaggerIn>
                     ))}
                   </View>
                 );
@@ -1055,13 +888,18 @@ export default function DiscoveryScreen() {
                       </Text>
                       {locked && <Ionicons name="lock-closed" size={12} color={COLORS.textMuted} />}
                     </View>
-                    {items.map(item => (
-                      <BookCard
+                    {items.map((item, itemIndex) => (
+                      <StaggerIn
                         key={item.id}
-                        item={item}
-                        locked={locked}
-                        onPress={() => setSelected(item)}
-                      />
+                        index={(phase - 1) * 8 + itemIndex}
+                        reducedMotion={reducedMotion}
+                      >
+                        <BookCard
+                          item={item}
+                          locked={locked}
+                          onPress={() => setSelected(item)}
+                        />
+                      </StaggerIn>
                     ))}
                   </View>
                 );
@@ -1082,13 +920,18 @@ export default function DiscoveryScreen() {
                       </Text>
                       {locked && <Ionicons name="lock-closed" size={12} color={COLORS.textMuted} />}
                     </View>
-                    {items.map(item => (
-                      <MindsetCard
+                    {items.map((item, itemIndex) => (
+                      <StaggerIn
                         key={item.id}
-                        item={item}
-                        locked={locked}
-                        onPress={() => setSelected(item)}
-                      />
+                        index={(phase - 1) * 8 + itemIndex}
+                        reducedMotion={reducedMotion}
+                      >
+                        <MindsetCard
+                          item={item}
+                          locked={locked}
+                          onPress={() => setSelected(item)}
+                        />
+                      </StaggerIn>
                     ))}
                   </View>
                 );
@@ -1103,18 +946,21 @@ export default function DiscoveryScreen() {
                   Protocolos emocionales para los momentos difíciles. Tocá el estado que sentís para ver qué hacer.
                 </Text>
               </View>
-              {TOOLS.map(tool => (
-                <ToolCard key={tool.id} tool={tool} onPress={() => setSelectedTool(tool)} />
+              {DISCOVERY_TOOLS.map((tool, index) => (
+                <StaggerIn key={tool.id} index={index} reducedMotion={reducedMotion}>
+                  <DiscoveryToolCard tool={tool} onPress={setSelectedTool} />
+                </StaggerIn>
               ))}
             </>
           )}
 
           <View style={{ height: 100 }} />
         </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </Animated.View>
 
       <DetailModal item={selected} stageTheme={stageTheme} onClose={() => setSelected(null)} />
-      <ToolModal tool={selectedTool} onClose={() => setSelectedTool(null)} />
+      <DiscoveryToolHeroModal tool={selectedTool} onClose={() => setSelectedTool(null)} />
     </LinearGradient>
   );
 }
@@ -1122,6 +968,7 @@ export default function DiscoveryScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  motionLayer: { flex: 1 },
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: SPACING.sm, marginBottom: SPACING.md },

@@ -1,6 +1,7 @@
 export type TaskCategory = 'cuerpo' | 'mente' | 'bienestar' | 'productividad' | 'motivacion';
 export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 export type CoachId = 'goku' | 'itachi' | 'rengoku' | 'jiraiya' | 'gojo' | 'all_might';
+export type OnboardingFocus = 'cuerpo' | 'mente' | 'productividad' | 'espiritu';
 
 export interface TaskDefinition {
   id: string;
@@ -35,11 +36,62 @@ export interface DayMetrics {
   notes?: string;
 }
 
+export interface UserMetricRecord {
+  id: string;
+  userId: string;
+  date: string; // yyyy-MM-dd
+  currentWeight?: number;
+  waterLiters?: number;
+  meditationMinutes?: number;
+  readingPages?: number;
+  trainingMinutes?: number;
+  breathingMinutes?: number;
+  sleepHours?: number;
+  energyLevel?: number;
+  mood?: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface SaveDailyMetricsInput {
+  date?: string; // yyyy-MM-dd (defaults to today)
+  currentWeight?: number;
+  waterLiters?: number;
+  meditationMinutes?: number;
+  readingPages?: number;
+  trainingMinutes?: number;
+  breathingMinutes?: number;
+  sleepHours?: number;
+  energyLevel?: number;
+  mood?: number;
+  notes?: string;
+}
+
+export interface JournalEntryRecord {
+  id: string;
+  userId: string;
+  date: string; // yyyy-MM-dd
+  mood?: string;
+  reflection: string;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface SaveJournalEntryInput {
+  date?: string; // yyyy-MM-dd (defaults to today)
+  mood?: string;
+  reflection: string;
+  tags?: string[];
+}
+
 export interface UserGoals {
   targetWeight?: number;       // kg objetivo
   targetReadingPages?: number; // páginas totales en 90 días
   targetStreak?: number;       // racha objetivo
   targetTrainingDays?: number; // días de entrenamiento en 90 días
+  targetReadingPagesPerDay?: number;
+  targetMeditationMinutesPerDay?: number;
+  targetWaterLitersPerDay?: number;
 }
 
 export type AdaptiveTrack = 'fat_loss' | 'muscle_gain' | 'recomposition' | 'maintenance';
@@ -87,9 +139,11 @@ export interface Badge {
 
 export interface OnboardingData {
   completed: boolean;
+  name?: string;
   goal: 'fitness' | 'mental' | 'discipline' | 'all';
   fitnessLevel: FitnessLevel;
   wakeUpHour: number;
+  focusAreas?: OnboardingFocus[];
   age?: number;
   initialWeight?: number;
   height?: number;
@@ -172,6 +226,8 @@ export interface UserProfile {
   adaptiveProfile?: AdaptiveProfile;
   nutritionProfile?: NutritionProfile;
   preferredCoachId?: CoachId;
+  focusAreas?: OnboardingFocus[];
+  hasCompletedOnboarding?: boolean;
   badges?: BadgeId[];
 }
 

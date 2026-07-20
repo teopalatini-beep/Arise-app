@@ -1,28 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  SafeAreaView, Alert, Switch, Share,
+  SafeAreaView, Alert, Switch, Share, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp, xpForLevel } from '../../src/context/AppContext';
-import { useAuth } from '../../src/context/AuthContext';
+import { useApp, xpForLevel } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
-import { BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '../../src/types';
-import { getStageTheme } from '../../src/lib/progression';
-import { deleteUserData } from '../../src/lib/db';
-import { supabase } from '../../src/lib/supabase';
-import { ONBOARDING_KEY } from '../onboarding';
-import { COACH_STORAGE_KEY } from '../../src/lib/coach';
+import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '@/types';
+import { getStageTheme } from '@/lib/progression';
+import { deleteUserData } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
+import { COACH_STORAGE_KEY } from '@/lib/coach';
+import { APP_DATA_KEY, ONBOARDING_KEY, ONBOARDING_STATUS_KEY } from '@/lib/storageKeys';
 import {
   NotifSettings, DEFAULT_SETTINGS,
   loadNotifSettings, saveNotifSettings,
-  scheduleAllNotifications, requestPermissions,
-} from '../../src/lib/notifications';
-import { requestCalendarPermission, addMilestoneEvent } from '../../src/lib/calendar';
+  syncNotificationSchedule, requestNotificationPermissions, debugScheduledNotifications,
+} from '@/lib/notifications';
+import { requestCalendarPermission, addMilestoneEvent } from '@/lib/calendar';
+import ScreenLoadingState from '@components/ui/ScreenLoadingState';
+import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
+import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
 
 export default function ConfigScreen() {
+  const { reducedMotion, screenAnimStyle } = useTabScreenMotion('config');
+  const { userPref, systemReducedMotion, setReducedMotion } = useReducedMotionSetting();
   const { data, resetProgram, canUseGrace, loading } = useApp();
   const { logout, userEmail } = useAuth();
   const [notif, setNotif] = useState<NotifSettings>(DEFAULT_SETTINGS);
@@ -36,14 +41,17 @@ export default function ConfigScreen() {
     const next = { ...notif, ...patch };
     setNotif(next);
     await saveNotifSettings(next);
-    // Pass startDate so milestone notifications stay correct
-    const startDate = data?.user.startDate;
-    await scheduleAllNotifications(next, startDate);
+    if (data?.user) {
+      await syncNotificationSchedule(data.user, {
+        settings: next,
+        requestPermission: false,
+      });
+    }
   }
 
   async function handleEnableToggle(value: boolean) {
     if (value) {
-      const granted = await requestPermissions();
+      const granted = await requestNotificationPermissions('config');
       if (!granted) {
         Alert.alert(
           'Permisos requeridos',
@@ -56,16 +64,53 @@ export default function ConfigScreen() {
     await updateNotif({ enabled: value });
   }
 
+  async function handleDebugNotifications() {
+    try {
+      const items = await debugScheduledNotifications();
+      if (items.length === 0) {
+        Alert.alert('Debug notificaciones', 'No hay notificaciones programadas.');
+        return;
+      }
+      const preview = items
+        .slice(0, 6)
+        .map((item, index) => `${index + 1}) ${item.title}\n${item.trigger}`)
+        .join('\n\n');
+
+      Alert.alert(
+        'Debug notificaciones',
+        `Total programadas: ${items.length}\n\n${preview}`,
+      );
+    } catch (error) {
+      Alert.alert('Debug notificaciones', 'No se pudo leer la cola de notificaciones.');
+      console.error('[Config] debug notifications failed', error);
+    }
+  }
+
   const stageTheme = getStageTheme(data?.user);
   if (!data) {
     return (
       <LinearGradient colors={stageTheme.background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
-          <View style={styles.emptyWrap}>
-            <Ionicons name="settings-outline" size={40} color={COLORS.textMuted} />
-            <Text style={styles.emptyTitle}>{loading ? 'Cargando configuracion...' : 'No pudimos cargar configuracion'}</Text>
-            <Text style={styles.emptyText}>Verifica conexión e inicia sesión nuevamente.</Text>
-          </View>
+          {loading ? (
+            <ScreenLoadingState
+              title="Configuración"
+              subtitle="Cargando ajustes, notificaciones y estado del programa..."
+              icon="settings-outline"
+              accent={stageTheme.tabActive}
+              reducedMotion={reducedMotion}
+              hints={[
+                'Leyendo preferencias',
+                'Sincronizando notificaciones',
+                'Preparando zona de cuenta',
+              ]}
+            />
+          ) : (
+            <View style={styles.emptyWrap}>
+              <Ionicons name="settings-outline" size={40} color={COLORS.textMuted} />
+              <Text style={styles.emptyTitle}>No pudimos cargar configuracion</Text>
+              <Text style={styles.emptyText}>Verifica conexión e inicia sesión nuevamente.</Text>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
     );
@@ -128,8 +173,9 @@ export default function ConfigScreen() {
         return;
       }
       await AsyncStorage.multiRemove([
-        'arise_data_v1',
+        APP_DATA_KEY,
         ONBOARDING_KEY,
+        ONBOARDING_STATUS_KEY,
         COACH_STORAGE_KEY,
       ]);
       await logout();
@@ -155,6 +201,7 @@ export default function ConfigScreen() {
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
+      <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -385,6 +432,24 @@ export default function ConfigScreen() {
                     </View>
                   ))}
                 </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    {
+                      marginTop: SPACING.md,
+                      borderColor: 'rgba(255,255,255,0.2)',
+                      backgroundColor: 'rgba(255,255,255,0.04)',
+                    },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={handleDebugNotifications}
+                >
+                  <Ionicons name="bug-outline" size={16} color={COLORS.textSecondary} />
+                  <Text style={[styles.actionBtnText, { color: COLORS.textSecondary }]}>
+                    Debug notificaciones programadas
+                  </Text>
+                </TouchableOpacity>
               </>
             )}
           </View>
@@ -398,6 +463,24 @@ export default function ConfigScreen() {
               <View style={{ backgroundColor: 'rgba(232,70,10,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
                 <Text style={{ color: '#E8460A', fontSize: 11, fontWeight: '700' }}>Solo modo oscuro</Text>
               </View>
+            </View>
+            <View style={[styles.toggleRow, { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border }]}>
+              <Ionicons name="accessibility-outline" size={18} color={COLORS.textSecondary} />
+              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                <Text style={styles.toggleLabel}>Reducir animaciones</Text>
+                <Text style={styles.toggleSub}>
+                  {systemReducedMotion
+                    ? 'También activo en ajustes del sistema.'
+                    : 'Menos movimiento en tabs, coaches y loaders.'}
+                </Text>
+              </View>
+              <Switch
+                value={userPref || systemReducedMotion}
+                onValueChange={setReducedMotion}
+                disabled={systemReducedMotion}
+                trackColor={{ true: COLORS.accent, false: COLORS.textMuted }}
+                thumbColor="#fff"
+              />
             </View>
           </View>
 
@@ -456,7 +539,7 @@ export default function ConfigScreen() {
           <Text style={styles.sectionTitle}>SOBRE ARISE</Text>
           <View style={styles.card}>
             <Text style={styles.aboutText}>
-              Arise es tu programa personal de 90 días. Construido para Teo.
+              {`Arise es tu programa personal de 90 días. Construido para ${user.name}.`}
               {'\n\n'}
               Sin excusas. Sin negociaciones.{'\n'}
               Arise — levantáte.
@@ -561,6 +644,7 @@ export default function ConfigScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
+      </Animated.View>
     </LinearGradient>
   );
 }
@@ -587,6 +671,7 @@ const infoStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  motionLayer: { flex: 1 },
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
 

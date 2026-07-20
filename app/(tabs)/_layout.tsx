@@ -1,34 +1,21 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../src/theme';
-import { Platform, Text, View } from 'react-native';
-import { useApp } from '../../src/context/AppContext';
-import { getStageTheme } from '../../src/lib/progression';
+import { Platform } from 'react-native';
+import { useApp } from '@/context/AppContext';
+import { getStageTheme } from '@/lib/progression';
 
-// Emoji icons para el tema anime
-const ANIME_ICONS: Record<string, string> = {
-  index:     '🔥',   // chakra / fuego Naruto
-  programa:  '⚔️',   // espadas Demon Slayer
-  progreso:  '⚡',   // rayo Super Saiyan
-  discovery: '🎯',   // sharingan / foco
-  diario:    '📜',   // pergamino ninja
-  config:    '⚙️',   // engranaje
+const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  index: 'flame-outline',
+  programa: 'calendar-outline',
+  progreso: 'stats-chart-outline',
+  discovery: 'compass-outline',
+  diario: 'book-outline',
+  config: 'settings-outline',
 };
 
-function AnimeTabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{
-        fontSize: focused ? 20 : 17,
-        opacity: focused ? 1 : 0.5,
-        textShadowColor: focused ? color : 'transparent',
-        textShadowOffset: { width: 0, height: 0 },
-        textShadowRadius: focused ? 8 : 0,
-      }}>
-        {ANIME_ICONS[name]}
-      </Text>
-    </View>
-  );
+function TabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
+  const iconName = TAB_ICONS[name] ?? 'ellipse-outline';
+  return <Ionicons name={iconName} size={focused ? 22 : 20} color={color} />;
 }
 
 export default function TabsLayout() {
@@ -39,75 +26,78 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: stageTheme.tabBackground,
           borderTopColor: stageTheme.tabBorder,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 64,
+          height: Platform.OS === 'ios' ? 86 : 70,
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           paddingTop: 8,
         },
         tabBarActiveTintColor: stageTheme.tabActive,
         tabBarInactiveTintColor: stageTheme.tabInactive,
         tabBarLabelStyle: {
-          fontSize: 9,
+          fontSize: 11,
           fontWeight: '700',
-          letterSpacing: 0.3,
+          letterSpacing: 0.2,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Chakra',
+          title: 'Hoy',
+          tabBarAccessibilityLabel: 'Inicio de hoy',
           tabBarIcon: ({ color, focused }) => (
-            <AnimeTabIcon name="index" color={color} focused={focused} />
+            <TabIcon name="index" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="programa"
         options={{
-          title: 'Misión',
+          title: 'Programa',
+          tabBarAccessibilityLabel: 'Programa de 90 dias',
           tabBarIcon: ({ color, focused }) => (
-            <AnimeTabIcon name="programa" color={color} focused={focused} />
+            <TabIcon name="programa" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="progreso"
         options={{
-          title: 'Poder',
+          title: 'Progreso',
+          tabBarAccessibilityLabel: 'Pantalla de progreso',
           tabBarIcon: ({ color, focused }) => (
-            <AnimeTabIcon name="progreso" color={color} focused={focused} />
+            <TabIcon name="progreso" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="discovery"
         options={{
-          title: 'Sharingan',
+          title: 'Descubre',
+          tabBarAccessibilityLabel: 'Herramientas discovery',
           tabBarIcon: ({ color, focused }) => (
-            <AnimeTabIcon name="discovery" color={color} focused={focused} />
+            <TabIcon name="discovery" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="diario"
         options={{
-          title: 'Pergamino',
+          title: 'Diario',
+          tabBarAccessibilityLabel: 'Diario emocional',
           tabBarIcon: ({ color, focused }) => (
-            <AnimeTabIcon name="diario" color={color} focused={focused} />
+            <TabIcon name="diario" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="config"
         options={{
-          title: 'Config',
-          tabBarIcon: ({ color, focused }) => (
-            <AnimeTabIcon name="config" color={color} focused={focused} />
-          ),
+          href: null,
         }}
       />
     </Tabs>

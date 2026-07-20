@@ -1,22 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import * as Haptics from 'expo-haptics';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, Alert, TextInput, Modal, KeyboardAvoidingView, Platform,
-  Animated, Pressable,
+  StyleSheet, SafeAreaView, Alert, Modal, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useApp, xpForLevel, levelFromXP } from '../../src/context/AppContext';
-import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '../../src/theme';
-import { CATEGORY_INFO, TaskCategory, BADGE_DEFINITIONS, RANK_COLORS, BadgeId, MissionDef } from '../../src/types';
-import { calcPoints, pointsByCategory, ALL_MISSIONS } from '../../src/data/missions';
-import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '../../src/lib/progression';
-import { buildWeeklyCoachReport, getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '../../src/lib/coach';
-import { addMissionsToCalendar } from '../../src/lib/calendar';
-import PomodoroTimer from '../../src/components/PomodoroTimer';
-import CoachParticles from '../../src/components/CoachParticles';
+import { useRouter } from 'expo-router';
+import { useApp, xpForLevel } from '@/context/AppContext';
+import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '@/theme';
+import { AppData, CATEGORY_INFO, MissionDef, TaskCategory, UserProfile } from '@/types';
+import { pointsByCategory, ALL_MISSIONS } from '@/data/missions';
+import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '@/lib/progression';
+import { buildWeeklyCoachReport, getCoachById, getCoachVisualProfile, getCoachTaskIcon } from '@/lib/coach';
+import { addMissionsToCalendar } from '@/lib/calendar';
+import PomodoroTimer from '@components/PomodoroTimer';
+import CoachParticles from '@components/CoachParticles';
+import ScreenLoadingState from '@components/ui/ScreenLoadingState';
+import StaggerIn from '@components/ui/StaggerIn';
+import MissionCard from '@components/misiones/MissionCard';
+import BadgeModal from '@components/misiones/BadgeModal';
+import WeeklyReview from '@components/misiones/WeeklyReview';
+import PenaltyScreen from '@components/misiones/PenaltyScreen';
+import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
+
+const COACH_EMOJI: Record<string, string> = {
+  goku: '⚡', itachi: '🪶', rengoku: '🔥', jiraiya: '📜', gojo: '💜', all_might: '💪',
+};
+
+const COACH_MISSION_ACCENT: Record<string, string> = {
+  goku: '#E8460A',
+  gojo: '#7C3AED',
+  itachi: '#C41230',
+};
 
 const TRACK_DIRECTION: Record<string, string> = {
   fat_loss: 'Direccion: crear deficit sostenible sin perder masa muscular.',
@@ -71,438 +87,111 @@ const CHALLENGE_TOOLS: Record<string, { title: string; advice: string }> = {
   },
 };
 
+const FALLBACK_USER: UserProfile = {
+  name: 'Usuario',
+  startDate: '',
+  currentDay: 1,
+  streak: 0,
+  maxStreak: 0,
+  xp: 0,
+  level: 1,
+  graceUsedThisMonth: false,
+  graceMonthRef: '',
+  programActive: true,
+  programCompleted: false,
+  preferredCoachId: 'goku',
+};
+
+const EMPTY_DATA: AppData = {
+  user: FALLBACK_USER,
+  days: [],
+  lastOpenedDate: '',
+};
+
 function clampProgress(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-// ─── Badge unlock modal ───────────────────────────────────────────────────────
-function BadgeUnlockModal({ badges, onClose }: { badges: BadgeId[]; onClose: () => void }) {
-  if (!badges.length) return null;
-  const first = badges[0];
-  const def = BADGE_DEFINITIONS[first];
-  const rankColor = RANK_COLORS[def.rank];
-  return (
-    <Modal transparent animationType="fade" visible>
-      <View style={badgeModalStyles.overlay}>
-        <LinearGradient
-          colors={['#0A0A14', '#12121F']}
-          style={[badgeModalStyles.card, { borderColor: rankColor + '60' }]}
-        >
-          <Text style={badgeModalStyles.unlocked}>🏅 ¡LOGRO DESBLOQUEADO!</Text>
-          <Text style={[badgeModalStyles.emoji]}>{def.emoji}</Text>
-          <Text style={[badgeModalStyles.name, { color: rankColor }]}>{def.name}</Text>
-          <Text style={badgeModalStyles.rank}>{def.rank.toUpperCase()}</Text>
-          <Text style={badgeModalStyles.desc}>{def.description}</Text>
-          {badges.length > 1 && (
-            <Text style={badgeModalStyles.more}>+{badges.length - 1} logro{badges.length > 2 ? 's' : ''} más</Text>
-          )}
-          <TouchableOpacity
-            style={[badgeModalStyles.btn, { backgroundColor: rankColor }]}
-            onPress={onClose}
-          >
-            <Text style={badgeModalStyles.btnText}>GENIAL 🔥</Text>
-          </TouchableOpacity>
-        </LinearGradient>
-      </View>
-    </Modal>
-  );
-}
-
-const badgeModalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.85)',
-    alignItems: 'center', justifyContent: 'center', padding: SPACING.lg,
-  },
-  card: {
-    width: '100%', borderRadius: RADIUS.xl, padding: SPACING.xl,
-    alignItems: 'center', borderWidth: 2, gap: SPACING.sm,
-  },
-  unlocked: { fontSize: FONT.xs, color: '#F59E0B', fontWeight: '800', letterSpacing: 2 },
-  emoji: { fontSize: 64, marginVertical: SPACING.sm },
-  name: { fontSize: 24, fontWeight: '900', textAlign: 'center' },
-  rank: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 2, color: COLORS.textMuted },
-  desc: { fontSize: FONT.base, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
-  more: { fontSize: FONT.sm, color: COLORS.textMuted, fontStyle: 'italic' },
-  btn: {
-    marginTop: SPACING.sm, paddingHorizontal: SPACING.xl, paddingVertical: 12,
-    borderRadius: RADIUS.full,
-  },
-  btnText: { color: '#fff', fontWeight: '900', fontSize: FONT.base, letterSpacing: 1 },
-});
-
-// ─── Mission card components ──────────────────────────────────────────────────
-const TIMER_MISSIONS = new Set(['deep_work', 'pomodoro']);
-
-function MissionCard({
-  mission,
-  currentUnits,
-  onEarn,
-  stageTheme,
-  onOpenTimer,
-}: {
-  mission: MissionDef;
-  currentUnits: number;
-  onEarn: (missionId: string, units: number) => void;
-  stageTheme: ReturnType<typeof getStageTheme>;
-  onOpenTimer?: (mission: MissionDef) => void;
-}) {
-  const catInfo = CATEGORY_INFO[mission.category as TaskCategory];
-  const pts = calcPoints(mission, currentUnits);
-  const done = pts >= mission.maxPoints;
-  const accentColor = done ? catInfo.color : COLORS.textMuted;
-
-  function handleBinary() {
-    const next = currentUnits >= 1 ? 0 : 1;
-    Haptics.impactAsync(next === 1 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
-    onEarn(mission.id, next);
-  }
-
-  function handleStepped(units: number) {
-    const next = currentUnits === units ? 0 : units;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onEarn(mission.id, next);
-  }
-
-  function handleProportional(delta: number) {
-    const next = Math.max(0, currentUnits + delta);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onEarn(mission.id, next);
-  }
-
-  return (
-    <View style={[mStyles.card, done && { borderColor: catInfo.color + '60' }]}>
-      {/* Color bar */}
-      <View style={[mStyles.colorBar, { backgroundColor: catInfo.color }]} />
-
-      <View style={mStyles.body}>
-        {/* Header row */}
-        <View style={mStyles.headerRow}>
-          <Text style={mStyles.emoji}>{mission.emoji}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[mStyles.name, done && { color: catInfo.color }]}>{mission.name}</Text>
-            <Text style={mStyles.desc}>{mission.description}</Text>
-          </View>
-          {/* Points badge */}
-          <View style={[mStyles.ptsBadge, done && { backgroundColor: catInfo.color + '20', borderColor: catInfo.color + '60' }]}>
-            <Text style={[mStyles.ptsText, { color: done ? catInfo.color : COLORS.textMuted }]}>
-              {pts}/{mission.maxPoints}pt
-            </Text>
-          </View>
-        </View>
-
-        {/* Controls */}
-        {mission.type === 'binary' && (
-          <TouchableOpacity
-            style={[mStyles.binaryBtn, done && { backgroundColor: catInfo.color }]}
-            onPress={handleBinary}
-            activeOpacity={0.8}
-          >
-            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={done ? '#fff' : COLORS.textMuted} />
-            <Text style={[mStyles.binaryText, done && { color: '#fff' }]}>
-              {done ? '¡Completado!' : 'Marcar como hecho'}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {mission.type === 'stepped' && mission.steps && (
-          <View style={mStyles.stepsRow}>
-            {mission.steps.map(step => {
-              const active = currentUnits >= step.units;
-              return (
-                <TouchableOpacity
-                  key={step.units}
-                  style={[mStyles.stepBtn, active && { backgroundColor: catInfo.color, borderColor: catInfo.color }]}
-                  onPress={() => handleStepped(step.units)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[mStyles.stepText, active && { color: '#fff' }]}>{step.label}</Text>
-                  <Text style={[mStyles.stepPts, active && { color: '#fff' }]}>+{step.points}pt</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-
-        {mission.type === 'proportional' && (
-          <View style={mStyles.counterRow}>
-            <TouchableOpacity style={mStyles.counterBtn} onPress={() => handleProportional(-1)} activeOpacity={0.7}>
-              <Text style={mStyles.counterBtnText}>−</Text>
-            </TouchableOpacity>
-            <View style={mStyles.counterDisplay}>
-              <Text style={[mStyles.counterValue, { color: catInfo.color }]}>{currentUnits}</Text>
-              <Text style={mStyles.counterUnit}>{mission.unit}</Text>
-            </View>
-            <TouchableOpacity style={mStyles.counterBtn} onPress={() => handleProportional(1)} activeOpacity={0.7}>
-              <Text style={mStyles.counterBtnText}>＋</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Timer button — only for deep_work and pomodoro */}
-        {TIMER_MISSIONS.has(mission.id) && onOpenTimer && (
-          <TouchableOpacity
-            style={[mStyles.timerBtn, { borderColor: catInfo.color + '50' }]}
-            onPress={() => onOpenTimer(mission)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="timer-outline" size={15} color={catInfo.color} />
-            <Text style={[mStyles.timerBtnText, { color: catInfo.color }]}>
-              {currentUnits > 0 ? 'Continuar timer' : 'Iniciar timer'}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
-
-const mStyles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    marginBottom: SPACING.sm,
-    overflow: 'hidden',
-  },
-  colorBar: { width: 4 },
-  body: { flex: 1, padding: SPACING.sm, gap: SPACING.sm },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
-  emoji: { fontSize: 22 },
-  name: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
-  desc: { fontSize: FONT.xs, color: COLORS.textMuted, lineHeight: 16 },
-  ptsBadge: {
-    paddingHorizontal: 8, paddingVertical: 4,
-    borderRadius: RADIUS.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-  },
-  ptsText: { fontSize: 11, fontWeight: '800' },
-
-  // Binary
-  binaryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: RADIUS.md, padding: 10,
-  },
-  binaryText: { fontSize: FONT.sm, fontWeight: '700', color: COLORS.textMuted },
-
-  // Stepped
-  stepsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  stepBtn: {
-    paddingHorizontal: 10, paddingVertical: 8,
-    borderRadius: RADIUS.md, borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-  },
-  stepText: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted },
-  stepPts: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
-
-  // Proportional counter
-  counterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  counterBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  counterBtnText: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '700', lineHeight: 22 },
-  counterDisplay: { alignItems: 'center', minWidth: 50 },
-  counterValue: { fontSize: FONT.xl, fontWeight: '900' },
-  counterUnit: { fontSize: FONT.xs, color: COLORS.textMuted },
-
-  // Timer button
-  timerBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderRadius: RADIUS.md,
-    paddingHorizontal: 10, paddingVertical: 7,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    alignSelf: 'flex-start',
-  },
-  timerBtnText: { fontSize: FONT.sm, fontWeight: '700' },
-});
-
 // ─── Weekly Review Modal ──────────────────────────────────────────────────────
 const WEEKLY_REVIEW_KEY = (week: number) => `arise_weekly_review_v1_week_${week}`;
 
-function WeeklyReviewModal({
-  weekNumber,
-  stats,
-  coachName,
-  coachEmoji,
-  wins,
-  focus,
-  coachMessage,
-  onClose,
-}: {
-  weekNumber: number;
-  stats: { completed: number; trainMin: number; readPages: number; breathMin: number };
-  coachName: string;
-  coachEmoji: string;
-  wins: string[];
-  focus: string[];
-  coachMessage: string;
-  onClose: (intention: string) => void;
-}) {
-  const [intention, setIntention] = useState('');
-  const completionColor = stats.completed >= 6 ? COLORS.success : stats.completed >= 4 ? COLORS.warning : COLORS.danger;
-
-  return (
-    <Modal transparent animationType="slide" onRequestClose={() => onClose(intention)}>
-      <Pressable style={wrStyles.backdrop} onPress={() => onClose(intention)} />
-      <View style={wrStyles.sheet}>
-        <LinearGradient colors={['#111E35', '#0D1628']} style={wrStyles.content}>
-          <View style={wrStyles.handle} />
-
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Header */}
-            <View style={wrStyles.header}>
-              <View>
-                <Text style={wrStyles.weekLabel}>SEMANA {weekNumber - 1} — REVIEW</Text>
-                <Text style={wrStyles.headerTitle}>¿Cómo fue tu semana?</Text>
-              </View>
-              <Text style={{ fontSize: 32 }}>📋</Text>
-            </View>
-
-            {/* Stats row */}
-            <View style={wrStyles.statsRow}>
-              <View style={[wrStyles.statBox, { borderColor: completionColor + '50' }]}>
-                <Text style={[wrStyles.statNum, { color: completionColor }]}>{stats.completed}/7</Text>
-                <Text style={wrStyles.statLabel}>Días</Text>
-              </View>
-              <View style={wrStyles.statBox}>
-                <Text style={wrStyles.statNum}>{stats.trainMin}</Text>
-                <Text style={wrStyles.statLabel}>Min entreno</Text>
-              </View>
-              <View style={wrStyles.statBox}>
-                <Text style={wrStyles.statNum}>{stats.readPages}</Text>
-                <Text style={wrStyles.statLabel}>Págs leídas</Text>
-              </View>
-              {stats.breathMin > 0 && (
-                <View style={wrStyles.statBox}>
-                  <Text style={wrStyles.statNum}>{stats.breathMin}</Text>
-                  <Text style={wrStyles.statLabel}>Min resp.</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Coach assessment */}
-            <View style={wrStyles.coachCard}>
-              <View style={wrStyles.coachHeader}>
-                <Text style={{ fontSize: 20 }}>{coachEmoji}</Text>
-                <Text style={wrStyles.coachName}>{coachName} dice:</Text>
-              </View>
-              <Text style={wrStyles.coachMsg}>{coachMessage}</Text>
-            </View>
-
-            {/* Wins */}
-            <Text style={wrStyles.sectionLabel}>LO QUE FUNCIONÓ</Text>
-            {wins.slice(0, 3).map((w, i) => (
-              <View key={i} style={wrStyles.listRow}>
-                <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                <Text style={wrStyles.listText}>{w}</Text>
-              </View>
-            ))}
-
-            {/* Focus */}
-            <Text style={wrStyles.sectionLabel}>PRÓXIMA SEMANA — FOCO</Text>
-            {focus.slice(0, 2).map((f, i) => (
-              <View key={i} style={wrStyles.listRow}>
-                <Ionicons name="arrow-forward-circle" size={16} color={COLORS.accent} />
-                <Text style={wrStyles.listText}>{f}</Text>
-              </View>
-            ))}
-
-            {/* Intention input */}
-            <Text style={wrStyles.sectionLabel}>MI INTENCIÓN PARA LA SEMANA {weekNumber}</Text>
-            <TextInput
-              style={wrStyles.intentionInput}
-              placeholder="¿Qué vas a priorizar esta semana?"
-              placeholderTextColor={COLORS.textMuted}
-              value={intention}
-              onChangeText={setIntention}
-              multiline
-              numberOfLines={3}
-              maxLength={200}
-            />
-
-            {/* CTA */}
-            <TouchableOpacity
-              style={wrStyles.ctaBtn}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onClose(intention); }}
-              activeOpacity={0.85}
-            >
-              <LinearGradient colors={[COLORS.accent, '#3A7BD5']} style={wrStyles.ctaGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                <Text style={wrStyles.ctaText}>ARRANCAR SEMANA {weekNumber} →</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </LinearGradient>
-      </View>
-    </Modal>
-  );
-}
-
-const wrStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)' },
-  sheet: { maxHeight: '90%' },
-  content: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, paddingTop: SPACING.sm, flex: 1 },
-  handle: { width: 36, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.md },
-
-  header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: SPACING.lg },
-  weekLabel: { fontSize: FONT.xs, color: COLORS.accent, fontWeight: '800', letterSpacing: 1.5, marginBottom: 4 },
-  headerTitle: { fontSize: FONT.xl, fontWeight: '900', color: COLORS.textPrimary },
-
-  statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
-  statBox: { flex: 1, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  statNum: { fontSize: FONT.lg, fontWeight: '900', color: COLORS.textPrimary },
-  statLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600', textAlign: 'center' },
-
-  coachCard: { backgroundColor: 'rgba(72,149,239,0.1)', borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.accent + '30', marginBottom: SPACING.lg },
-  coachHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.sm },
-  coachName: { fontSize: FONT.sm, fontWeight: '800', color: COLORS.accent },
-  coachMsg: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22, fontStyle: 'italic' },
-
-  sectionLabel: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.md },
-  listRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: 8 },
-  listText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
-
-  intentionInput: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    color: COLORS.textPrimary,
-    fontSize: FONT.sm,
-    lineHeight: 22,
-    minHeight: 80,
-    textAlignVertical: 'top',
-    marginBottom: SPACING.lg,
-  },
-
-  ctaBtn: { borderRadius: RADIUS.lg, overflow: 'hidden' },
-  ctaGradient: { paddingVertical: SPACING.md, alignItems: 'center' },
-  ctaText: { color: '#fff', fontWeight: '900', fontSize: FONT.base, letterSpacing: 1 },
-});
-
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HoyScreen() {
+  const router = useRouter();
+  const { reducedMotion, screenAnimStyle } = useTabScreenMotion('index');
   const {
     data, todayRecord, todayDefinition, syncing,
     earnPoints, todayMissions, pointsTarget,
     pinnedMissions, pinMission, unpinMission,
     hasPenalty, completePenalty, useGraceDay, canUseGrace,
     newBadges, clearNewBadges,
+    xpLastEarned, clearXpEarned,
   } = useApp();
+
+  // ── Floating +XP animation + screen flash ────────────────────────────────
+  const xpFloatY    = useRef(new Animated.Value(0)).current;
+  const xpFloatOp   = useRef(new Animated.Value(0)).current;
+  const xpScale     = useRef(new Animated.Value(0.5)).current;
+  const screenFlash = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (xpLastEarned <= 0) return;
+    xpFloatY.setValue(0);
+    xpFloatOp.setValue(1);
+    xpScale.setValue(0.5);
+    screenFlash.setValue(0);
+    Animated.parallel([
+      // Float upward
+      Animated.timing(xpFloatY, { toValue: -60, duration: 2000, useNativeDriver: true }),
+      // Fade out (delay 1.3s)
+      Animated.sequence([
+        Animated.delay(1300),
+        Animated.timing(xpFloatOp, { toValue: 0, duration: 700, useNativeDriver: true }),
+      ]),
+      // Bounce in scale: 0.5 → 1.2 → 1.0
+      Animated.sequence([
+        Animated.timing(xpScale, { toValue: 1.25, duration: 180, useNativeDriver: true }),
+        Animated.timing(xpScale, { toValue: 1.00, duration: 120, useNativeDriver: true }),
+      ]),
+      // Screen flash: 0 → 0.10 → 0 in 280ms
+      Animated.sequence([
+        Animated.timing(screenFlash, { toValue: 0.10, duration: 80,  useNativeDriver: true }),
+        Animated.timing(screenFlash, { toValue: 0,    duration: 200, useNativeDriver: true }),
+      ]),
+    ]).start(() => clearXpEarned());
+  }, [xpLastEarned]);
+
+  // ── Combo streak blink ────────────────────────────────────────────────────
+  const comboOpac = useRef(new Animated.Value(1)).current;
+  const comboAnim = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (!data || data.user.streak <= 3) {
+      comboAnim.current?.stop();
+      comboOpac.setValue(1);
+      return;
+    }
+    comboAnim.current = Animated.loop(Animated.sequence([
+      Animated.timing(comboOpac, { toValue: 0.35, duration: 550, useNativeDriver: true }),
+      Animated.timing(comboOpac, { toValue: 1.00, duration: 550, useNativeDriver: true }),
+    ]));
+    comboAnim.current.start();
+    return () => { comboAnim.current?.stop(); };
+  }, [data?.user.streak]);
 
   const [showMissionRepo, setShowMissionRepo] = useState(false);
   const [addingToCalendar, setAddingToCalendar] = useState(false);
   const [timerMission, setTimerMission] = useState<MissionDef | null>(null);
   const [showWeeklyReview, setShowWeeklyReview] = useState(false);
+  const [weekIntention, setWeekIntention] = useState<string | null>(null);
+  const [dismissedDayComplete, setDismissedDayComplete] = useState(false);
+
+  // Stable ref so React.memo on MissionCard bails out correctly
+  const handleEarnPoints = useCallback(
+    (missionId: string, units: number) => earnPoints(missionId, units),
+    [earnPoints],
+  );
+  const handleOpenTimer = useCallback((m: MissionDef) => setTimerMission(m), []);
 
   // ── Weekly review trigger ─────────────────────────────────────────────
   useEffect(() => {
@@ -516,12 +205,21 @@ export default function HoyScreen() {
     });
   }, [data?.user.currentDay]);
 
+  useEffect(() => {
+    if (!data) return;
+    const weekNum = Math.ceil(data.user.currentDay / 7);
+    AsyncStorage.getItem(`arise_week_intention_${weekNum}`).then(val => {
+      setWeekIntention(val ?? null);
+    });
+  }, [data?.user.currentDay]);
+
   function handleCloseWeeklyReview(intention: string) {
     if (!data) return;
     const weekNumber = Math.ceil(data.user.currentDay / 7);
     AsyncStorage.setItem(WEEKLY_REVIEW_KEY(weekNumber), 'seen');
     if (intention.trim()) {
       AsyncStorage.setItem(`arise_week_intention_${weekNumber}`, intention.trim());
+      setWeekIntention(intention.trim());
     }
     setShowWeeklyReview(false);
   }
@@ -539,110 +237,136 @@ export default function HoyScreen() {
     }
   }, [data]);
 
-
-  if (!data || !todayDefinition) {
-    const opacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
-    return (
-      <LinearGradient colors={['#05050A', '#0A0A14', '#0F0F1E']} style={styles.container}>
-        <SafeAreaView style={styles.safe}>
-          <ScrollView contentContainerStyle={styles.scroll}>
-            {[140, 80, 100, 80, 80].map((h, i) => (
-              <Animated.View
-                key={i}
-                style={[styles.skeletonBlock, { height: h, opacity, marginBottom: 12 }]}
-              />
-            ))}
-          </ScrollView>
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
-
-  const { user } = data;
-  // ── Points derived state ───────────────────���────────────────────────────
+  const user = data?.user ?? FALLBACK_USER;
+  const safeDays = data?.days ?? EMPTY_DATA.days;
+  // ── Points derived state ─────────────────────────────────────────────────
   const missionStates = todayRecord?.missionStates ?? [];
   const totalPoints = todayRecord?.totalPoints ?? 0;
   const pointsProgress = Math.min(totalPoints / pointsTarget, 1);
   const dayCompleted = totalPoints >= pointsTarget;
-  const catPts = pointsByCategory(missionStates, todayMissions);
+  const completedDayNumber = todayRecord?.dayNumber ?? Math.max(1, user.currentDay - 1);
+  const catPts = useMemo(
+    () => pointsByCategory(missionStates, todayMissions),
+    [missionStates, todayMissions],
+  );
 
-  function getMissionUnits(missionId: string): number {
-    return missionStates.find(s => s.missionId === missionId)?.units ?? 0;
-  }
-  const completedDays = data.days.filter(d => d.completed).length;
-  const totalReadingPages = data.days.reduce((sum, d) => sum + (d.metrics?.readingPages ?? 0), 0);
-  const latestWeight = [...data.days]
-    .reverse()
-    .map(d => d.metrics?.weight)
-    .find((w): w is number => typeof w === 'number');
+  const missionUnitsById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const state of missionStates) map.set(state.missionId, state.units);
+    return map;
+  }, [missionStates]);
+
+  const getMissionUnits = useCallback(
+    (missionId: string): number => missionUnitsById.get(missionId) ?? 0,
+    [missionUnitsById],
+  );
+
+  const { completedDays, totalReadingPages, latestWeight } = useMemo(() => {
+    let completed = 0;
+    let readPages = 0;
+    let latestKnownWeight: number | undefined;
+
+    for (const day of safeDays) {
+      if (day.completed) completed++;
+      readPages += day.metrics?.readingPages ?? 0;
+      if (typeof day.metrics?.weight === 'number') latestKnownWeight = day.metrics.weight;
+    }
+
+    return {
+      completedDays: completed,
+      totalReadingPages: readPages,
+      latestWeight: latestKnownWeight,
+    };
+  }, [safeDays]);
 
   const xpNeeded = xpForLevel(user.level + 1);
   const xpCurrent = xpForLevel(user.level);
   const xpProgress = (user.xp - xpCurrent) / (xpNeeded - xpCurrent);
   const track = user.adaptiveProfile?.track ?? 'maintenance';
   const direction = TRACK_DIRECTION[track] ?? TRACK_DIRECTION.maintenance;
-  const challengeTools = (user.adaptiveProfile?.challenges ?? [])
-    .map(c => CHALLENGE_TOOLS[c])
-    .filter(Boolean)
-    .slice(0, 3);
+  const challengeTools = useMemo(
+    () => (user.adaptiveProfile?.challenges ?? [])
+      .map(c => CHALLENGE_TOOLS[c])
+      .filter(Boolean)
+      .slice(0, 3),
+    [user.adaptiveProfile?.challenges],
+  );
 
-  const goalProgressItems: { label: string; current: string; target: string; progress: number }[] = [];
-  if (typeof user.goals?.targetStreak === 'number' && user.goals.targetStreak > 0) {
-    goalProgressItems.push({
-      label: 'Racha objetivo',
-      current: `${user.streak} dias`,
-      target: `${user.goals.targetStreak} dias`,
-      progress: clampProgress(user.streak / user.goals.targetStreak),
-    });
-  }
-  if (typeof user.goals?.targetReadingPages === 'number' && user.goals.targetReadingPages > 0) {
-    goalProgressItems.push({
-      label: 'Lectura',
-      current: `${totalReadingPages} pags`,
-      target: `${user.goals.targetReadingPages} pags`,
-      progress: clampProgress(totalReadingPages / user.goals.targetReadingPages),
-    });
-  }
-  if (
-    typeof user.goals?.targetWeight === 'number' &&
-    typeof user.initialWeight === 'number' &&
-    typeof latestWeight === 'number'
-  ) {
-    const totalDelta = user.goals.targetWeight - user.initialWeight;
-    const doneDelta = latestWeight - user.initialWeight;
-    const ratio = Math.abs(totalDelta) < 0.1 ? 1 : doneDelta / totalDelta;
-    goalProgressItems.push({
-      label: 'Peso',
-      current: `${latestWeight.toFixed(1)} kg`,
-      target: `${user.goals.targetWeight.toFixed(1)} kg`,
-      progress: clampProgress(ratio),
-    });
-  }
+  const goalProgressItems = useMemo(() => {
+    const items: { label: string; current: string; target: string; progress: number }[] = [];
 
-  if (goalProgressItems.length === 0) {
-    goalProgressItems.push({
-      label: 'Programa 90 dias',
-      current: `${completedDays} dias`,
-      target: '90 dias',
-      progress: clampProgress(completedDays / 90),
-    });
-  }
+    if (typeof user.goals?.targetStreak === 'number' && user.goals.targetStreak > 0) {
+      items.push({
+        label: 'Racha objetivo',
+        current: `${user.streak} dias`,
+        target: `${user.goals.targetStreak} dias`,
+        progress: clampProgress(user.streak / user.goals.targetStreak),
+      });
+    }
+    if (typeof user.goals?.targetReadingPages === 'number' && user.goals.targetReadingPages > 0) {
+      items.push({
+        label: 'Lectura',
+        current: `${totalReadingPages} pags`,
+        target: `${user.goals.targetReadingPages} pags`,
+        progress: clampProgress(totalReadingPages / user.goals.targetReadingPages),
+      });
+    }
+    if (
+      typeof user.goals?.targetWeight === 'number' &&
+      typeof user.initialWeight === 'number' &&
+      typeof latestWeight === 'number'
+    ) {
+      const totalDelta = user.goals.targetWeight - user.initialWeight;
+      const doneDelta = latestWeight - user.initialWeight;
+      const ratio = Math.abs(totalDelta) < 0.1 ? 1 : doneDelta / totalDelta;
+      items.push({
+        label: 'Peso',
+        current: `${latestWeight.toFixed(1)} kg`,
+        target: `${user.goals.targetWeight.toFixed(1)} kg`,
+        progress: clampProgress(ratio),
+      });
+    }
 
-  const avgGoalProgress = goalProgressItems.reduce((sum, g) => sum + g.progress, 0) / goalProgressItems.length;
+    if (items.length === 0) {
+      items.push({
+        label: 'Programa 90 dias',
+        current: `${completedDays} dias`,
+        target: '90 dias',
+        progress: clampProgress(completedDays / 90),
+      });
+    }
+
+    return items;
+  }, [user.streak, user.goals, user.initialWeight, totalReadingPages, latestWeight, completedDays]);
+
+  const avgGoalProgress = useMemo(
+    () => goalProgressItems.reduce((sum, g) => sum + g.progress, 0) / goalProgressItems.length,
+    [goalProgressItems],
+  );
   const quotes = TRACK_QUOTES[track] ?? TRACK_QUOTES.maintenance;
-  const quoteIndex = Math.min(quotes.length - 1, Math.floor(avgGoalProgress * quotes.length));
+  const quoteIndex = useMemo(
+    () => Math.min(quotes.length - 1, Math.floor(avgGoalProgress * quotes.length)),
+    [quotes, avgGoalProgress],
+  );
   const coachId = user.preferredCoachId ?? 'goku';
-  const coach = getCoachById(coachId);
-  const coachVisual = getCoachVisualProfile(coachId);
-  const coachPhraseIndex = Math.min(
-    coachVisual.homePhrases.length - 1,
-    Math.floor(avgGoalProgress * coachVisual.homePhrases.length)
+  const coach = useMemo(() => getCoachById(coachId), [coachId]);
+  const coachVisual = useMemo(() => getCoachVisualProfile(coachId), [coachId]);
+  const missionAccentColor = COACH_MISSION_ACCENT[coachId] ?? coachVisual.glowColor;
+  const coachPhraseIndex = useMemo(
+    () => Math.min(
+      coachVisual.homePhrases.length - 1,
+      Math.floor(avgGoalProgress * coachVisual.homePhrases.length),
+    ),
+    [coachVisual.homePhrases.length, avgGoalProgress],
   );
   const coachingQuote = `${coachVisual.homePhrases[coachPhraseIndex]} ${quotes[quoteIndex]}`;
   const powerStage = getPowerStage(user);
   const stageTheme = getStageTheme(user);
   const nextStageHint = getNextStageHint(user);
-  const dynamicChallenges = buildDynamicChallenges(user, data.days).slice(0, 2);
+  const dynamicChallenges = useMemo(
+    () => buildDynamicChallenges(user, safeDays).slice(0, 2),
+    [user, safeDays],
+  );
   const coachCardStyle = {
     backgroundColor: coachVisual.cardBackground,
     borderColor: coachVisual.cardBorder,
@@ -653,18 +377,63 @@ export default function HoyScreen() {
     elevation: 12,
   } as const;
 
+  useEffect(() => {
+    if (!dayCompleted) {
+      setDismissedDayComplete(false);
+    }
+  }, [dayCompleted, user.currentDay]);
+
   // ── Weekly review data ────────────────────────────────────────────────
-  const currentWeekNum = Math.ceil(user.currentDay / 7);
-  const prevWeekStart = Math.max(1, (currentWeekNum - 2) * 7 + 1);
-  const prevWeekEnd = prevWeekStart + 6;
-  const prevWeekDays = data.days.filter(d => d.dayNumber >= prevWeekStart && d.dayNumber <= prevWeekEnd);
-  const weeklyStats = {
-    completed: prevWeekDays.filter(d => d.completed).length,
-    trainMin: prevWeekDays.reduce((s, d) => s + (d.metrics?.trainingMinutes ?? 0), 0),
-    readPages: prevWeekDays.reduce((s, d) => s + (d.metrics?.readingPages ?? 0), 0),
-    breathMin: prevWeekDays.reduce((s, d) => s + (d.metrics?.breathingMinutes ?? 0), 0),
-  };
-  const weeklyReport = buildWeeklyCoachReport(data, coachId);
+  const currentWeekNum = useMemo(() => Math.ceil(user.currentDay / 7), [user.currentDay]);
+  const weeklyStats = useMemo(() => {
+    const prevWeekStart = Math.max(1, (currentWeekNum - 2) * 7 + 1);
+    const prevWeekEnd = prevWeekStart + 6;
+    const prevWeekDays = safeDays.filter(d => d.dayNumber >= prevWeekStart && d.dayNumber <= prevWeekEnd);
+
+    return {
+      completed: prevWeekDays.filter(d => d.completed).length,
+      trainMin: prevWeekDays.reduce((s, d) => s + (d.metrics?.trainingMinutes ?? 0), 0),
+      readPages: prevWeekDays.reduce((s, d) => s + (d.metrics?.readingPages ?? 0), 0),
+      breathMin: prevWeekDays.reduce((s, d) => s + (d.metrics?.breathingMinutes ?? 0), 0),
+    };
+  }, [currentWeekNum, safeDays]);
+  const weeklyReport = useMemo(() => buildWeeklyCoachReport(data ?? EMPTY_DATA, coachId), [data, coachId]);
+
+  if (!data || !todayDefinition) {
+    const opacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
+    return (
+      <LinearGradient colors={['#05050A', '#0A0A14', '#0F0F1E']} style={styles.container}>
+        <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+          <SafeAreaView style={styles.safe}>
+          <ScrollView contentContainerStyle={styles.scroll}>
+            <ScreenLoadingState
+              title="Hoy"
+              subtitle="Armando misiones, coach activo y progreso diario..."
+              icon="flame-outline"
+              accent="#E8460A"
+              reducedMotion={reducedMotion}
+              hints={[
+                'Calculando puntos de hoy',
+                'Cargando misiones fijas y rotativas',
+                'Preparando bonus de XP',
+              ]}
+            />
+            {[140, 80, 100, 80, 80].map((h, i) => (
+              <Animated.View
+                key={i}
+                style={[styles.skeletonBlock, { height: h, opacity, marginBottom: 12 }]}
+              />
+            ))}
+          </ScrollView>
+          </SafeAreaView>
+        </Animated.View>
+      </LinearGradient>
+    );
+  }
+  const calendarWakeHour =
+    typeof data?.user.goals?.targetTrainingDays === 'number' && data.user.goals.targetTrainingDays >= 5
+      ? 6
+      : 7;
 
   async function handleAddToCalendar() {
     if (addingToCalendar) return;
@@ -673,7 +442,7 @@ export default function HoyScreen() {
       const count = await addMissionsToCalendar(
         todayMissions,
         user.currentDay,
-        data?.user.goals ? 7 : 7,
+        calendarWakeHour,
       );
       if (count > 0) {
         Alert.alert(
@@ -694,11 +463,11 @@ export default function HoyScreen() {
       return;
     }
     Alert.alert(
-      '¿Usar día de gracia?',
-      'Esto usará tu único día de gracia del mes. Tu racha se reseteará a 0 pero no perderás tu progreso.',
+      '🛡️ ¿Usar día de gracia?',
+      'Usarás tu único escudo del mes. Tu racha queda CONGELADA — no se pierde. El programa avanza al día siguiente.',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Usar gracia', onPress: useGraceDay, style: 'destructive' },
+        { text: 'Activar escudo', onPress: useGraceDay },
       ]
     );
   }
@@ -707,7 +476,8 @@ export default function HoyScreen() {
   if (user.programCompleted) {
     return (
       <LinearGradient colors={['#05050A', '#0D0520', '#1A0830']} style={styles.container}>
-        <SafeAreaView style={styles.safe}>
+        <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+          <SafeAreaView style={styles.safe}>
           <ScrollView contentContainerStyle={[styles.scroll, { alignItems: 'center', paddingTop: 40 }]}>
             <Text style={styles.ariseCompleteKanji}>炎</Text>
             <Text style={styles.ariseCompleteTitle}>ARISE{'\n'}COMPLETE</Text>
@@ -746,7 +516,8 @@ export default function HoyScreen() {
               "El poder no viene del cuerpo. Viene de una voluntad indomable."
             </Text>
           </ScrollView>
-        </SafeAreaView>
+          </SafeAreaView>
+        </Animated.View>
       </LinearGradient>
     );
   }
@@ -761,14 +532,15 @@ export default function HoyScreen() {
   }
 
   // ── Day complete screen ─────────────────────────────────────────────────
-  if (dayCompleted && todayRecord?.completed) {
+  if (dayCompleted && todayRecord?.completed && !dismissedDayComplete) {
     return (
       <LinearGradient colors={['#051A10', '#0A2D1A', '#0D1117']} style={styles.container}>
-        <SafeAreaView style={styles.safe}>
+        <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+          <SafeAreaView style={styles.safe}>
           <ScrollView contentContainerStyle={styles.scroll}>
             <View style={styles.completeHeader}>
               <Text style={styles.completeEmoji}>🏆</Text>
-              <Text style={styles.completeTitle}>DÍA {user.currentDay - 1} COMPLETADO</Text>
+              <Text style={styles.completeTitle}>DÍA {completedDayNumber} COMPLETADO</Text>
               <Text style={styles.completeSubtitle}>"{todayDefinition.quote}"</Text>
             </View>
 
@@ -795,8 +567,19 @@ export default function HoyScreen() {
             <Text style={styles.nextDayText}>
               Mañana: Día {user.currentDay} de 90
             </Text>
+            <TouchableOpacity
+              style={styles.completeCta}
+              onPress={() => setDismissedDayComplete(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Continuar en la pantalla de hoy"
+            >
+              <Ionicons name="rocket-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.completeCtaText}>Seguir entrenando hoy</Text>
+            </TouchableOpacity>
           </ScrollView>
-        </SafeAreaView>
+          </SafeAreaView>
+        </Animated.View>
       </LinearGradient>
     );
   }
@@ -804,19 +587,28 @@ export default function HoyScreen() {
   // ── Main daily screen ───────────────────────────────────────────────────
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <SafeAreaView style={styles.safe}>
-        <CoachParticles coachId={coachId ?? 'goku'} />
+      <CoachParticles coachId={coachId ?? 'goku'} tappable reducedMotion={reducedMotion} />
+      {/* Screen flash overlay — fires when XP is earned */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: coachVisual.glowColor, opacity: screenFlash, zIndex: 10 },
+        ]}
+      />
+      <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
+        <SafeAreaView style={styles.safe}>
         {newBadges.length > 0 && (
-          <BadgeUnlockModal badges={newBadges} onClose={clearNewBadges} />
+          <BadgeModal badges={newBadges} onClose={clearNewBadges} />
         )}
 
         {/* Weekly review modal — triggers on first day of each new week */}
         {showWeeklyReview && (
-          <WeeklyReviewModal
+          <WeeklyReview
             weekNumber={currentWeekNum}
             stats={weeklyStats}
             coachName={coach.name}
-            coachEmoji={coachVisual.overlays[0]?.emoji ?? '🏆'}
+            coachEmoji={COACH_EMOJI[coachId] ?? '🏆'}
             wins={weeklyReport.wins}
             focus={weeklyReport.focus}
             coachMessage={weeklyReport.message}
@@ -844,13 +636,22 @@ export default function HoyScreen() {
                 <Text style={styles.dayLabel}>DÍA {user.currentDay} DE 90</Text>
                 {syncing && (
                   <View style={styles.syncBadge}>
-                    <Ionicons name="cloud-upload-outline" size={10} color="#60A5FA" />
-                    <Text style={styles.syncText}>sync</Text>
+                    <Ionicons name="cloud-upload-outline" size={12} color="#60A5FA" />
+                    <Text style={styles.syncText}>Sincronizando</Text>
                   </View>
                 )}
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+              <TouchableOpacity
+                style={styles.configBtn}
+                onPress={() => router.push('/(tabs)/config')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Abrir configuracion"
+              >
+                <Ionicons name="settings-outline" size={16} color={COLORS.textSecondary} />
+              </TouchableOpacity>
               {currentWeekNum > 1 && (
                 <TouchableOpacity
                   style={styles.weekReviewBtn}
@@ -861,6 +662,17 @@ export default function HoyScreen() {
                   <Text style={styles.weekReviewBtnText}>Sem. {currentWeekNum - 1}</Text>
                 </TouchableOpacity>
               )}
+              {user.streak > 3 && (
+                <Animated.View style={[styles.comboBadge, {
+                  opacity: comboOpac,
+                  borderColor: coachVisual.glowColor + '70',
+                  backgroundColor: coachVisual.glowColor + '18',
+                }]}>
+                  <Text style={[styles.comboText, { color: coachVisual.glowColor }]}>
+                    COMBO 🔥
+                  </Text>
+                </Animated.View>
+              )}
               <View style={styles.streakBadge}>
                 <Text style={styles.streakNumber}>{user.streak}</Text>
                 <Text style={styles.streakFire}>🔥</Text>
@@ -868,88 +680,7 @@ export default function HoyScreen() {
             </View>
           </View>
 
-          <View style={[styles.coachIdentityCard, coachCardStyle]}>
-            <View style={styles.coachIdentityRow}>
-              <Ionicons name={coachVisual.icon as any} size={16} color={stageTheme.tabActive} />
-              <Text style={[styles.coachIdentityLabel, { color: stageTheme.tabActive }]}>{coachVisual.headerLabel}</Text>
-            </View>
-            <Text style={styles.coachIdentityName}>Coach activo: {coach.name}</Text>
-            <Text style={styles.coachIdentityNote}>{coach.motivator}</Text>
-          </View>
-
-          <View style={[styles.powerCard, coachCardStyle]}>
-            <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerAura}>
-              <Text style={styles.powerAuraText}>{powerStage.auraLabel}</Text>
-            </LinearGradient>
-            <Text style={styles.powerTitle}>{powerStage.title}</Text>
-            <Text style={styles.powerHint}>{nextStageHint}</Text>
-          </View>
-
-          {/* Quote */}
-          <View style={[styles.quoteBox, coachCardStyle]}>
-            <Text style={styles.quoteText}>"{todayDefinition.quote}"</Text>
-          </View>
-
-          {/* Objetivos medibles + direccion */}
-          <View style={styles.goalSection}>
-            <Text style={styles.sectionTitle}>OBJETIVOS MEDIBLES</Text>
-            <Text style={styles.goalDirection}>{direction}</Text>
-
-            {goalProgressItems.map(item => (
-              <View key={item.label} style={[styles.goalCard, coachCardStyle]}>
-                <View style={styles.goalHeader}>
-                  <Text style={styles.goalLabel}>{item.label}</Text>
-                  <Text style={styles.goalNumbers}>{item.current} / {item.target}</Text>
-                </View>
-                <View style={styles.goalBarBg}>
-                  <LinearGradient
-                    colors={stageTheme.accent}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.goalBarFill, { width: `${item.progress * 100}%` as any }]}
-                  />
-                </View>
-              </View>
-            ))}
-
-            <View style={[styles.coachBox, coachCardStyle]}>
-              <Text style={[styles.coachLabel, { color: stageTheme.tabActive }]}>FRASE MOTIVADORA DEL OBJETIVO</Text>
-              <Text style={styles.coachText}>{coachingQuote}</Text>
-            </View>
-
-            <View style={[styles.toolsBox, coachCardStyle]}>
-              <Text style={[styles.toolsLabel, { color: stageTheme.tabActive }]}>HERRAMIENTAS Y CONSEJOS</Text>
-              {(challengeTools.length > 0 ? challengeTools : (user.adaptiveProfile?.recommendations ?? []).map(advice => ({
-                title: 'Plan semanal',
-                advice,
-              }))).slice(0, 3).map(tool => (
-                <View key={`${tool.title}-${tool.advice}`} style={styles.toolRow}>
-                  <Text style={[styles.toolBullet, { color: stageTheme.tabActive }]}>•</Text>
-                  <Text style={styles.toolText}><Text style={styles.toolTitle}>{tool.title}: </Text>{tool.advice}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={[styles.challengeBox, coachCardStyle]}>
-              <Text style={[styles.challengeLabel, { color: stageTheme.tabActive }]}>DESAFIOS EVOLUTIVOS</Text>
-              {dynamicChallenges.map(ch => {
-                const progressValue = clampProgress(ch.current / Math.max(ch.target, 1));
-                return (
-                  <View key={ch.id} style={styles.challengeRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.challengeTitle}>{ch.label}</Text>
-                      <Text style={styles.challengeMeta}>{ch.current} / {ch.target} {ch.unit}</Text>
-                    </View>
-                    <View style={styles.challengeBarBg}>
-                      <View style={[styles.challengeBarFill, { width: `${progressValue * 100}%` as any, backgroundColor: stageTheme.tabActive }]} />
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* ── Points bar ── */}
+          {/* ── Primary loop first: progress + missions ── */}
           <View style={styles.pointsSection}>
             <View style={styles.pointsHeader}>
               <Text style={styles.pointsLabel}>
@@ -983,11 +714,29 @@ export default function HoyScreen() {
             </View>
           </View>
 
-          {/* XP Bar */}
+          {/* XP Bar + floating reward */}
           <View style={styles.xpSection}>
-            <Text style={styles.xpLabel}>Nivel {user.level} — {user.xp} XP</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.xpLabel}>Nivel {user.level} — {user.xp} XP</Text>
+              {xpLastEarned > 0 && (
+                <Animated.Text style={[styles.xpFloat, {
+                  opacity: xpFloatOp,
+                  color: coachVisual.glowColor,
+                  transform: [{ translateY: xpFloatY }, { scale: xpScale }],
+                  textShadowColor: coachVisual.glowColor,
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 14,
+                }]}>
+                  +{xpLastEarned} XP ⚡
+                </Animated.Text>
+              )}
+            </View>
             <View style={styles.xpBarBg}>
-              <View style={[styles.xpBarFill, { width: `${Math.min(xpProgress * 100, 100)}%` as any }]} />
+              {/* Bar fill uses coach glow color instead of static purple */}
+              <View style={[styles.xpBarFill, {
+                width: `${Math.min(xpProgress * 100, 100)}%` as any,
+                backgroundColor: coachVisual.glowColor,
+              }]} />
             </View>
           </View>
 
@@ -1012,28 +761,34 @@ export default function HoyScreen() {
 
           {/* Fixed missions first */}
           <Text style={styles.missionGroupLabel}>📌 FIJAS</Text>
-          {todayMissions.filter(m => m.isFixed).map(mission => (
-            <MissionCard
-              key={mission.id}
-              mission={mission}
-              currentUnits={getMissionUnits(mission.id)}
-              onEarn={earnPoints}
-              stageTheme={stageTheme}
-              onOpenTimer={setTimerMission}
-            />
+          {todayMissions.filter(m => m.isFixed).map((mission, index) => (
+            <StaggerIn key={mission.id} index={index} reducedMotion={reducedMotion}>
+              <MissionCard
+                mission={mission}
+                currentUnits={getMissionUnits(mission.id)}
+                onEarn={handleEarnPoints}
+                onOpenTimer={handleOpenTimer}
+                accentColor={missionAccentColor}
+              />
+            </StaggerIn>
           ))}
 
           {/* Daily rotating missions */}
           <Text style={[styles.missionGroupLabel, { marginTop: SPACING.sm }]}>🎲 MISIONES DEL DÍA</Text>
-          {todayMissions.filter(m => !m.isFixed).map(mission => (
-            <MissionCard
+          {todayMissions.filter(m => !m.isFixed).map((mission, index) => (
+            <StaggerIn
               key={mission.id}
-              mission={mission}
-              currentUnits={getMissionUnits(mission.id)}
-              onEarn={earnPoints}
-              stageTheme={stageTheme}
-              onOpenTimer={setTimerMission}
-            />
+              index={todayMissions.filter(m => m.isFixed).length + index}
+              reducedMotion={reducedMotion}
+            >
+              <MissionCard
+                mission={mission}
+                currentUnits={getMissionUnits(mission.id)}
+                onEarn={handleEarnPoints}
+                onOpenTimer={handleOpenTimer}
+                accentColor={missionAccentColor}
+              />
+            </StaggerIn>
           ))}
 
           {/* More missions button */}
@@ -1045,6 +800,35 @@ export default function HoyScreen() {
             <Ionicons name="add-circle-outline" size={18} color={stageTheme.tabActive} />
             <Text style={[styles.repoBtnText, { color: stageTheme.tabActive }]}>Ver repositorio de misiones</Text>
           </TouchableOpacity>
+
+          {/* ── Compact coach briefing (secondary) ── */}
+          <View style={[styles.coachIdentityCard, coachCardStyle]}>
+            <View style={styles.coachIdentityRow}>
+              <Ionicons name={coachVisual.icon as any} size={16} color={stageTheme.tabActive} />
+              <Text style={[styles.coachIdentityLabel, { color: stageTheme.tabActive }]}>{coachVisual.headerLabel}</Text>
+            </View>
+            <Text style={styles.coachIdentityName}>Coach activo: {coach.name}</Text>
+            <Text style={styles.coachIdentityNote}>{coach.motivator}</Text>
+          </View>
+
+          <View style={[styles.powerCard, coachCardStyle]}>
+            <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerAura}>
+              <Text style={styles.powerAuraText}>{powerStage.auraLabel}</Text>
+            </LinearGradient>
+            <Text style={styles.powerTitle}>{powerStage.title}</Text>
+            <Text style={styles.powerHint}>{nextStageHint}</Text>
+          </View>
+
+          {weekIntention && (
+            <TouchableOpacity
+              style={[styles.intentionCard, coachCardStyle]}
+              onPress={() => setShowWeeklyReview(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.intentionLabel}>⚡ INTENCIÓN SEMANA {currentWeekNum}</Text>
+              <Text style={styles.intentionText}>"{weekIntention}"</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -1109,7 +893,8 @@ export default function HoyScreen() {
           </LinearGradient>
         </Modal>
 
-      </SafeAreaView>
+        </SafeAreaView>
+      </Animated.View>
     </LinearGradient>
   );
 }
@@ -1144,6 +929,7 @@ const repoStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  motionLayer: { flex: 1 },
   safe: { flex: 1 },
 
   // ── Program Complete styles ──────────────────────────────────────────────
@@ -1172,18 +958,7 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     marginBottom: SPACING.xl,
   },
-  overlayLayer: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-  overlayOrb: {
-    position: 'absolute',
-  },
-  overlayGlyph: {
-    position: 'absolute',
-  },
   scroll: { padding: SPACING.md },
-  loadingText: { color: COLORS.textSecondary, textAlign: 'center', marginTop: 100 },
   skeletonBlock: {
     backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 14,
@@ -1236,10 +1011,20 @@ const styles = StyleSheet.create({
   syncBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: 'rgba(96,165,250,0.12)',
-    borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3,
     borderWidth: 1, borderColor: 'rgba(96,165,250,0.3)',
   },
-  syncText: { fontSize: 9, color: '#60A5FA', fontWeight: '700' },
+  syncText: { fontSize: 10, color: '#60A5FA', fontWeight: '700' },
+  configBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
 
   coachIdentityCard: {
     borderRadius: RADIUS.md,
@@ -1289,6 +1074,27 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontStyle: 'italic',
     lineHeight: 22,
+  },
+
+  intentionCard: {
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  intentionLabel: {
+    fontSize: FONT.xs,
+    color: COLORS.accent,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: SPACING.sm,
+  },
+  intentionText: {
+    fontSize: FONT.base,
+    color: COLORS.textPrimary,
+    fontStyle: 'italic',
+    lineHeight: 24,
+    fontWeight: '600',
   },
 
   goalSection: { marginBottom: SPACING.md },
@@ -1382,25 +1188,21 @@ const styles = StyleSheet.create({
   },
   repoBtnText: { fontSize: FONT.sm, fontWeight: '700' },
 
-  // legacy (kept for safety)
-  progressSection: { marginBottom: SPACING.md },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel: { fontSize: FONT.sm, color: COLORS.textSecondary, fontWeight: '600' },
-  progressCount: { fontSize: FONT.sm, color: COLORS.accent, fontWeight: '700' },
-  progressBarBg: {
-    height: 6,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: RADIUS.full,
-    minWidth: 6,
-  },
 
   xpSection: { marginBottom: SPACING.lg },
   xpLabel: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: 4, letterSpacing: 0.5 },
+  xpFloat: {
+    fontSize: FONT.xl, fontWeight: '900',
+    letterSpacing: 0.5, position: 'absolute', left: 0,
+  },
+
+  comboBadge: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: RADIUS.full, borderWidth: 1,
+  },
+  comboText: {
+    fontSize: 10, fontWeight: '900', letterSpacing: 1.5,
+  },
   xpBarBg: {
     height: 3,
     backgroundColor: COLORS.bgCard,
@@ -1422,107 +1224,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
 
-  taskCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
-  taskCardDone: {
-    borderColor: COLORS.success + '30',
-    backgroundColor: 'rgba(52,211,153,0.05)',
-  },
-  taskRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  taskColorBar: { width: 4, alignSelf: 'stretch', borderRadius: 2, margin: 2 },
-  taskInfo: { flex: 1, padding: SPACING.sm },
-  taskHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  taskCategory: { fontSize: FONT.xs, fontWeight: '700', letterSpacing: 1 },
-  taskName: { fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
-  taskNameDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  taskTarget: { fontSize: FONT.sm, color: COLORS.textSecondary },
-  taskDescription: {
-    fontSize: FONT.sm,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.sm,
-    lineHeight: 20,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: SPACING.sm,
-  },
-
-  checkbox: {
-    width: 28,
-    height: 28,
-    borderRadius: RADIUS.sm,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    margin: SPACING.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxDone: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.success,
-  },
-
-  ctaButton: {
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-    marginTop: SPACING.md,
-    ...SHADOW.glow,
-  },
-  ctaButtonDisabled: {
-    opacity: 0.6,
-    shadowOpacity: 0,
-  },
-  ctaGradient: {
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-  },
-  ctaButtonText: {
-    color: '#FFF',
-    fontSize: FONT.md,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-
-  graceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: SPACING.md,
-    gap: 6,
-  },
-  graceButtonText: {
-    color: COLORS.warning,
-    fontSize: FONT.sm,
-    fontWeight: '600',
-  },
-
-  // Penalty
-  penaltyHeader: { alignItems: 'center', marginVertical: SPACING.xl },
-  penaltyTitle: {
-    fontSize: FONT.xl,
-    fontWeight: '900',
-    color: COLORS.danger,
-    letterSpacing: 2,
-    marginTop: SPACING.md,
-  },
-  penaltySubtitle: {
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginTop: SPACING.sm,
-    fontSize: FONT.base,
-    lineHeight: 24,
-  },
-  penaltyTask: {
-    color: COLORS.textPrimary,
-    fontSize: FONT.base,
-    marginVertical: 4,
-    fontWeight: '600',
-  },
 
   // Complete
   completeHeader: { alignItems: 'center', marginVertical: SPACING.xl },
@@ -1547,6 +1248,23 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: FONT.base,
     marginTop: SPACING.lg,
+  },
+  completeCta: {
+    marginTop: SPACING.lg,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.accent,
+  },
+  completeCtaText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: FONT.sm,
+    letterSpacing: 0.5,
   },
 
   // Shared
@@ -1574,162 +1292,3 @@ const styles = StyleSheet.create({
   },
 });
 
-// ─── Penalty Screen ───────────────────────────────────────────────────────────
-const PENALTY_TASKS = [
-  { emoji: '💥', text: '100 sentadillas + 50 flexiones + 30 burpees (sin descanso)' },
-  { emoji: '🧊', text: '5 minutos de ducha fría — sin negociar' },
-  { emoji: '🏃', text: '30 minutos de cardio intenso (carrera, HIIT o saltar la soga)' },
-  { emoji: '✍️', text: 'Carta de compromiso: escribí 200 palabras sobre por qué vas a terminar estos 90 días' },
-];
-
-function PenaltyScreen({
-  dayNumber, onComplete, onGrace,
-}: { dayNumber: number; onComplete: () => void; onGrace?: () => void }) {
-  const [letter, setLetter] = useState('');
-  const [checked, setChecked] = useState<boolean[]>([false, false, false, false]);
-  const allChecked = checked.every(Boolean) && letter.trim().split(/\s+/).length >= 50;
-
-  function toggleCheck(i: number) {
-    setChecked(prev => prev.map((v, idx) => idx === i ? !v : v));
-  }
-
-  function handleComplete() {
-    if (!allChecked) {
-      Alert.alert(
-        'Penitencia incompleta',
-        'Completá todas las tareas y escribí al menos 50 palabras en la carta de compromiso.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    Alert.alert(
-      '¿Confirmás que completaste todo?',
-      'Tu palabra es tu honor. Solo marcá como completo si realmente lo hiciste.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sí, lo hice', onPress: onComplete },
-      ]
-    );
-  }
-
-  const wordCount = letter.trim() === '' ? 0 : letter.trim().split(/\s+/).length;
-
-  return (
-    <LinearGradient colors={['#0A0005', '#1A0008', '#0D0000']} style={styles.container}>
-      <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
-            <View style={penaltyStyles.header}>
-              <Text style={penaltyStyles.skull}>💀</Text>
-              <Text style={penaltyStyles.title}>MISIÓN DE{'\n'}PENITENCIA</Text>
-              <Text style={penaltyStyles.subtitle}>
-                Día {dayNumber} — fallaste ayer. No se negocia, no se pospone.{'\n'}
-                Completá todo antes de seguir.
-              </Text>
-            </View>
-
-            <Text style={penaltyStyles.sectionLabel}>LAS 4 PRUEBAS</Text>
-            {PENALTY_TASKS.map((task, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[penaltyStyles.taskCard, checked[i] && penaltyStyles.taskCardDone]}
-                onPress={() => toggleCheck(i)}
-                activeOpacity={0.8}
-              >
-                <View style={[penaltyStyles.checkbox, checked[i] && penaltyStyles.checkboxDone]}>
-                  {checked[i] && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900' }}>✓</Text>}
-                </View>
-                <Text style={penaltyStyles.taskEmoji}>{task.emoji}</Text>
-                <Text style={[penaltyStyles.taskText, checked[i] && penaltyStyles.taskTextDone]}>
-                  {task.text}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            <Text style={[penaltyStyles.sectionLabel, { marginTop: SPACING.lg }]}>
-              CARTA DE COMPROMISO
-            </Text>
-            <Text style={penaltyStyles.letterHint}>
-              ¿Por qué empezaste esto? ¿Quién querés ser en 90 días? ¿Qué cambiaría si terminás?
-            </Text>
-            <TextInput
-              style={penaltyStyles.letterInput}
-              value={letter}
-              onChangeText={setLetter}
-              multiline
-              placeholder="Escribí desde el corazón. Mínimo 50 palabras..."
-              placeholderTextColor={COLORS.textMuted}
-              textAlignVertical="top"
-            />
-            <Text style={[penaltyStyles.wordCount, wordCount >= 50 && { color: COLORS.success }]}>
-              {wordCount} palabras {wordCount >= 50 ? '✓' : '(mínimo 50)'}
-            </Text>
-
-            <TouchableOpacity
-              style={[penaltyStyles.completeBtn, !allChecked && { opacity: 0.5 }]}
-              onPress={handleComplete}
-              activeOpacity={0.85}
-            >
-              <LinearGradient
-                colors={allChecked ? ['#EF4444', '#7C3AED'] : ['#333', '#222']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={penaltyStyles.completeBtnInner}
-              >
-                <Text style={penaltyStyles.completeBtnText}>
-                  {allChecked ? '⚔️ COMPLETÉ LA PENITENCIA' : `Faltan ${checked.filter(Boolean).length}/4 tareas`}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {onGrace && (
-              <TouchableOpacity style={penaltyStyles.graceBtn} onPress={onGrace}>
-                <Text style={{ fontSize: 16 }}>🛡️</Text>
-                <Text style={penaltyStyles.graceBtnText}>Usar día de gracia (1 disponible este mes)</Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
-  );
-}
-
-const penaltyStyles = StyleSheet.create({
-  header: { alignItems: 'center', paddingVertical: SPACING.lg },
-  skull: { fontSize: 56, marginBottom: SPACING.sm },
-  title: { fontSize: 34, fontWeight: '900', color: '#F5F0FF', textAlign: 'center',
-    lineHeight: 38, marginBottom: SPACING.sm,
-    textShadowColor: '#EF4444', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 },
-  subtitle: { fontSize: FONT.sm, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
-  sectionLabel: { fontSize: FONT.xs, color: '#EF4444', fontWeight: '800',
-    letterSpacing: 2, marginBottom: SPACING.sm },
-  taskCard: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: RADIUS.lg,
-    padding: SPACING.md, marginBottom: SPACING.sm,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)' },
-  taskCardDone: { backgroundColor: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)' },
-  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2,
-    borderColor: '#EF4444', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
-  checkboxDone: { backgroundColor: COLORS.success, borderColor: COLORS.success },
-  taskEmoji: { fontSize: 20, flexShrink: 0 },
-  taskText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
-  taskTextDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
-  letterHint: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.sm, lineHeight: 18 },
-  letterInput: { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
-    color: COLORS.textPrimary, fontSize: FONT.base, padding: SPACING.md,
-    minHeight: 160, lineHeight: 24 },
-  wordCount: { fontSize: FONT.xs, color: COLORS.textMuted, textAlign: 'right',
-    marginTop: 4, marginBottom: SPACING.lg },
-  completeBtn: { borderRadius: RADIUS.xl, overflow: 'hidden', marginBottom: SPACING.md },
-  completeBtnInner: { paddingVertical: 16, alignItems: 'center' },
-  completeBtnText: { color: '#fff', fontSize: FONT.base, fontWeight: '900', letterSpacing: 1.5 },
-  graceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.sm, padding: SPACING.md,
-    borderRadius: RADIUS.lg, borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)',
-    backgroundColor: 'rgba(245,158,11,0.08)' },
-  graceBtnText: { fontSize: FONT.sm, color: COLORS.warning, fontWeight: '600' },
-});

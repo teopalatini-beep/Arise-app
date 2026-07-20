@@ -1,749 +1,834 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  Animated, Dimensions, ScrollView, TextInput, KeyboardAvoidingView, Platform,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  ImageSourcePropType,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, FONT, RADIUS, SPACING } from '../src/theme';
-import { OnboardingData, UserGoals, AdaptiveChallenge, AdaptiveTrack, CoachId, DietStyle, ActivityProfile, NutritionProfile } from '../src/types';
-import { scheduleAllNotifications, loadNotifSettings, saveNotifSettings } from '../src/lib/notifications';
-import { deriveAdaptiveProfile } from '../src/data/program';
-import { initProgram, useApp } from '../src/context/AppContext';
+import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { CoachId, OnboardingData, OnboardingFocus, UserGoals } from '@/types';
+import { useApp } from '@/context/AppContext';
+import { deriveAdaptiveProfile } from '@/data/program';
+import { trackOnboardingStepCompleted, trackOnboardingStepViewed } from '@/services/analytics';
+import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
 
-const { width } = Dimensions.get('window');
-export const ONBOARDING_KEY = 'arise_onboarding_v1';
-
-// ─── Step data ────────────────────────────────────────────────────────────────
-const GOALS = [
-  { key: 'fitness',    emoji: '💪', label: 'Transformación física',  desc: 'Músculo, resistencia y energía' },
-  { key: 'mental',     emoji: '🧠', label: 'Claridad mental',        desc: 'Foco, disciplina y paz interior' },
-  { key: 'discipline', emoji: '⚔️', label: 'Disciplina de élite',    desc: 'Construir hábitos irrompibles' },
-  { key: 'all',        emoji: '🔥', label: 'Todo a la vez',           desc: 'Cuerpo, mente y espíritu' },
-] as const;
-
-const FITNESS_LEVELS = [
-  { key: 'beginner',     emoji: '🌱', label: 'Principiante',   desc: 'Poco o nada de ejercicio regular' },
-  { key: 'intermediate', emoji: '⚡', label: 'Intermedio',     desc: 'Entreno 2-3 veces por semana' },
-  { key: 'advanced',     emoji: '🐉', label: 'Avanzado',       desc: 'Entreno 4+ veces por semana' },
-] as const;
-
-const WAKE_HOURS = [5, 6, 7, 8, 9, 10];
-
-const CHALLENGE_OPTIONS: { key: AdaptiveChallenge; emoji: string; label: string }[] = [
-  { key: 'consistency', emoji: '📅', label: 'Constancia' },
-  { key: 'nutrition', emoji: '🥗', label: 'Nutrición' },
-  { key: 'time', emoji: '⏳', label: 'Falta de tiempo' },
-  { key: 'stress', emoji: '🧘', label: 'Estrés' },
-  { key: 'sleep', emoji: '😴', label: 'Sueño' },
-];
-
-const TRACK_COPY: Record<AdaptiveTrack, { title: string; desc: string; emoji: string }> = {
-  fat_loss: {
-    title: 'Pérdida de grasa',
-    desc: 'Enfoque en déficit inteligente + actividad sostenida.',
-    emoji: '🔥',
-  },
-  muscle_gain: {
-    title: 'Ganancia muscular',
-    desc: 'Prioridad en fuerza progresiva + recuperación.',
-    emoji: '💪',
-  },
-  recomposition: {
-    title: 'Recomposición corporal',
-    desc: 'Bajar grasa y subir músculo de forma equilibrada.',
-    emoji: '⚔️',
-  },
-  maintenance: {
-    title: 'Mantenimiento',
-    desc: 'Sostener resultados y energía sin rebotes.',
-    emoji: '🛡️',
-  },
+type CoachPreset = {
+  id: CoachId;
+  name: string;
+  emoji: string;
+  accent: string;
+  quote: string;
+  gameplay: string;
+  image: ImageSourcePropType;
 };
 
-const DIET_STYLE_OPTIONS: { key: DietStyle; label: string; emoji: string }[] = [
-  { key: 'balanced', label: 'Balanceado', emoji: '⚖️' },
-  { key: 'high_protein', label: 'Alto en proteína', emoji: '🥩' },
-  { key: 'low_carb', label: 'Bajo en carbos', emoji: '🥗' },
-  { key: 'vegetarian', label: 'Vegetariano', emoji: '🌱' },
+const COACHES: CoachPreset[] = [
+  {
+    id: 'goku',
+    name: 'Goku',
+    emoji: '🐉',
+    accent: '#F59E0B',
+    quote: 'No importa cuantas veces caigas. Siempre levantate con mas hambre.',
+    gameplay: 'Hardcore energia',
+    image: require('../assets/coaches/goku/home.png'),
+  },
+  {
+    id: 'itachi',
+    name: 'Itachi',
+    emoji: '👁️',
+    accent: '#EF4444',
+    quote: 'Disciplina silenciosa. El control interno vence al caos externo.',
+    gameplay: 'Disciplina estoica fria',
+    image: require('../assets/coaches/itachi/home.png'),
+  },
+  {
+    id: 'gojo',
+    name: 'Gojo',
+    emoji: '♾️',
+    accent: '#38BDF8',
+    quote: 'Tu foco define tu limite. Expandilo.',
+    gameplay: 'Enfoque absoluto',
+    image: require('../assets/coaches/gojo/home.png'),
+  },
+  {
+    id: 'rengoku',
+    name: 'Rengoku',
+    emoji: '🔥',
+    accent: '#F97316',
+    quote: 'Prende fuego tu voluntad y empuja hasta el final.',
+    gameplay: 'Intensidad constante',
+    image: require('../assets/coaches/rengoku/home.png'),
+  },
+  {
+    id: 'jiraiya',
+    name: 'Jiraiya',
+    emoji: '📜',
+    accent: '#84CC16',
+    quote: 'El progreso real viene de entrenar, observar y ajustar.',
+    gameplay: 'Sabiduria tactica',
+    image: require('../assets/coaches/jiraiya/home.png'),
+  },
+  {
+    id: 'all_might',
+    name: 'All Might',
+    emoji: '💪',
+    accent: '#3B82F6',
+    quote: 'Cuando no puedas mas, da un paso extra. Plus Ultra.',
+    gameplay: 'Voluntad heroica',
+    image: require('../assets/coaches/all_might/home.png'),
+  },
 ];
 
-const ACTIVITY_OPTIONS: { key: ActivityProfile; label: string; emoji: string }[] = [
-  { key: 'sedentary', label: 'Sedentario', emoji: '🪑' },
-  { key: 'moderate', label: 'Moderado', emoji: '🚶' },
-  { key: 'active', label: 'Activo', emoji: '🏃' },
+const FOCUS_OPTIONS: Array<{ id: OnboardingFocus; label: string; emoji: string }> = [
+  { id: 'cuerpo', label: 'Cuerpo', emoji: '💪' },
+  { id: 'mente', label: 'Mente', emoji: '🧠' },
+  { id: 'productividad', label: 'Productividad', emoji: '⚡' },
+  { id: 'espiritu', label: 'Espiritu', emoji: '🧘' },
 ];
 
-const SENSEIS = [
-  { id: 'goku' as CoachId,      emoji: '🐉', name: 'Goku',      color: '#F59E0B', ranks: 'Guerrero → Ultra Instinto',       desc: 'Superación sin límites' },
-  { id: 'itachi' as CoachId,    emoji: '👁️', name: 'Itachi',    color: '#EF4444', ranks: 'Genin → Mangekyo Sharingan',      desc: 'Poder en silencio' },
-  { id: 'rengoku' as CoachId,   emoji: '🔥', name: 'Rengoku',   color: '#F97316', ranks: 'Aprendiz → Más Allá del Humano', desc: 'Corazón en llamas' },
-  { id: 'jiraiya' as CoachId,   emoji: '📜', name: 'Jiraiya',   color: '#84CC16', ranks: 'Aprendiz → Sannin Legendario',   desc: 'Sabiduría del camino' },
-  { id: 'gojo' as CoachId,      emoji: '♾️', name: 'Gojo',      color: '#38BDF8', ranks: 'Grado 2 → El Más Fuerte',        desc: 'Infinito dominio' },
-  { id: 'all_might' as CoachId, emoji: '💪', name: 'All Might', color: '#3B82F6', ranks: 'Estudiante → Símbolo de la Paz', desc: 'Plus Ultra siempre' },
-];
+const TOTAL_STEPS = 3;
+const STEP_NAMES = ['pacto', 'objetivos', 'coach'] as const;
+
+function parseNumber(input: string): number | undefined {
+  if (!input.trim()) return undefined;
+  const parsed = Number(input.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function inferGoal(focus: OnboardingFocus[]): OnboardingData['goal'] {
+  const hasBody = focus.includes('cuerpo');
+  const hasMind = focus.includes('mente');
+  const hasProductivity = focus.includes('productividad');
+  if (focus.length >= 3) return 'all';
+  if (hasBody && !hasMind) return 'fitness';
+  if (hasMind || hasProductivity) return 'mental';
+  return 'discipline';
+}
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { applyOnboardingProfile } = useApp();
+  const { completeOnboarding } = useApp();
+  const { reducedMotion } = useReducedMotionSetting();
+
   const [step, setStep] = useState(0);
-  const [goal, setGoal] = useState<OnboardingData['goal']>('all');
-  const [fitnessLevel, setFitnessLevel] = useState<OnboardingData['fitnessLevel']>('beginner');
-  const [wakeUpHour, setWakeUpHour] = useState(7);
-  // Step 4 — datos físicos
-  const [age, setAge] = useState('');
-  const [weight, setWeight] = useState('');
-  const [height, setHeight] = useState('');
-  const [trainingDays, setTrainingDays] = useState(3);
-  // Step 5 — objetivos
+  const [submitting, setSubmitting] = useState(false);
+  const [name, setName] = useState('');
+  const [focusAreas, setFocusAreas] = useState<OnboardingFocus[]>(['cuerpo', 'mente']);
+  const [readingPagesPerDay, setReadingPagesPerDay] = useState('12');
+  const [meditationMinutesPerDay, setMeditationMinutesPerDay] = useState('10');
+  const [waterLitersPerDay, setWaterLitersPerDay] = useState('2.5');
   const [targetWeight, setTargetWeight] = useState('');
-  const [targetPages, setTargetPages] = useState('');
-  const [targetStreak, setTargetStreak] = useState('');
-  const [challenges, setChallenges] = useState<AdaptiveChallenge[]>([]);
-  const [dietStyle, setDietStyle] = useState<DietStyle>('balanced');
-  const [activityProfile, setActivityProfile] = useState<ActivityProfile>('moderate');
-  const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [currentWeight, setCurrentWeight] = useState('');
   const [selectedCoachId, setSelectedCoachId] = useState<CoachId>('goku');
 
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const totalSteps = 7;
+  const transition = useRef(new Animated.Value(0)).current;
 
-  function nextStep() {
+  const currentCoach = useMemo(
+    () => COACHES.find((coach) => coach.id === selectedCoachId) ?? COACHES[0],
+    [selectedCoachId],
+  );
+  const showBodyMetrics = focusAreas.includes('cuerpo');
+  const showMindMetrics = focusAreas.includes('mente');
+  const showSpiritMetrics = focusAreas.includes('espiritu');
+  const showProductivityMetrics = focusAreas.includes('productividad');
+  const shouldTrackReading = showMindMetrics || showProductivityMetrics;
+  const shouldTrackMeditation = showMindMetrics || showSpiritMetrics;
+  const shouldTrackWater = showBodyMetrics || showSpiritMetrics;
+  const shouldTrackWeight = showBodyMetrics;
+
+  function animateStep(nextStep: number) {
+    if (reducedMotion) {
+      setStep(nextStep);
+      return;
+    }
     Animated.sequence([
-      Animated.timing(slideAnim, { toValue: -width, duration: 250, useNativeDriver: true }),
-    ]).start(() => {
-      setStep(s => s + 1);
-      slideAnim.setValue(width);
-      Animated.spring(slideAnim, { toValue: 0, tension: 60, friction: 9, useNativeDriver: true }).start();
-    });
+      Animated.timing(transition, {
+        toValue: 1,
+        duration: 170,
+        useNativeDriver: true,
+      }),
+      Animated.timing(transition, {
+        toValue: 0,
+        duration: 170,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setStep(nextStep);
   }
 
-  function parseNumber(value: string): number | undefined {
-    if (!value.trim()) return undefined;
-    const parsed = parseFloat(value.replace(',', '.'));
-    return Number.isFinite(parsed) ? parsed : undefined;
+  function goNext() {
+    if (step === 0 && name.trim().length < 2) {
+      Alert.alert('Nombre incompleto', 'Escribe al menos 2 caracteres para firmar el pacto.');
+      return;
+    }
+    if (step === 1 && focusAreas.length === 0) {
+      Alert.alert('Define tu enfoque', 'Selecciona al menos un foco principal de transformacion.');
+      return;
+    }
+    void trackOnboardingStepCompleted(step + 1, STEP_NAMES[step]);
+    animateStep(Math.min(step + 1, TOTAL_STEPS - 1));
   }
 
-  function toggleChallenge(challenge: AdaptiveChallenge) {
-    setChallenges(prev =>
-      prev.includes(challenge)
-        ? prev.filter(item => item !== challenge)
-        : [...prev, challenge]
-    );
+  function goBack() {
+    animateStep(Math.max(step - 1, 0));
   }
 
-  const adaptivePreview = deriveAdaptiveProfile({
-    goal,
-    currentWeight: parseNumber(weight),
-    targetWeight: parseNumber(targetWeight),
-    challenges,
-  });
+  function toggleFocus(focus: OnboardingFocus) {
+    setFocusAreas((prev) => (
+      prev.includes(focus)
+        ? prev.filter((item) => item !== focus)
+        : [...prev, focus]
+    ));
+  }
 
-  const nutritionTip = (() => {
-    if (adaptivePreview.track === 'muscle_gain') return 'Priorizá proteína en cada comida y un extra post-entreno.';
-    if (adaptivePreview.track === 'fat_loss') return 'Apuntá a porciones simples y saciedad alta con verduras + proteína.';
-    if (adaptivePreview.track === 'recomposition') return 'Distribuí proteína parejo y mantené volumen de entrenamiento estable.';
-    return 'Mantené un patrón simple y consistente para sostener resultados.';
-  })();
-
-  async function finish() {
-    const parsedWeight = parseNumber(weight);
-    const parsedTargetWeight = parseNumber(targetWeight);
-    const adaptiveProfile = deriveAdaptiveProfile({
-      goal,
-      currentWeight: parsedWeight,
-      targetWeight: parsedTargetWeight,
-      challenges,
-    });
+  async function finishOnboarding() {
+    if (submitting) return;
+    setSubmitting(true);
+    void trackOnboardingStepCompleted(step + 1, STEP_NAMES[step]);
 
     const goals: UserGoals = {
-      targetWeight: parsedTargetWeight,
-      targetReadingPages: targetPages ? parseInt(targetPages) : undefined,
-      targetStreak: targetStreak ? parseInt(targetStreak) : undefined,
+      targetWeight: shouldTrackWeight ? parseNumber(targetWeight) : undefined,
+      targetReadingPagesPerDay: shouldTrackReading ? parseNumber(readingPagesPerDay) : undefined,
+      targetMeditationMinutesPerDay: shouldTrackMeditation ? parseNumber(meditationMinutesPerDay) : undefined,
+      targetWaterLitersPerDay: shouldTrackWater ? parseNumber(waterLitersPerDay) : undefined,
+      targetReadingPages: (() => {
+        if (!shouldTrackReading) return undefined;
+        const perDay = parseNumber(readingPagesPerDay);
+        return typeof perDay === 'number' ? Math.round(perDay * 90) : undefined;
+      })(),
     };
-    const nutritionProfile: NutritionProfile = {
-      dietStyle,
-      mealsPerDay,
-      activityProfile,
-    };
-    const onboarding: OnboardingData = {
-      completed: true, goal, fitnessLevel, wakeUpHour,
-      age: age ? parseInt(age) : undefined,
-      initialWeight: parsedWeight,
-      height: height ? parseFloat(height) : undefined,
-      trainingDaysPerWeek: trainingDays,
+
+    const onboardingData: OnboardingData = {
+      completed: true,
+      name: name.trim(),
+      goal: inferGoal(focusAreas),
+      fitnessLevel: 'intermediate',
+      wakeUpHour: 7,
+      focusAreas,
+      initialWeight: parseNumber(currentWeight),
       goals,
-      adaptiveProfile,
-      nutritionProfile,
+      adaptiveProfile: deriveAdaptiveProfile({
+        goal: inferGoal(focusAreas),
+        currentWeight: parseNumber(currentWeight),
+        targetWeight: parseNumber(targetWeight),
+      }),
       preferredCoachId: selectedCoachId,
     };
-    await AsyncStorage.setItem(ONBOARDING_KEY, JSON.stringify(onboarding));
-    applyOnboardingProfile(onboarding);
-    await initProgram();
 
-    // Ajustar hora de notificación mañanera al horario de despertar + 30 min
-    const notifSettings = await loadNotifSettings();
-    const morningHour = Math.min(wakeUpHour + 1, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    await saveNotifSettings({ ...notifSettings, morningHour });
-    await scheduleAllNotifications({ ...notifSettings, morningHour }, today);
+    const result = await completeOnboarding(onboardingData);
 
-    router.replace('/welcome');
+    if (!result.synced && result.warning) {
+      Alert.alert('Guardado local activo', result.warning);
+    }
+
+    setSubmitting(false);
+    router.replace('/(tabs)');
   }
+
+  const animatedStyle = {
+    opacity: transition.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0.35],
+    }),
+    transform: [
+      {
+        translateY: transition.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 14],
+        }),
+      },
+    ],
+  };
+
+  useEffect(() => {
+    void trackOnboardingStepViewed(step + 1, STEP_NAMES[step]);
+  }, [step]);
 
   return (
     <LinearGradient colors={['#05050A', '#0A0A14', '#0F0F1E']} style={styles.container}>
       <SafeAreaView style={styles.safe}>
-
-        {/* Progress dots */}
-        <View style={styles.dotsRow}>
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <View key={i} style={[styles.dot, i <= step && styles.dotActive, i === step && styles.dotCurrent]} />
+        <View style={styles.progressRow}>
+          {Array.from({ length: TOTAL_STEPS }).map((_, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.progressDot,
+                idx <= step && styles.progressDotActive,
+                idx === step && { width: 26 },
+              ]}
+            />
           ))}
         </View>
 
-        <Animated.View style={[styles.content, { transform: [{ translateX: slideAnim }] }]}>
-
-          {/* STEP 0 — Bienvenida */}
+        <Animated.View style={[styles.body, animatedStyle]}>
           {step === 0 && (
-            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-            <View>
-              <Text style={styles.bigEmoji}>炎</Text>
-              <Text style={styles.stepTitle}>Bienvenido a{'\n'}ARISE</Text>
-              <Text style={styles.stepSubtitle}>
-                90 días para convertirte en la mejor versión de vos mismo.{'\n\n'}
-                Sin excusas. Sin negociaciones.{'\n'}
-                Solo vos contra quien solías ser.
-              </Text>
-              <View style={styles.featureList}>
-                {[
-                  { emoji: '🔥', text: 'Tareas diarias progresivas' },
-                  { emoji: '⚡', text: 'Sistema de XP y niveles' },
-                  { emoji: '📜', text: 'Diario de transformación' },
-                  { emoji: '🎯', text: 'Contenido desbloqueado por fase' },
-                ].map((f, i) => (
-                  <View key={i} style={styles.featureRow}>
-                    <Text style={styles.featureEmoji}>{f.emoji}</Text>
-                    <Text style={styles.featureText}>{f.text}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-            </ScrollView>
-          )}
-
-          {/* STEP 1 — Objetivo */}
-          {step === 1 && (
-            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-            <View>
-              <Text style={styles.stepLabel}>PASO 1 DE 6</Text>
-              <Text style={styles.stepTitle}>¿Cuál es tu{'\n'}objetivo principal?</Text>
-              <Text style={styles.stepSubtitle}>Esto personaliza el enfoque de tu programa.</Text>
-              <View style={styles.optionsGrid}>
-                {GOALS.map(g => (
-                  <TouchableOpacity
-                    key={g.key}
-                    style={[styles.optionCard, goal === g.key && styles.optionCardActive]}
-                    onPress={() => setGoal(g.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.optionEmoji}>{g.emoji}</Text>
-                    <Text style={[styles.optionLabel, goal === g.key && { color: COLORS.accent }]}>{g.label}</Text>
-                    <Text style={styles.optionDesc}>{g.desc}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            </ScrollView>
-          )}
-
-          {/* STEP 2 — Nivel fitness */}
-          {step === 2 && (
-            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-            <View>
-              <Text style={styles.stepLabel}>PASO 2 DE 6</Text>
-              <Text style={styles.stepTitle}>¿Cuál es tu nivel{'\n'}de fitness actual?</Text>
-              <Text style={styles.stepSubtitle}>Sé honesto — el programa se adapta a vos.</Text>
-              <View style={styles.optionsList}>
-                {FITNESS_LEVELS.map(f => (
-                  <TouchableOpacity
-                    key={f.key}
-                    style={[styles.listOption, fitnessLevel === f.key && styles.listOptionActive]}
-                    onPress={() => setFitnessLevel(f.key)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.listEmoji}>{f.emoji}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.listLabel, fitnessLevel === f.key && { color: COLORS.accent }]}>{f.label}</Text>
-                      <Text style={styles.listDesc}>{f.desc}</Text>
-                    </View>
-                    {fitnessLevel === f.key && (
-                      <Text style={{ color: COLORS.accent, fontSize: 18 }}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-            </ScrollView>
-          )}
-
-          {/* STEP 3 — Datos físicos */}
-          {step === 3 && (
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-              <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Text style={styles.stepLabel}>PASO 3 DE 6</Text>
-                <Text style={styles.stepTitle}>Tu punto{'\n'}de partida</Text>
-                <Text style={styles.stepSubtitle}>Datos opcionales para medir tu evolución real a lo largo de 90 días.</Text>
-
-                <View style={styles.inputGroup}>
-                  {[
-                    { label: '🎂 Edad', value: age, setter: setAge, placeholder: 'ej: 25', keyboard: 'numeric' as const },
-                    { label: '⚖️ Peso actual (kg)', value: weight, setter: setWeight, placeholder: 'ej: 78.5', keyboard: 'decimal-pad' as const },
-                    { label: '📏 Altura (cm)', value: height, setter: setHeight, placeholder: 'ej: 178', keyboard: 'numeric' as const },
-                  ].map(f => (
-                    <View key={f.label} style={styles.inputRow}>
-                      <Text style={styles.inputLabel}>{f.label}</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={f.value}
-                        onChangeText={f.setter}
-                        placeholder={f.placeholder}
-                        placeholderTextColor={COLORS.textMuted}
-                        keyboardType={f.keyboard}
-                        returnKeyType="next"
-                      />
-                    </View>
-                  ))}
-                </View>
-
-                <Text style={styles.inputLabel}>🏋️ Días de entrenamiento por semana</Text>
-                <View style={styles.hoursGrid}>
-                  {[2, 3, 4, 5, 6, 7].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      style={[styles.hourChip, trainingDays === n && styles.hourChipActive]}
-                      onPress={() => setTrainingDays(n)}
-                    >
-                      <Text style={[styles.hourText, trainingDays === n && { color: '#fff' }]}>{n}d</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={styles.inputLabel}>🍽️ Estrategia de nutrición</Text>
-                <View style={styles.challengeGrid}>
-                  {DIET_STYLE_OPTIONS.map((item) => {
-                    const active = dietStyle === item.key;
-                    return (
-                      <TouchableOpacity
-                        key={item.key}
-                        style={[styles.challengeChip, active && styles.challengeChipActive]}
-                        onPress={() => setDietStyle(item.key)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.challengeEmoji}>{item.emoji}</Text>
-                        <Text style={[styles.challengeText, active && { color: '#fff' }]}>{item.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <Text style={styles.inputLabel}>⚡ Nivel de actividad diaria</Text>
-                <View style={styles.challengeGrid}>
-                  {ACTIVITY_OPTIONS.map((item) => {
-                    const active = activityProfile === item.key;
-                    return (
-                      <TouchableOpacity
-                        key={item.key}
-                        style={[styles.challengeChip, active && styles.challengeChipActive]}
-                        onPress={() => setActivityProfile(item.key)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.challengeEmoji}>{item.emoji}</Text>
-                        <Text style={[styles.challengeText, active && { color: '#fff' }]}>{item.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <Text style={styles.inputLabel}>🍱 Comidas por día</Text>
-                <View style={styles.hoursGrid}>
-                  {[2, 3, 4, 5, 6].map(n => (
-                    <TouchableOpacity
-                      key={n}
-                      style={[styles.hourChip, mealsPerDay === n && styles.hourChipActive]}
-                      onPress={() => setMealsPerDay(n)}
-                    >
-                      <Text style={[styles.hourText, mealsPerDay === n && { color: '#fff' }]}>{n} comidas</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <View style={styles.recommendationsBox}>
-                  <Text style={styles.inputLabel}>🧠 Ajuste nutricional sugerido</Text>
-                  <Text style={styles.recommendationText}>{nutritionTip}</Text>
-                </View>
-              </ScrollView>
-            </KeyboardAvoidingView>
-          )}
-
-          {/* STEP 4 — Objetivos medibles */}
-          {step === 4 && (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-              <ScrollView contentContainerStyle={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <Text style={styles.stepLabel}>PASO 4 DE 6</Text>
-                <Text style={styles.stepTitle}>Tus objetivos{'\n'}en 90 días</Text>
-                <Text style={styles.stepSubtitle}>La app va a trackear tu progreso hacia estas metas. Podés saltear cualquiera.</Text>
-
-                <View style={styles.inputGroup}>
-                  <View style={styles.goalCard}>
-                    <Text style={styles.goalEmoji}>⚖️</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.goalLabel}>Peso objetivo (kg)</Text>
-                      <Text style={styles.goalHint}>¿Cuánto querés pesar al final?</Text>
-                    </View>
-                    <TextInput
-                      style={styles.goalInput}
-                      value={targetWeight}
-                      onChangeText={setTargetWeight}
-                      placeholder={weight || '70'}
-                      placeholderTextColor={COLORS.textMuted}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-
-                  <View style={styles.goalCard}>
-                    <Text style={styles.goalEmoji}>📚</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.goalLabel}>Páginas a leer en total</Text>
-                      <Text style={styles.goalHint}>En 90 días, ¿cuántas páginas?</Text>
-                    </View>
-                    <TextInput
-                      style={styles.goalInput}
-                      value={targetPages}
-                      onChangeText={setTargetPages}
-                      placeholder="1800"
-                      placeholderTextColor={COLORS.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
-
-                  <View style={styles.goalCard}>
-                    <Text style={styles.goalEmoji}>🔥</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.goalLabel}>Racha máxima objetivo</Text>
-                      <Text style={styles.goalHint}>Días consecutivos sin fallar</Text>
-                    </View>
-                    <TextInput
-                      style={styles.goalInput}
-                      value={targetStreak}
-                      onChangeText={setTargetStreak}
-                      placeholder="90"
-                      placeholderTextColor={COLORS.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.adaptiveCard}>
-                  <Text style={styles.adaptiveTitle}>
-                    {TRACK_COPY[adaptivePreview.track].emoji} Ruta sugerida: {TRACK_COPY[adaptivePreview.track].title}
-                  </Text>
-                  <Text style={styles.adaptiveDesc}>{TRACK_COPY[adaptivePreview.track].desc}</Text>
-                  {typeof adaptivePreview.weightDelta === 'number' && (
-                    <Text style={styles.adaptiveMeta}>
-                      Cambio objetivo: {adaptivePreview.weightDelta > 0 ? '+' : ''}{adaptivePreview.weightDelta} kg
-                      · ritmo recomendado {adaptivePreview.weeklyTargetKg} kg/semana
-                    </Text>
-                  )}
-                </View>
-
-                <Text style={styles.inputLabel}>🧩 ¿Qué te cuesta más hoy?</Text>
-                <Text style={styles.stepSubtitle}>
-                  Elegí tus principales bloqueos y te vamos a priorizar actividades concretas.
+              <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+                <Text style={styles.stepLabel}>PASO 1 · EL PACTO</Text>
+                <Text style={styles.title}>Firma tu contrato de 90 dias</Text>
+                <Text style={styles.subtitle}>
+                  Ha llegado el momento de quemar las naves y no mirar atras. No es motivacion pasajera:
+                  es identidad. Definis quien sos con lo que ejecutas cada dia.
                 </Text>
-                <View style={styles.challengeGrid}>
-                  {CHALLENGE_OPTIONS.map((item) => {
-                    const active = challenges.includes(item.key);
-                    return (
-                      <TouchableOpacity
-                        key={item.key}
-                        style={[styles.challengeChip, active && styles.challengeChipActive]}
-                        onPress={() => toggleChallenge(item.key)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.challengeEmoji}>{item.emoji}</Text>
-                        <Text style={[styles.challengeText, active && { color: '#fff' }]}>{item.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+
+                <View style={styles.inputCard}>
+                  <Text style={styles.inputLabel}>Nombre del guerrero</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Ej: Teo"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="words"
+                  />
                 </View>
 
-                <Text style={styles.inputLabel}>✅ Actividades recomendadas para empezar</Text>
-                <View style={styles.recommendationsBox}>
-                  {adaptivePreview.recommendations.map((rec) => (
-                    <View key={rec} style={styles.recommendationRow}>
-                      <Text style={styles.recommendationBullet}>•</Text>
-                      <Text style={styles.recommendationText}>{rec}</Text>
-                    </View>
-                  ))}
+                <View style={[styles.pactCard, { borderColor: `${currentCoach.accent}88` }]}>
+                  <Text style={styles.pactTitle}>Pacto Inmutable</Text>
+                  <Text style={styles.pactBody}>
+                    {name.trim() || 'Tu nombre'}, hoy quemas las naves: no hay retirada, solo avance.
+                    {'\n'}
+                    Cada dia que cumples fortalece tu identidad.
+                  </Text>
                 </View>
               </ScrollView>
             </KeyboardAvoidingView>
           )}
 
-          {/* STEP 5 — Sensei Selection */}
-          {step === 5 && (
-            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-            <View>
-              <Text style={styles.stepLabel}>PASO 5 DE 6</Text>
-              <Text style={styles.stepTitle}>Elegí tu{'\n'}Sensei</Text>
-              <Text style={styles.stepSubtitle}>
-                Tu sensei cambia los colores, los rangos y las frases de motivación de toda la app.
+          {step === 1 && (
+            <ScrollView contentContainerStyle={styles.scroll}>
+              <Text style={styles.stepLabel}>PASO 2 · OBJETIVOS</Text>
+              <Text style={styles.title}>Define tu build inicial</Text>
+              <Text style={styles.subtitle}>
+                Elegi focos concretos y calibramos metas numericas para personalizar las misiones desde el dia 1.
               </Text>
-              <View style={styles.senseiGrid}>
-                {SENSEIS.map((s) => {
-                  const active = selectedCoachId === s.id;
+
+              <View style={styles.focusWrap}>
+                {FOCUS_OPTIONS.map((focus) => {
+                  const active = focusAreas.includes(focus.id);
                   return (
                     <TouchableOpacity
-                      key={s.id}
+                      key={focus.id}
+                      activeOpacity={0.85}
+                      onPress={() => toggleFocus(focus.id)}
                       style={[
-                        styles.senseiCard,
-                        { borderColor: active ? s.color : 'rgba(255,255,255,0.1)' },
-                        active && { backgroundColor: `${s.color}18` },
+                        styles.focusChip,
+                        active && { borderColor: currentCoach.accent, backgroundColor: `${currentCoach.accent}22` },
                       ]}
-                      onPress={() => setSelectedCoachId(s.id)}
-                      activeOpacity={0.8}
                     >
-                      <Text style={styles.senseiEmoji}>{s.emoji}</Text>
-                      <Text style={[styles.senseiName, active && { color: s.color }]}>{s.name}</Text>
-                      <Text style={styles.senseiRanks}>{s.ranks}</Text>
-                      <Text style={styles.senseiDesc}>{s.desc}</Text>
+                      <Text style={styles.focusEmoji}>{focus.emoji}</Text>
+                      <Text style={[styles.focusText, active && { color: '#FFFFFF' }]}>{focus.label}</Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            </View>
+
+              <View style={styles.metricsCard}>
+                {shouldTrackReading && (
+                  <MetricInput label="Paginas por dia" value={readingPagesPerDay} onChange={setReadingPagesPerDay} />
+                )}
+                {shouldTrackMeditation && (
+                  <MetricInput label="Meditacion (min/dia)" value={meditationMinutesPerDay} onChange={setMeditationMinutesPerDay} />
+                )}
+                {shouldTrackWater && (
+                  <MetricInput label="Agua (litros/dia)" value={waterLitersPerDay} onChange={setWaterLitersPerDay} />
+                )}
+                {shouldTrackWeight && (
+                  <>
+                    <MetricInput label="Peso actual (kg)" value={currentWeight} onChange={setCurrentWeight} />
+                    <MetricInput label="Peso objetivo (kg)" value={targetWeight} onChange={setTargetWeight} />
+                  </>
+                )}
+                {!shouldTrackReading && !shouldTrackMeditation && !shouldTrackWater && !shouldTrackWeight && (
+                  <Text style={styles.metricHint}>
+                    Selecciona al menos un foco para recomendarte metas personalizadas.
+                  </Text>
+                )}
+              </View>
             </ScrollView>
           )}
 
-          {/* STEP 6 — Hora de despertar */}
-          {step === 6 && (
-            <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-            <View>
-              <Text style={styles.stepLabel}>PASO 6 DE 6</Text>
-              <Text style={styles.stepTitle}>¿A qué hora{'\n'}te despertás?</Text>
-              <Text style={styles.stepSubtitle}>
-                Ajustamos tu notificación de mañana para que llegue justo cuando estás listo para arrancar.
+          {step === 2 && (
+            <ScrollView contentContainerStyle={styles.scroll}>
+              <Text style={styles.stepLabel}>PASO 3 · ARQUETIPO</Text>
+              <Text style={styles.title}>Selecciona tu mentor activo</Text>
+              <Text style={styles.subtitle}>
+                El coach define tono visual, energia y estilo de empuje durante todo el programa.
               </Text>
-              <View style={styles.hoursGrid}>
-                {WAKE_HOURS.map(h => (
-                  <TouchableOpacity
-                    key={h}
-                    style={[styles.hourChip, wakeUpHour === h && styles.hourChipActive]}
-                    onPress={() => setWakeUpHour(h)}
-                  >
-                    <Text style={[styles.hourText, wakeUpHour === h && { color: '#fff' }]}>{h}:00 hs</Text>
-                  </TouchableOpacity>
-                ))}
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselRow}>
+                {COACHES.map((coach) => {
+                  const active = selectedCoachId === coach.id;
+                  return (
+                    <CoachOptionCard
+                      key={coach.id}
+                      coach={coach}
+                      active={active}
+                      reducedMotion={reducedMotion}
+                      onPress={() => setSelectedCoachId(coach.id)}
+                    />
+                  );
+                })}
+              </ScrollView>
+              <Text style={styles.carouselHint}>Desliza para ver mas coaches</Text>
+
+              <View style={[styles.selectionRecap, { borderColor: `${currentCoach.accent}55` }]}>
+                <Text style={[styles.selectionTitle, { color: currentCoach.accent }]}>
+                  Mentor seleccionado: {currentCoach.name}
+                </Text>
+                <Text style={styles.selectionText}>
+                  Focos: {focusAreas.length > 0 ? focusAreas.join(' · ') : 'sin definir'}
+                </Text>
+                <Text style={styles.selectionText}>
+                  Targets: {[
+                    shouldTrackReading ? `${readingPagesPerDay} pags/dia` : null,
+                    shouldTrackMeditation ? `${meditationMinutesPerDay} min/dia` : null,
+                    shouldTrackWater ? `${waterLitersPerDay} L/dia` : null,
+                    shouldTrackWeight && targetWeight.trim() ? `peso objetivo ${targetWeight} kg` : null,
+                  ].filter(Boolean).join(' · ') || 'sin metas numericas por ahora'}
+                </Text>
               </View>
-              <View style={styles.summaryBox}>
-                <Text style={styles.summaryTitle}>Tu programa personalizado:</Text>
-                <Text style={styles.summaryItem}>🎯 Objetivo: {GOALS.find(g => g.key === goal)?.label}</Text>
-                <Text style={styles.summaryItem}>💪 Nivel: {FITNESS_LEVELS.find(f => f.key === fitnessLevel)?.label}</Text>
-                <Text style={styles.summaryItem}>🍽️ Nutrición: {DIET_STYLE_OPTIONS.find(d => d.key === dietStyle)?.label}</Text>
-                <Text style={styles.summaryItem}>🐉 Sensei: {SENSEIS.find(s => s.id === selectedCoachId)?.name} · {SENSEIS.find(s => s.id === selectedCoachId)?.ranks}</Text>
-                <Text style={styles.summaryItem}>⏰ Notificación mañana: {Math.min(wakeUpHour + 1, 10)}:00 hs</Text>
-              </View>
-            </View>
             </ScrollView>
           )}
-
         </Animated.View>
 
-        {/* CTA Button */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={step < totalSteps - 1 ? nextStep : finish} activeOpacity={0.85}>
-            <LinearGradient
-              colors={['#E8460A', '#7C3AED']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={styles.btn}
-            >
-              <Text style={styles.btnText}>
-                {step === 0 ? 'COMENZAR ⚔️' : step < totalSteps - 1 ? 'SIGUIENTE →' : 'ARISE 🔥'}
+          <TouchableOpacity style={styles.secondaryBtn} disabled={step === 0 || submitting} onPress={goBack}>
+            <Text style={[styles.secondaryText, (step === 0 || submitting) && { opacity: 0.35 }]}>Atras</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: currentCoach.accent }]}
+            disabled={submitting}
+            onPress={step === TOTAL_STEPS - 1 ? finishOnboarding : goNext}
+          >
+            <View style={styles.primaryContent}>
+              {submitting && <ActivityIndicator size="small" color="#FFFFFF" />}
+              <Text style={styles.primaryText}>
+                {submitting ? 'Guardando...' : step === TOTAL_STEPS - 1 ? 'Activar ARISE' : 'Siguiente'}
               </Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
-
       </SafeAreaView>
     </LinearGradient>
+  );
+}
+
+function MetricInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={styles.metricRow}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <TextInput
+        style={styles.metricInput}
+        value={value}
+        onChangeText={onChange}
+        keyboardType="decimal-pad"
+        placeholder="0"
+        placeholderTextColor={COLORS.textMuted}
+      />
+    </View>
+  );
+}
+
+function CoachOptionCard({
+  coach,
+  active,
+  reducedMotion = false,
+  onPress,
+}: {
+  coach: CoachPreset;
+  active: boolean;
+  reducedMotion?: boolean;
+  onPress: () => void;
+}) {
+  const aura = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const lift = useRef(new Animated.Value(0)).current;
+  const pressScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (reducedMotion) {
+      aura.setValue(active ? 1 : 0);
+      return;
+    }
+    Animated.timing(aura, {
+      toValue: active ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [active, aura, reducedMotion]);
+
+  useEffect(() => {
+    if (reducedMotion || !active) {
+      lift.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(lift, { toValue: -4, duration: 900, useNativeDriver: true }),
+        Animated.timing(lift, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, lift, reducedMotion]);
+
+  function handlePressIn() {
+    if (reducedMotion) return;
+    Animated.timing(pressScale, {
+      toValue: 0.975,
+      duration: 110,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  function handlePressOut() {
+    if (reducedMotion) return;
+    Animated.timing(pressScale, {
+      toValue: 1,
+      duration: 140,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  const auraScale = aura.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.95, 1.08],
+  });
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.95}
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      accessibilityRole="button"
+      accessibilityLabel={`Seleccionar coach ${coach.name}`}
+    >
+      <Animated.View
+        style={[
+          styles.coachCard,
+          active && { borderColor: coach.accent, shadowColor: coach.accent, shadowOpacity: 0.5 },
+          { transform: [{ translateY: lift }, { scale: pressScale }] },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.coachActiveAura,
+            {
+              backgroundColor: `${coach.accent}26`,
+              opacity: aura,
+              transform: [{ scale: auraScale }],
+            },
+          ]}
+        />
+        <View style={[styles.coachGlow, { backgroundColor: `${coach.accent}22` }]} />
+        <View style={[styles.coachPortraitFrame, { borderColor: `${coach.accent}88` }]}>
+          <Image source={coach.image} style={styles.coachPortrait} resizeMode="cover" />
+          <View style={styles.coachPortraitOverlay} />
+          <Text style={styles.coachEmoji}>{coach.emoji}</Text>
+        </View>
+        <Text style={[styles.coachName, active && { color: coach.accent }]}>{coach.name}</Text>
+        <Text style={styles.coachMode}>{coach.gameplay}</Text>
+        <Text style={styles.coachQuote}>“{coach.quote}”</Text>
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingTop: SPACING.md },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.15)' },
-  dotActive: { backgroundColor: 'rgba(232,70,10,0.5)' },
-  dotCurrent: { width: 24, backgroundColor: '#E8460A' },
-
-  content: { flex: 1 },
-  stepContainer: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: 120 },
-
-  bigEmoji: { fontSize: 64, color: '#E8460A', textAlign: 'center', marginBottom: SPACING.md,
-    textShadowColor: '#E8460A', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 20 },
-  stepLabel: { fontSize: FONT.xs, color: '#E8460A', fontWeight: '800', letterSpacing: 2, marginBottom: SPACING.sm },
-  stepTitle: { fontSize: 34, fontWeight: '900', color: '#F5F0FF', lineHeight: 40, marginBottom: SPACING.sm },
-  stepSubtitle: { fontSize: FONT.base, color: COLORS.textSecondary, lineHeight: 24, marginBottom: SPACING.lg },
-
-  featureList: { gap: SPACING.sm },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.md, padding: SPACING.md },
-  featureEmoji: { fontSize: 22 },
-  featureText: { fontSize: FONT.base, color: COLORS.textPrimary, fontWeight: '600' },
-
-  optionsGrid: { gap: SPACING.sm },
-  optionCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.lg,
-    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  optionCardActive: { borderColor: '#E8460A', backgroundColor: 'rgba(232,70,10,0.1)' },
-  optionEmoji: { fontSize: 28, marginBottom: 4 },
-  optionLabel: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
-  optionDesc: { fontSize: FONT.xs, color: COLORS.textMuted },
-
-  optionsList: { gap: SPACING.sm },
-  listOption: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.lg,
-    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  listOptionActive: { borderColor: '#E8460A', backgroundColor: 'rgba(232,70,10,0.1)' },
-  listEmoji: { fontSize: 28 },
-  listLabel: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
-  listDesc: { fontSize: FONT.xs, color: COLORS.textMuted },
-
-  inputGroup: { gap: SPACING.sm, marginBottom: SPACING.md },
-  inputRow: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: RADIUS.md,
-    padding: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  inputLabel: { fontSize: FONT.sm, color: COLORS.textSecondary, fontWeight: '700', marginBottom: 6 },
-  inputField: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 10,
-    color: COLORS.textPrimary,
-    fontSize: FONT.base,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-
-  goalCard: {
+  progressRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: SPACING.md,
+  },
+  progressDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  progressDotActive: {
+    backgroundColor: '#E8460A',
+  },
+  body: { flex: 1 },
+  scroll: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    gap: SPACING.md,
+  },
+  stepLabel: {
+    fontSize: FONT.xs,
+    color: '#E8460A',
+    letterSpacing: 2,
+    fontWeight: '800',
+  },
+  title: {
+    color: '#F5F0FF',
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: '900',
+  },
+  subtitle: {
+    color: COLORS.textSecondary,
+    fontSize: FONT.base,
+    lineHeight: 23,
+  },
+  inputCard: {
     backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.sm,
-  },
-  goalEmoji: { fontSize: 22 },
-  goalLabel: { color: COLORS.textPrimary, fontSize: FONT.sm, fontWeight: '800' },
-  goalHint: { color: COLORS.textMuted, fontSize: FONT.xs, marginTop: 2 },
-  goalInput: {
-    minWidth: 72,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 12,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    fontWeight: '700',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-
-  hoursGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
-  hourChip: { paddingHorizontal: SPACING.md, paddingVertical: 14,
-    borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: 'rgba(255,255,255,0.05)' },
-  hourChipActive: { backgroundColor: '#E8460A', borderColor: '#E8460A' },
-  hourText: { fontSize: FONT.sm, color: COLORS.textMuted, fontWeight: '700' },
-
-  summaryBox: { backgroundColor: 'rgba(232,70,10,0.08)', borderRadius: RADIUS.lg,
-    padding: SPACING.md, borderWidth: 1, borderColor: 'rgba(232,70,10,0.25)', gap: 8 },
-  summaryTitle: { fontSize: FONT.sm, color: '#E8460A', fontWeight: '800', marginBottom: 4 },
-  summaryItem: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22 },
-
-  adaptiveCard: {
-    backgroundColor: 'rgba(124,58,237,0.12)',
     borderRadius: RADIUS.lg,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.35)',
+    borderColor: COLORS.border,
     padding: SPACING.md,
-    marginBottom: SPACING.md,
-    gap: 6,
   },
-  adaptiveTitle: { color: '#D8B4FE', fontSize: FONT.base, fontWeight: '800' },
-  adaptiveDesc: { color: COLORS.textSecondary, fontSize: FONT.sm, lineHeight: 20 },
-  adaptiveMeta: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
-
-  challengeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md },
-  challengeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 12,
-    borderRadius: RADIUS.full,
+  inputLabel: {
+    color: COLORS.textSecondary,
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    marginBottom: SPACING.sm,
+  },
+  input: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  challengeChipActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
-  challengeEmoji: { fontSize: 14 },
-  challengeText: { color: COLORS.textMuted, fontSize: FONT.xs, fontWeight: '700' },
-
-  recommendationsBox: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: SPACING.md,
-    gap: 8,
-    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    color: COLORS.textPrimary,
+    fontSize: FONT.base,
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
-  recommendationRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  recommendationBullet: { color: '#E8460A', fontWeight: '900', marginTop: -1 },
-  recommendationText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT.sm, lineHeight: 20 },
-  senseiGrid: {
+  pactCard: {
+    borderWidth: 1,
+    backgroundColor: 'rgba(232,70,10,0.09)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: 10,
+  },
+  pactTitle: {
+    color: '#E8460A',
+    fontSize: FONT.sm,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  pactBody: {
+    color: COLORS.textPrimary,
+    fontSize: FONT.base,
+    lineHeight: 24,
+    fontWeight: '600',
+  },
+  focusWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-    justifyContent: 'space-between',
   },
-  senseiCard: {
-    width: '48%',
+  focusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.full,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  focusEmoji: { fontSize: 14 },
+  focusText: {
+    color: COLORS.textMuted,
+    fontSize: FONT.sm,
+    fontWeight: '700',
+  },
+  metricsCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: RADIUS.lg,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  metricLabel: {
+    flex: 1,
+    color: COLORS.textSecondary,
+    fontSize: FONT.sm,
+    fontWeight: '600',
+  },
+  metricInput: {
+    width: 98,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  metricHint: {
+    color: COLORS.textMuted,
+    fontSize: FONT.sm,
+    lineHeight: 20,
+  },
+  carouselRow: {
+    gap: SPACING.sm,
+    paddingVertical: 4,
+  },
+  carouselHint: {
+    color: COLORS.textMuted,
+    fontSize: FONT.xs,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+    letterSpacing: 0.4,
+  },
+  coachCard: {
+    width: 250,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.04)',
     padding: SPACING.md,
-    alignItems: 'center',
-    gap: 4,
+    gap: 8,
+    overflow: 'hidden',
   },
-  senseiEmoji: { fontSize: 36, marginBottom: 4 },
-  senseiName: { color: COLORS.textPrimary, fontSize: FONT.base, fontWeight: '900', textAlign: 'center' },
-  senseiRanks: { color: COLORS.textMuted, fontSize: 10, fontWeight: '700', textAlign: 'center' },
-  senseiDesc: { color: COLORS.textSecondary, fontSize: FONT.xs, textAlign: 'center', lineHeight: 16 },
-
-  footer: { padding: SPACING.lg },
-  btn: { borderRadius: RADIUS.xl, paddingVertical: 16, alignItems: 'center',
-    shadowColor: '#E8460A', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 12, elevation: 10 },
-  btnText: { color: '#fff', fontSize: FONT.base, fontWeight: '900', letterSpacing: 2 },
+  coachActiveAura: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: RADIUS.lg,
+  },
+  coachGlow: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  coachPortraitFrame: {
+    width: '100%',
+    height: 120,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.2,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  coachPortrait: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  coachPortraitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5,5,10,0.35)',
+  },
+  coachEmoji: {
+    fontSize: 28,
+    margin: SPACING.sm,
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
+  },
+  coachName: {
+    color: COLORS.textPrimary,
+    fontSize: FONT.lg,
+    fontWeight: '900',
+  },
+  coachMode: {
+    color: COLORS.textMuted,
+    fontSize: FONT.xs,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  coachQuote: {
+    color: COLORS.textSecondary,
+    fontSize: FONT.sm,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  selectionRecap: {
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: SPACING.md,
+    gap: 6,
+  },
+  selectionTitle: {
+    fontSize: FONT.base,
+    fontWeight: '900',
+  },
+  selectionText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT.sm,
+    lineHeight: 20,
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  secondaryBtn: {
+    flex: 1,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  secondaryText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT.base,
+    fontWeight: '700',
+  },
+  primaryBtn: {
+    flex: 1.8,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    shadowColor: '#E8460A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  primaryText: {
+    color: '#FFFFFF',
+    fontSize: FONT.base,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  primaryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
 });

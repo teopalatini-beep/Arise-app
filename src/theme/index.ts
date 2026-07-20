@@ -81,14 +81,14 @@ export const SPACING = {
 
 export const SHADOW = {
   card: {
-    shadowColor: '#4895EF',
+    shadowColor: 'rgba(0,0,0,0.3)',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
   },
   glow: {
-    shadowColor: '#4895EF',
+    shadowColor: '#E8460A',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 20,

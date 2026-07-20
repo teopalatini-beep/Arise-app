@@ -5,15 +5,22 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
-import { COLORS, FONT, RADIUS, SPACING } from '../../src/theme';
-import { DayMetrics } from '../../src/types';
+import { useApp } from '@/context/AppContext';
+import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { DayMetrics } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getStageTheme } from '../../src/lib/progression';
-import CoachParticles from '../../src/components/CoachParticles';
+import { getStageTheme } from '@/lib/progression';
+import CoachParticles from '@components/CoachParticles';
+import ScreenLoadingState from '@components/ui/ScreenLoadingState';
+import StaggerIn from '@components/ui/StaggerIn';
+import { DISCOVERY_TOOLS } from '@/data/discoveryTools';
+import { useJournal } from '@/hooks/useJournal';
+import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
+import { dateFromDayNumber } from '@/lib/dates';
 
 const MOOD_EMOJIS = ['😞', '😕', '😐', '🙂', '😄'];
+const MOOD_LABELS = ['muy_bajo', 'bajo', 'neutral', 'alto', 'excelente'];
 
 // ─── Herramientas data ────────────────────────────────────────────────────────
 interface EmotionTool {
@@ -26,128 +33,15 @@ interface EmotionTool {
   phrases: string[];
 }
 
-const EMOTION_TOOLS: EmotionTool[] = [
-  {
-    id: 'tristeza',
-    emotion: 'Tristeza',
-    emoji: '🌧️',
-    color: '#4FC3F7',
-    message: 'La tristeza es una señal de que algo te importa. No la ignores — atravesala. Cada ola de tristeza que enfrentás te hace más fuerte y más humano.',
-    actions: [
-      'Salí 10 minutos al aire libre, aunque no tengas ganas',
-      'Escribí qué es exactamente lo que duele — ponerlo en palabras lo achica',
-      'Llamá o escribile a alguien de confianza, aunque sea un mensaje corto',
-      'Ducha fría 30 segundos — resetea el sistema nervioso al instante',
-      'Hacé una sola tarea pequeña — la acción rompe la parálisis',
-    ],
-    phrases: [
-      '"No sufras por lo imaginado." — Marco Aurelio',
-      '"Después de la tormenta, el terreno queda más fértil."',
-      '"El dolor es temporal. Darte por vencido es para siempre."',
-      '"Sos más fuerte que lo que sentís ahora mismo."',
-    ],
-  },
-  {
-    id: 'ansiedad',
-    emotion: 'Ansiedad',
-    emoji: '⚡',
-    color: '#FBBF24',
-    message: 'La ansiedad es energía sin dirección. Tu cuerpo se preparó para actuar — dale algo concreto. El 90% de lo que temés nunca pasa. Volvé al presente.',
-    actions: [
-      'Respiración 4-7-8: inhalá 4 seg, retené 7, exhalá 8 — repetí 4 veces',
-      'Grounding: nombrá 5 cosas que ves, 4 que tocás, 3 que escuchás',
-      'Escribí todo lo que te preocupa — sacarlo de la cabeza lo hace manejable',
-      'Separá: ¿qué podés controlar y qué no? Enfocate solo en lo primero',
-      'Movimiento físico intenso 5 min — quema la adrenalina acumulada',
-    ],
-    phrases: [
-      '"El hombre sabio no teme el futuro." — Séneca',
-      '"Si tiene solución, ¿para qué preocuparse? Si no la tiene, tampoco."',
-      '"El momento presente siempre es manejable."',
-      '"Un paso a la vez. Solo el próximo paso."',
-    ],
-  },
-  {
-    id: 'motivacion',
-    emotion: 'Sin motivación',
-    emoji: '🔋',
-    color: '#C084FC',
-    message: 'La motivación no se espera — se genera. Empezá sin querer hacerlo. En 2 minutos de acción la motivación aparece sola. La disciplina es la motivación que no necesita humor.',
-    actions: [
-      'Empezá con 2 minutos de la tarea que evitás — el inicio crea momentum',
-      'Recordá por qué empezaste ARISE — escribilo en una línea',
-      'Ponete música que te active antes de empezar cualquier cosa',
-      '20 flexiones ahora mismo — el cuerpo enciende a la mente',
-      'Reducí el objetivo al mínimo: ¿qué es lo MÁS PEQUEÑO que puedo hacer?',
-    ],
-    phrases: [
-      '"No actúes como si tuvieras diez mil años de vida." — Marco Aurelio',
-      '"Hacelo aunque no tengas ganas. Las ganas vienen después."',
-      '"Cada día que postergás es un día que no volvés a recuperar."',
-      '"Los grandes no esperan inspiración. La crean."',
-    ],
-  },
-  {
-    id: 'enojo',
-    emotion: 'Enojo',
-    emoji: '🔥',
-    color: '#F87171',
-    message: 'El enojo dice que algo te importa. Pero actuar desde el enojo destruye lo que querés proteger. Sentilo, no lo actuès. La respuesta fría es más poderosa.',
-    actions: [
-      'Esperá 10 minutos antes de responder o actuar — el pico baja solo',
-      'Salí del espacio donde estás y caminá rápido',
-      'Respiración de caja: 4 seg inhalá, 4 retené, 4 exhalá, 4 retené',
-      'Escribí lo que pensás sin filtro — en privado, sin enviarlo',
-      'Usá la energía: entrenamiento, carrera, algo físico intenso',
-    ],
-    phrases: [
-      '"¿Cuánto daño te hace la ira? Más del que causó quien te enojó." — Séneca',
-      '"El control propio es la mayor victoria."',
-      '"Responder con calma no es debilidad — es fuerza real."',
-      '"El sabio elige sus batallas. No reacciona a todas las provocaciones."',
-    ],
-  },
-  {
-    id: 'perdido',
-    emotion: 'Perdido en la vida',
-    emoji: '🧭',
-    color: '#68D391',
-    message: 'Sentirte perdido no es el final — es señal de que creciste y tus viejos mapas ya no sirven. Necesitás nuevos. La desorientación precede los mayores saltos.',
-    actions: [
-      'Escribí 10 respuestas a "¿Qué me importa de verdad?" — sin juzgar',
-      'Volvé a lo básico: dormí bien, comé bien, movete — el caos interno empeora sin eso',
-      'Hacé algo por otra persona — el servicio rompe el ensimismamiento',
-      'Hablá con alguien que admires o que haya pasado por algo parecido',
-      'Probá algo completamente nuevo esta semana — la acción genera claridad',
-    ],
-    phrases: [
-      '"No importa cuán despacio vayas, siempre que no te detengas."',
-      '"El sentido no se encuentra — se construye eligiendo."',
-      '"Un paso en la dirección correcta vale más que mil planes."',
-      '"Estás justo donde tenés que estar para dar el siguiente salto."',
-    ],
-  },
-  {
-    id: 'presion',
-    emotion: 'Bajo presión',
-    emoji: '💎',
-    color: '#FB923C',
-    message: 'La presión no te rompe — te define. El diamante se forma bajo presión extrema. Lo que sentís ahora es exactamente lo que necesitás para crecer.',
-    actions: [
-      'Priorizá: ¿cuál es la UNA cosa más importante que hay que resolver?',
-      'Dividí el problema en piezas de 30 minutos — ejecutá una a la vez',
-      'Eliminá todo lo no-esencial de tu lista de hoy',
-      'Respiración profunda x5 antes de cada tarea importante',
-      'Recordá otras veces que sobreviviste a la presión — siempre lo hiciste',
-    ],
-    phrases: [
-      '"Bajo presión, el carbón se convierte en diamante."',
-      '"No te pido que sea fácil. Te pido que valga la pena."',
-      '"La adversidad revela el carácter que ya tenés dentro."',
-      '"Este momento difícil es parte de tu historia de éxito."',
-    ],
-  },
-];
+const EMOTION_TOOLS: EmotionTool[] = DISCOVERY_TOOLS.map((tool) => ({
+  id: tool.id,
+  emotion: tool.emotion,
+  emoji: tool.emoji,
+  color: tool.color,
+  message: tool.description,
+  actions: [...tool.immediate.slice(0, 3), ...tool.shortTerm.slice(0, 2)],
+  phrases: [tool.mindset, tool.stoic],
+}));
 
 function EmotionCard({ tool }: { tool: EmotionTool }) {
   const [expanded, setExpanded] = useState(false);
@@ -304,7 +198,9 @@ const trendStyles = StyleSheet.create({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function DiarioScreen() {
+  const { reducedMotion, screenAnimStyle } = useTabScreenMotion('diario');
   const { data, todayRecord, saveJournal, saveMetrics, getDayRecord, loading } = useApp();
+  const { saveJournalEntry } = useJournal();
   const [text, setText] = useState(todayRecord?.journal ?? '');
   const [mood, setMood] = useState(todayRecord?.metrics?.mood ?? 0);
   const [saved, setSaved] = useState(false);
@@ -317,15 +213,31 @@ export default function DiarioScreen() {
   }, [todayRecord?.journal, todayRecord?.metrics?.mood]);
 
   if (!data) {
+    const fallbackTheme = getStageTheme();
     return (
-      <LinearGradient colors={getStageTheme().background} style={styles.container}>
+      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
         <SafeAreaView style={styles.safe}>
-          <View style={styles.emptyState}>
-            <Ionicons name="book-outline" size={40} color={COLORS.textMuted} />
-            <Text style={styles.emptyText}>
-              {loading ? 'Cargando diario...' : 'No pudimos cargar tu diario.\nRevisa conexión e inicia sesión de nuevo.'}
-            </Text>
-          </View>
+          {loading ? (
+            <ScreenLoadingState
+              title="Diario"
+              subtitle="Abriendo tu pergamino emocional..."
+              icon="book-outline"
+              accent={fallbackTheme.tabActive}
+              reducedMotion={reducedMotion}
+              hints={[
+                'Cargando entrada de hoy',
+                'Preparando estado de animo',
+                'Sincronizando historial',
+              ]}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="book-outline" size={40} color={COLORS.textMuted} />
+              <Text style={styles.emptyText}>
+                No pudimos cargar tu diario.{'\n'}Revisa conexión e inicia sesión de nuevo.
+              </Text>
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
     );
@@ -344,11 +256,28 @@ export default function DiarioScreen() {
     ? journalDays.filter(d => d.journal?.toLowerCase().includes(searchQuery.toLowerCase()))
     : journalDays;
 
-  function handleSave() {
+  async function handleSave() {
+    const currentDay = data?.user.currentDay ?? 0;
     saveJournal(text);
     if (mood > 0) {
       const existing = todayRecord?.metrics ?? {};
       saveMetrics({ ...existing, mood } as DayMetrics);
+    }
+    try {
+      const entryDate = user.startDate
+        ? dateFromDayNumber(user.startDate, currentDay)
+        : new Date().toISOString().slice(0, 10);
+      await saveJournalEntry({
+        date: entryDate,
+        mood: mood > 0 ? MOOD_LABELS[mood - 1] : undefined,
+        reflection: text,
+        tags: [
+          mood > 0 ? `mood:${MOOD_LABELS[mood - 1]}` : null,
+          `day:${currentDay}`,
+        ].filter((tag): tag is string => Boolean(tag)),
+      });
+    } catch (error) {
+      console.error('[Diario] saveJournalEntry failed', error);
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -365,7 +294,8 @@ export default function DiarioScreen() {
     const m = viewingRecord.metrics;
     return (
       <LinearGradient colors={stageTheme.background} style={styles.container}>
-        <CoachParticles coachId={coachId} screen="diario" />
+        <CoachParticles coachId={coachId} screen="diario" tappable reducedMotion={reducedMotion} />
+        <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.viewerHeader}>
             <TouchableOpacity onPress={() => setViewingDay(null)} style={styles.backButton}>
@@ -424,13 +354,15 @@ export default function DiarioScreen() {
             <Text style={styles.viewerText}>{viewingRecord.journal}</Text>
           </ScrollView>
         </SafeAreaView>
+        </Animated.View>
       </LinearGradient>
     );
   }
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={coachId} screen="diario" />
+      <CoachParticles coachId={coachId} screen="diario" tappable reducedMotion={reducedMotion} />
+      <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -532,8 +464,10 @@ export default function DiarioScreen() {
             <Text style={styles.toolsIntro}>
               Tocá la emoción que estás sintiendo para ver qué hacer y frases que ayudan.
             </Text>
-            {EMOTION_TOOLS.map(tool => (
-              <EmotionCard key={tool.id} tool={tool} />
+            {EMOTION_TOOLS.map((tool, index) => (
+              <StaggerIn key={tool.id} index={index} reducedMotion={reducedMotion}>
+                <EmotionCard tool={tool} />
+              </StaggerIn>
             ))}
 
             {/* Mood trend strip */}
@@ -623,6 +557,7 @@ export default function DiarioScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      </Animated.View>
     </LinearGradient>
   );
 }
@@ -638,6 +573,7 @@ const REFLECTION_PROMPTS = [
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  motionLayer: { flex: 1 },
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
 

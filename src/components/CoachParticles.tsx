@@ -10,7 +10,7 @@
 import React, { useEffect, useRef, useState, memo } from 'react';
 import {
   View, Text, Animated, Dimensions, StyleSheet,
-  Image, Modal, TouchableWithoutFeedback,
+  Image, Modal, TouchableWithoutFeedback, TouchableOpacity,
   ImageSourcePropType,
 } from 'react-native';
 import Svg, { Path, Circle, Polygon, Line, G, Ellipse } from 'react-native-svg';
@@ -19,6 +19,7 @@ import { CoachId } from '../types';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 export type ScreenKey = 'home' | 'progreso' | 'diario' | 'discovery' | 'programa' | 'config';
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 // ─── Portrait images (shown only on tap-reveal) ───────────────────────────────
 const PORTRAITS: Record<CoachId, ImageSourcePropType> = {
@@ -444,7 +445,7 @@ export const AMBIENTS: Record<CoachId, SenseiAmbient> = {
 };
 
 // ─── Single animated particle ─────────────────────────────────────────────────
-function Particle({ def }: { def: ParticleDef }) {
+function Particle({ def, reducedMotion }: { def: ParticleDef; reducedMotion: boolean }) {
   const translateY = useRef(new Animated.Value(
     def.rise ? 0 : def.floatY * Math.sin(def.phase * Math.PI * 2)
   )).current;
@@ -455,6 +456,13 @@ function Particle({ def }: { def: ParticleDef }) {
   const rotation   = useRef(new Animated.Value(def.phase)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      translateY.setValue(0);
+      translateX.setValue(0);
+      opacity.setValue(Math.max(0.2, def.opacity * 0.75));
+      return;
+    }
+
     if (def.rise) {
       Animated.loop(
         Animated.timing(translateY, { toValue: -300, duration: def.floatDur * 3, useNativeDriver: true })
@@ -489,7 +497,7 @@ function Particle({ def }: { def: ParticleDef }) {
         Animated.timing(rotation, { toValue: def.phase + 1, duration: 9000, useNativeDriver: true })
       ).start();
     }
-  }, []);
+  }, [def.opacity, def.pulseDur, def.rise, def.drift, def.floatDur, def.floatY, def.phase, def.rotate, opacity, reducedMotion, rotation, translateX, translateY]);
 
   const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const transforms: any[] = [{ translateY }, { translateX }];
@@ -513,11 +521,16 @@ function Particle({ def }: { def: ParticleDef }) {
 }
 
 // ─── Background aura pulse ────────────────────────────────────────────────────
-function Aura({ color }: { color: string }) {
+function Aura({ color, reducedMotion }: { color: string; reducedMotion: boolean }) {
   const scale = useRef(new Animated.Value(0.88)).current;
   const opac  = useRef(new Animated.Value(0.06)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      scale.setValue(1);
+      opac.setValue(0.08);
+      return;
+    }
     Animated.loop(Animated.sequence([
       Animated.timing(scale, { toValue: 1.10, duration: 3600, useNativeDriver: true }),
       Animated.timing(scale, { toValue: 0.88, duration: 3600, useNativeDriver: true }),
@@ -526,7 +539,7 @@ function Aura({ color }: { color: string }) {
       Animated.timing(opac, { toValue: 0.22, duration: 3600, useNativeDriver: true }),
       Animated.timing(opac, { toValue: 0.04, duration: 3600, useNativeDriver: true }),
     ])).start();
-  }, []);
+  }, [opac, reducedMotion, scale]);
 
   return (
     <Animated.View style={[styles.aura, {
@@ -538,11 +551,26 @@ function Aura({ color }: { color: string }) {
 }
 
 // ─── Large faint sigil in background ─────────────────────────────────────────
-function Sigil({ symbol, color, rotates }: { symbol: string; color: string; rotates: boolean }) {
+function Sigil({
+  symbol,
+  color,
+  rotates,
+  reducedMotion,
+}: {
+  symbol: string;
+  color: string;
+  rotates: boolean;
+  reducedMotion: boolean;
+}) {
   const opac     = useRef(new Animated.Value(0.04)).current;
   const rotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      opac.setValue(0.045);
+      rotation.setValue(0);
+      return;
+    }
     Animated.loop(Animated.sequence([
       Animated.timing(opac, { toValue: 0.09, duration: 5000, useNativeDriver: true }),
       Animated.timing(opac, { toValue: 0.03, duration: 5000, useNativeDriver: true }),
@@ -552,7 +580,7 @@ function Sigil({ symbol, color, rotates }: { symbol: string; color: string; rota
         Animated.timing(rotation, { toValue: 1, duration: 20000, useNativeDriver: true })
       ).start();
     }
-  }, []);
+  }, [opac, reducedMotion, rotates, rotation]);
 
   const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
@@ -610,33 +638,91 @@ export default memo(function CoachParticles({
   coachId,
   screen = 'home',
   tappable = false,
+  reducedMotion = false,
 }: {
   coachId:   CoachId;
   screen?:   ScreenKey;
   tappable?: boolean;
+  reducedMotion?: boolean;
 }) {
   const ambient = AMBIENTS[coachId] ?? AMBIENTS.goku;
   const [showPortrait, setShowPortrait] = useState(false);
+  const ctaPulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reducedMotion) {
+      ctaPulse.setValue(0);
+      return;
+    }
+    if (!tappable) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ctaPulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(ctaPulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [ctaPulse, reducedMotion, tappable]);
+
+  const ctaScale = ctaPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.06],
+  });
+  const ctaOpacity = ctaPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.78, 1],
+  });
+  const isTopPlacement = screen === 'diario' || screen === 'config';
 
   return (
     <>
       <View
         style={styles.container}
-        pointerEvents={tappable ? 'box-only' : 'none'}
+        pointerEvents="none"
       >
-        {tappable && (
-          <TouchableWithoutFeedback onPress={() => setShowPortrait(true)}>
-            <View style={StyleSheet.absoluteFillObject} />
-          </TouchableWithoutFeedback>
-        )}
-
-        <Aura color={ambient.glow} />
-        <Sigil symbol={ambient.sigil} color={ambient.glow} rotates={ambient.sigilRotates} />
+        <Aura color={ambient.glow} reducedMotion={reducedMotion} />
+        <Sigil
+          symbol={ambient.sigil}
+          color={ambient.glow}
+          rotates={ambient.sigilRotates}
+          reducedMotion={reducedMotion}
+        />
 
         {ambient.particles.map((def, i) => (
-          <Particle key={i} def={def} />
+          <Particle key={i} def={def} reducedMotion={reducedMotion} />
         ))}
       </View>
+
+      {tappable && (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFillObject}>
+          <AnimatedTouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => setShowPortrait(true)}
+            style={[
+              styles.portalBtn,
+              isTopPlacement ? styles.portalBtnTop : styles.portalBtnBottom,
+              {
+                borderColor: ambient.glow + '66',
+                transform: [{ scale: ctaScale }],
+                opacity: ctaOpacity,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Invocar coach en pantalla completa"
+          >
+            <LinearGradient
+              colors={[ambient.glow + '44', 'rgba(5,5,10,0.7)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.portalInner}
+            >
+              <Text style={styles.portalSymbol}>{ambient.sigil}</Text>
+              <Text style={[styles.portalLabel, { color: ambient.glow }]}>Invocar</Text>
+            </LinearGradient>
+          </AnimatedTouchableOpacity>
+        </View>
+      )}
 
       <PortraitModal
         visible={showPortrait}
@@ -712,5 +798,33 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontWeight:    '600',
     zIndex:        3,
+  },
+  portalBtn: {
+    position: 'absolute',
+    right: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    overflow: 'hidden',
+    zIndex: 20,
+  },
+  portalBtnBottom: { bottom: 112 },
+  portalBtnTop: { top: 96 },
+  portalInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  portalSymbol: {
+    color: '#F5F0FF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  portalLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
 });
