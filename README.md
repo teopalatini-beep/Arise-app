@@ -1,143 +1,112 @@
-# ARISE — Tu programa de 90 días
+# ARISE — 90 Day Challenge
 
-> "Arise — levantáte."  
-> App personal de transformación de 90 días. Construida para Teo.
+App de hábitos con estética shonen: un programa de **90 días** con misiones diarias, XP, rachas y progreso visible. Entrenamiento, lectura, meditación, deep work y más — gamificado para que levantarte sea el default.
 
----
-
-## Pantallas
-
-| Tab | Función |
-|-----|---------|
-| ☀️ Hoy | Tareas del día con checkboxes. Frase motivacional. Progreso del día. |
-| ⊞ Programa | Grilla de los 90 días con colores de estado. Hitos del camino. |
-| 📊 Progreso | Métricas diarias (peso, entrenamiento, lectura, meditación). Historial. |
-| 📓 Diario | Notas y reflexiones diarias. Preguntas para reflexionar. Historial. |
-| ⚙️ Config | Nivel XP, estadísticas, día de gracia, info del programa. |
+> “Arise — levantáte.”
 
 ---
 
-## Instalación paso a paso
+## Qué estoy haciendo
 
-### 1. Instalá Node.js
-Descargá e instalá desde [nodejs.org](https://nodejs.org) (versión LTS recomendada).
+Estoy construyendo una app personal (Expo / React Native) de transformación en 90 días:
 
-### 2. Instalá las dependencias
+1. **Hoy** — misiones del día con checkboxes y frase del momento
+2. **Programa** — grilla de 90 días en 4 fases, con hitos
+3. **Progreso** — métricas (peso, entrenamiento, lectura, meditación, etc.)
+4. **Diario** — reflexiones y notas
+5. **Discovery / coaches / Pomodoro** — herramientas extra para sostener el hábito
+6. **Sync** — auth y datos vía Supabase (cuando está configurado)
+
+No es un tracker genérico: es un **camino con narrativa**, niveles y consecuencias (racha, penitencia, día de gracia).
+
+---
+
+## Por qué lo estoy haciendo
+
+Las apps de hábitos suelen ser listas frías. A los tres días se abandonan.
+
+Quería algo que:
+
+- tenga un **arco claro de 90 días** (no “streak infinito” vacío)
+- haga el progreso **visible y jugable** (XP, fases, misiones)
+- combine **cuerpo + mente + foco** en un solo programa
+- se sienta motivador sin volverse spam de notificaciones vacías
+
+---
+
+## Beneficios
+
+| Beneficio | En la práctica |
+|---|---|
+| **Estructura** | 90 días / 4 fases, no improvisar cada mañana |
+| **Gamificación útil** | XP y niveles atados a misiones reales |
+| **Todo en un lugar** | Hoy + métricas + diario |
+| **Multiplataforma** | Expo: iOS, Android y web |
+| **Sync opcional** | Supabase para no perder el progreso |
+
+---
+
+## Qué hace (y qué no)
+
+**Sí hace**
+- Programa de 90 días con misiones diarias
+- Tracking de métricas y diario
+- Rachas, XP y configuración del challenge
+- Correr en Expo Go / web / builds nativos
+
+**No hace**
+- Coaching médico o nutricional profesional
+- Garantizar resultados: es un sistema de constancia, no magia
+- Funcionar online-only: parte del estado puede vivir en el dispositivo
+
+---
+
+## Stack
+
+- Expo / React Native + TypeScript
+- Expo Router (tabs)
+- AsyncStorage / estado local
+- Supabase (auth + sync, opcional)
+
+---
+
+## Setup rápido
+
 ```bash
-cd arise-app
+git clone https://github.com/teopalatini-beep/Arise-app.git
+cd Arise-app   # o la carpeta local New-app
 npm install
+cp .env.example .env
+# Completá EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY si usás sync
+npm start
 ```
 
-### 3. Correlo en tu computadora (web)
-```bash
-npx expo start --web
-```
-Se abre automáticamente en el navegador.
+| Comando | Qué hace |
+|---|---|
+| `npm start` | Expo Dev Tools / QR |
+| `npm run web` | Corre en el navegador |
+| `npm run ios` | Simulador / device iOS |
+| `npm run android` | Emulador / device Android |
 
-### 4. Correlo en tu celular
-1. Instalá **Expo Go** desde la App Store (iOS) o Google Play
-2. Corré:
-   ```bash
-   npx expo start
-   ```
-3. Escaneá el código QR que aparece en la terminal con la cámara (iOS) o con Expo Go (Android)
+En el celular: instalá **Expo Go**, escaneá el QR.
+
+Los `.env` **nunca** se suben a git.
 
 ---
 
-## Estructura del proyecto
+## Estructura (orientativa)
 
 ```
-arise-app/
-├── app/
-│   ├── _layout.tsx          → Root con provider
-│   └── (tabs)/
-│       ├── _layout.tsx      → Tab bar
-│       ├── index.tsx        → Pantalla "Hoy"
-│       ├── programa.tsx     → Grilla 90 días
-│       ├── progreso.tsx     → Métricas y progreso
-│       ├── diario.tsx       → Diario personal
-│       └── config.tsx       → Configuración
-├── src/
-│   ├── context/
-│   │   └── AppContext.tsx   → Estado global + AsyncStorage
-│   ├── data/
-│   │   └── program.ts       → Las 90 tareas de Teo
-│   ├── theme/
-│   │   └── index.ts         → Colores y tipografía
-│   └── types/
-│       └── index.ts         → Tipos TypeScript
-└── package.json
+app/                 → pantallas (tabs, auth, discovery…)
+src/
+  data/              → programa, misiones
+  services/          → métricas, journal, analytics
+  theme/             → design system
+supabase/            → schema / config
 ```
 
 ---
 
-## Tu programa de 90 días
+## Estado del proyecto
 
-**Fase 1 (Días 1-10): Fundación**
-- Entrenamiento: 20-28 min
-- Lectura: 10-13 páginas
-- Meditación: 5-7 min
-- Agua: 2L / Trabajo enfocado: 45-58 min
-
-**Fase 2 (Días 11-30): Construcción**
-- Entrenamiento: sube hasta ~45 min
-- Lectura: sube a ~20 páginas
-- Meditación: sube a ~10 min
-- Trabajo: sube a ~90 min
-
-**Fase 3 (Días 31-60): Momentum**
-- Se agrega Visualización (día 20+)
-- Se agrega Ducha fría (día 40+)
-- Entrenamiento: 45-65 min con HIIT y pesas
-- Trabajo profundo: hasta 135 min
-
-**Fase 4 (Días 61-90): Elite**
-- Entrenamiento: 70-95 min
-- Lectura: hasta 40 páginas
-- Meditación: 20 min
-- Trabajo: hasta 3 horas
-- Ducha fría: hasta 5 min
-
----
-
-## Sistema de penalización
-
-- **Si fallás un día** → Aparece una misión de penitencia (entrenamiento doble + meditación + carta de compromiso)
-- **Si completás la penitencia** → Continuás desde donde estabas (racha reset a 0)
-- **Día de gracia** → 1 por mes. No pierdes el progreso, solo la racha. Usalo con criterio.
-
----
-
-## Backend (cuentas + nube)
-
-La app usa **Supabase** para:
-- Autenticación (registro/login/reset contraseña)
-- Guardado en la nube por usuario
-- Recuperar todo el progreso al iniciar sesión desde cualquier dispositivo
-
-### Configuración rápida del backend
-
-1. Abrí tu proyecto en Supabase.
-2. Andá a **SQL Editor**.
-3. Ejecutá el script `supabase/schema.sql`.
-4. Creá un archivo `.env` (podés copiar `.env.example`) y completá:
-   - `EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co`
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY=<tu_anon_key>`
-5. Verificá que existan tablas: `profiles`, `day_records`, `metrics`, `journal`.
-
-Con eso, cada usuario tendrá su información persistida y privada (RLS por `auth.uid()`).
-
-### EAS secrets (builds de producción)
-
-Para no depender del `.env` local en builds remotos, cargá estas variables en EAS:
-
-```bash
-eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL --value "https://<project-ref>.supabase.co"
-eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<tu_anon_key>"
-```
-
-También podés repetirlo para `preview` o `development` cambiando `--environment`.
-
----
-
-*Arise — levantáte. 90 días. Sin excusas.*
+App en uso y evolución activa (UI, misiones, progreso). El README describe el producto; el programa concreto vive en `src/data/`.
