@@ -9,20 +9,18 @@ import { FONT, RADIUS, SPACING } from '@/theme';
 const { width, height } = Dimensions.get('window');
 
 const QUOTES = [
-  { text: 'El que abandona no gana, y el que gana no abandona.', author: 'Rock Lee' },
-  { text: 'No importa cuántas veces caiga. Me levantaré cada vez.', author: 'Naruto Uzumaki' },
-  { text: 'El trabajo duro supera al talento cuando el talento no trabaja duro.', author: 'Rock Lee' },
-  { text: 'El camino al poder nunca fue fácil. Es esa dificultad la que te hace crecer.', author: 'Vegeta' },
-  { text: 'No llores de derrota, aprende de ella.', author: 'Piccolo' },
-  { text: 'La determinación es lo que separa a los fuertes de los débiles.', author: 'Tanjiro Kamado' },
-  { text: 'Si naces sin alas, no hagas nada para impedirles crecer.', author: 'Coco Chanel' },
-  { text: 'Supérate. Sé mejor que el yo de ayer.', author: 'Inosuke Hashibira' },
-  { text: 'El dolor que sientes hoy será la fuerza que sentirás mañana.', author: 'ARISE' },
-  { text: 'No te entrenes hasta que duela. Entrénate hasta que no duela nunca más.', author: 'ARISE' },
-  { text: 'Los límites existen solo en la mente de los débiles.', author: 'Vegeta' },
-  { text: 'El fuego en tus ojos vale más que el fuego en tus manos.', author: 'Rengoku' },
-  { text: 'Pon tu corazón en llamas y no dejes que nadie lo apague.', author: 'Kyojuro Rengoku' },
-  { text: 'La disciplina construye imperios que la motivación solo sueña.', author: 'ARISE' },
+  { text: 'La disciplina es el puente entre las metas y los logros.', author: 'Jim Rohn' },
+  { text: 'No desees que sea mas facil. Desea ser mejor.', author: 'Jim Rohn' },
+  { text: 'Cuando tu mente diga que ya esta, todavia te queda mas.', author: 'David Goggins' },
+  { text: 'Programa el sufrimiento en tu dia. Asi se callosia la mente.', author: 'David Goggins' },
+  { text: 'La motivacion es mentira. Los sistemas y la ejecucion ganan.', author: 'Alex Hormozi' },
+  { text: 'Sale mas fuerte de lo dificil. Eso es adaptabilidad.', author: 'Alex Hormozi' },
+  { text: 'Procrastinar suele ser miedo disfrazado de pereza.', author: 'Chris Williamson' },
+  { text: 'El cuerpo disciplinado le ensena a la mente que puede hacer cosas dificiles.', author: 'Chris Williamson' },
+  { text: 'El gym es metafora de la vida: lo que plantas ahi florece afuera.', author: 'Greg Plitt' },
+  { text: 'El “quiero” se defiende con accion, no con intencion.', author: 'Greg Plitt' },
+  { text: 'La disciplina pesa gramos. El arrepentimiento, toneladas.', author: 'Coach ARISE' },
+  { text: 'Resultado > intencion. Hoy se construye el estandar.', author: 'Coach ARISE' },
 ];
 
 export default function WelcomeScreen() {
@@ -78,7 +76,7 @@ export default function WelcomeScreen() {
 
       {/* Partículas decorativas */}
       <View style={[styles.particle, { top: height * 0.12, left: width * 0.08 }]} />
-      <View style={[styles.particle, { top: height * 0.25, right: width * 0.1, width: 4, height: 4, backgroundColor: '#F59E0B40' }]} />
+      <View style={[styles.particle, { top: height * 0.25, right: width * 0.1, width: 4, height: 4, backgroundColor: '#818CF840' }]} />
       <View style={[styles.particle, { bottom: height * 0.3, left: width * 0.15, width: 3, height: 3 }]} />
       <View style={[styles.particle, { bottom: height * 0.18, right: width * 0.2 }]} />
 
@@ -88,7 +86,7 @@ export default function WelcomeScreen() {
         <View style={styles.emblemContainer}>
           <Animated.View style={[styles.emblemOuter, { opacity: glowOpacity }]} />
           <View style={styles.emblem}>
-            <Text style={styles.emblemText}>炎</Text>
+            <Text style={styles.emblemText}>気</Text>
           </View>
         </View>
 
@@ -123,7 +121,7 @@ export default function WelcomeScreen() {
             accessibilityLabel="Comenzar jornada"
           >
             <LinearGradient
-              colors={['#E8460A', '#7C3AED']}
+              colors={['#6366F1', '#38BDF8']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.btn}
@@ -157,11 +155,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 320, height: 320,
     borderRadius: 160,
-    backgroundColor: '#E8460A',
+    backgroundColor: '#6366F1',
     top: height * 0.2,
     alignSelf: 'center',
     filter: undefined,
-    shadowColor: '#E8460A',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 120,
@@ -171,10 +169,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 200, height: 200,
     borderRadius: 100,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#38BDF8',
     top: height * 0.26,
     alignSelf: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#38BDF8',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 80,
@@ -184,7 +182,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 5, height: 5,
     borderRadius: 3,
-    backgroundColor: '#E8460A40',
+    backgroundColor: '#818CF840',
   },
 
   content: {
@@ -201,8 +199,8 @@ const styles = StyleSheet.create({
   emblemOuter: {
     position: 'absolute',
     width: 110, height: 110, borderRadius: 55,
-    backgroundColor: '#E8460A',
-    shadowColor: '#E8460A',
+    backgroundColor: '#6366F1',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 30,
@@ -212,13 +210,13 @@ const styles = StyleSheet.create({
     width: 90, height: 90, borderRadius: 45,
     backgroundColor: '#0F0F1E',
     borderWidth: 2,
-    borderColor: '#E8460A',
+    borderColor: '#818CF8',
     alignItems: 'center', justifyContent: 'center',
   },
-  emblemText: { fontSize: 42, color: '#E8460A' },
+  emblemText: { fontSize: 42, color: '#A5B4FC' },
 
   welcomeLabel: {
-    fontSize: FONT.xs, color: '#E8460A',
+    fontSize: FONT.xs, color: '#818CF8',
     fontWeight: '900', letterSpacing: 6,
     marginBottom: SPACING.xs,
   },
@@ -226,27 +224,27 @@ const styles = StyleSheet.create({
     fontSize: 42, fontWeight: '900',
     color: '#F5F0FF', letterSpacing: 3,
     textAlign: 'center',
-    textShadowColor: '#E8460A',
+    textShadowColor: '#6366F1',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
     marginBottom: SPACING.sm,
   },
 
   dayBadge: {
-    borderWidth: 1, borderColor: 'rgba(232,70,10,0.4)',
+    borderWidth: 1, borderColor: 'rgba(129,140,248,0.35)',
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.md, paddingVertical: 4,
-    backgroundColor: 'rgba(232,70,10,0.1)',
+    backgroundColor: 'rgba(99,102,241,0.12)',
     marginBottom: SPACING.lg,
   },
-  dayText: { fontSize: FONT.xs, color: '#E8460A', fontWeight: '800', letterSpacing: 2 },
+  dayText: { fontSize: FONT.xs, color: '#A5B4FC', fontWeight: '800', letterSpacing: 2 },
 
   divider: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     width: '80%', marginBottom: SPACING.lg,
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
-  dividerSymbol: { fontSize: 14, color: '#F59E0B' },
+  dividerSymbol: { fontSize: 14, color: '#A5B4FC' },
 
   quoteContainer: {
     alignItems: 'center', marginBottom: SPACING.xl,

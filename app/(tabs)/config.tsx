@@ -9,7 +9,7 @@ import { useApp, xpForLevel } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
-import { BADGE_DEFINITIONS, RANK_COLORS, BadgeId } from '@/types';
+import { BADGE_DEFINITIONS, RANK_COLORS, RANK_LABELS, BadgeId } from '@/types';
 import { getStageTheme } from '@/lib/progression';
 import { deleteUserData } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
@@ -19,7 +19,15 @@ import {
   NotifSettings, DEFAULT_SETTINGS,
   loadNotifSettings, saveNotifSettings,
   syncNotificationSchedule, requestNotificationPermissions, debugScheduledNotifications,
+  coachContextToNotifContext,
 } from '@/lib/notifications';
+import {
+  loadPersonalCoachEnabled,
+  savePersonalCoachEnabled,
+  loadLocalCoachContext,
+} from '@/services/coachMemory';
+import { format, subDays } from 'date-fns';
+import { PERSONAL_COACH_ENABLED_KEY } from '@/lib/storageKeys';
 import { requestCalendarPermission, addMilestoneEvent } from '@/lib/calendar';
 import ScreenLoadingState from '@components/ui/ScreenLoadingState';
 import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
@@ -32,21 +40,88 @@ export default function ConfigScreen() {
   const { logout, userEmail } = useAuth();
   const [notif, setNotif] = useState<NotifSettings>(DEFAULT_SETTINGS);
   const [busyAction, setBusyAction] = useState<'none' | 'backup' | 'delete'>('none');
+  const [nextNotifPreview, setNextNotifPreview] = useState<string>('Cargando...');
+  const [personalCoachOn, setPersonalCoachOn] = useState(true);
 
   useEffect(() => {
-    loadNotifSettings().then(setNotif);
+    loadNotifSettings().then(async (settings) => {
+      const personal = await loadPersonalCoachEnabled();
+      setPersonalCoachOn(personal);
+      setNotif({ ...settings, personalCoachEnabled: personal });
+    });
   }, []);
+
+  useEffect(() => {
+    void refreshNextNotifPreview();
+  }, [notif, personalCoachOn, data?.user?.preferredCoachId]);
+
+  async function refreshNextNotifPreview() {
+    try {
+      const items = await debugScheduledNotifications();
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const ctx = await loadLocalCoachContext(today);
+      const hasMemory = Boolean(
+        personalCoachOn &&
+          ctx &&
+          ((ctx.topics?.length ?? 0) > 0 || (ctx.commitments?.length ?? 0) > 0),
+      );
+
+      if (items.length === 0) {
+        setNextNotifPreview(
+          hasMemory
+            ? 'Hay memoria del chat, pero no hay notificaciones programadas. Activa permisos.'
+            : 'No hay notificaciones programadas.',
+        );
+        return;
+      }
+
+      const now = new Date();
+      const hour = now.getHours();
+      const upcoming =
+        items.find((item) => {
+          const match = item.trigger.match(/daily (\d{2}):/);
+          if (!match) return true;
+          return parseInt(match[1], 10) > hour;
+        }) ?? items[0];
+
+      const mode = hasMemory ? 'contextual (segun lo hablado)' : 'generico (repertorio)';
+      setNextNotifPreview(
+        `${upcoming.trigger}\n${upcoming.title}\n${upcoming.body.slice(0, 140)}${upcoming.body.length > 140 ? '…' : ''}\n\nModo: ${mode}`,
+      );
+    } catch {
+      setNextNotifPreview('No se pudo leer el proximo mensaje.');
+    }
+  }
 
   async function updateNotif(patch: Partial<NotifSettings>) {
     const next = { ...notif, ...patch };
     setNotif(next);
     await saveNotifSettings(next);
     if (data?.user) {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+      const [todayCtx, yesterdayCtx] = await Promise.all([
+        loadLocalCoachContext(today),
+        loadLocalCoachContext(yesterday),
+      ]);
+      const coachContext = coachContextToNotifContext(todayCtx);
+      if (coachContext && yesterdayCtx) {
+        coachContext.yesterdayCommitment = yesterdayCtx.commitments?.[0];
+        coachContext.yesterdayTopic = yesterdayCtx.topics?.[0];
+      }
       await syncNotificationSchedule(data.user, {
         settings: next,
         requestPermission: false,
+        coachContext: next.personalCoachEnabled === false ? null : coachContext,
       });
+      await refreshNextNotifPreview();
     }
+  }
+
+  async function handlePersonalCoachToggle(value: boolean) {
+    setPersonalCoachOn(value);
+    await savePersonalCoachEnabled(value);
+    await updateNotif({ personalCoachEnabled: value });
   }
 
   async function handleEnableToggle(value: boolean) {
@@ -177,6 +252,7 @@ export default function ConfigScreen() {
         ONBOARDING_KEY,
         ONBOARDING_STATUS_KEY,
         COACH_STORAGE_KEY,
+        PERSONAL_COACH_ENABLED_KEY,
       ]);
       await logout();
       Alert.alert(
@@ -216,7 +292,7 @@ export default function ConfigScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.profileName}>{user.name}</Text>
               <Text style={styles.profileSub}>
-                Día {user.currentDay} · Nivel {user.level} · {user.streak}🔥
+                Día {user.currentDay} · Nivel {user.level} · Racha {user.streak}
               </Text>
             </View>
           </LinearGradient>
@@ -307,6 +383,37 @@ export default function ConfigScreen() {
             <InfoRow icon="flash" label="Trabajo profundo" value="45-180 min/día" />
           </View>
 
+          {/* Coach personal */}
+          <Text style={styles.sectionTitle}>COACH PERSONAL</Text>
+          <View style={styles.card}>
+            <View style={[styles.toggleRow, { marginBottom: SPACING.sm }]}>
+              <Ionicons name="chatbubbles" size={20} color={stageTheme.tabActive} />
+              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                <Text style={styles.toggleLabel}>Coach personal</Text>
+                <Text style={styles.toggleSub}>
+                  Chat + notificaciones segun lo que hablaste
+                </Text>
+              </View>
+              <Switch
+                value={personalCoachOn}
+                onValueChange={handlePersonalCoachToggle}
+                trackColor={{ true: stageTheme.tabActive, false: COLORS.textMuted }}
+                thumbColor="#fff"
+              />
+            </View>
+            <View style={styles.notifDivider} />
+            <Text style={[styles.toggleSub, { marginBottom: 6 }]}>PROXIMO MENSAJE PROGRAMADO</Text>
+            <Text style={[styles.aboutText, { fontSize: 12, lineHeight: 18 }]}>
+              {nextNotifPreview}
+            </Text>
+            <Text style={[styles.toggleSub, { marginTop: SPACING.sm }]}>
+              Coach activo: Coach ARISE
+            </Text>
+            <Text style={[styles.toggleSub, { marginTop: 4 }]}>
+              Voz unica: Williamson · Hormozi · Goggins · Rohn · Plitt
+            </Text>
+          </View>
+
           {/* Notificaciones */}
           <Text style={styles.sectionTitle}>🔔 NOTIFICACIONES</Text>
           <View style={styles.card}>
@@ -331,25 +438,25 @@ export default function ConfigScreen() {
 
                 {/* Mañana */}
                 <View style={styles.notifRow}>
-                  <View style={[styles.notifIcon, { backgroundColor: '#F59E0B20' }]}>
+                  <View style={[styles.notifIcon, { backgroundColor: COLORS.streak + '20' }]}>
                     <Text style={{ fontSize: 18 }}>🌅</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.notifTitle}>Mañana · {notif.morningHour}:00 hs</Text>
-                    <Text style={styles.notifDesc}>Activación chakra, frases de guerrero</Text>
+                    <Text style={styles.notifDesc}>Activación ki, frases de guerrero</Text>
                   </View>
                   <Switch
                     value={notif.morning}
                     onValueChange={v => updateNotif({ morning: v })}
-                    trackColor={{ true: '#F59E0B', false: COLORS.textMuted }}
+                    trackColor={{ true: COLORS.streak, false: COLORS.textMuted }}
                     thumbColor="#fff"
                   />
                 </View>
 
                 {/* Tarde */}
                 <View style={styles.notifRow}>
-                  <View style={[styles.notifIcon, { backgroundColor: '#E8460A20' }]}>
-                    <Text style={{ fontSize: 18 }}>🔥</Text>
+                  <View style={[styles.notifIcon, { backgroundColor: COLORS.accent + '20' }]}>
+                    <Text style={{ fontSize: 18 }}>⚡</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.notifTitle}>Tarde · {notif.afternoonHour}:00 hs</Text>
@@ -382,8 +489,8 @@ export default function ConfigScreen() {
 
                 {/* Racha */}
                 <View style={styles.notifRow}>
-                  <View style={[styles.notifIcon, { backgroundColor: '#F59E0B20' }]}>
-                    <Text style={{ fontSize: 18 }}>🔥</Text>
+                  <View style={[styles.notifIcon, { backgroundColor: COLORS.streak + '20' }]}>
+                    <Text style={{ fontSize: 18 }}>⚡</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.notifTitle}>Racha · {notif.streakReminderHour}:00 hs</Text>
@@ -392,7 +499,7 @@ export default function ConfigScreen() {
                   <Switch
                     value={notif.streakReminder}
                     onValueChange={v => updateNotif({ streakReminder: v })}
-                    trackColor={{ true: '#F59E0B', false: COLORS.textMuted }}
+                    trackColor={{ true: COLORS.streak, false: COLORS.textMuted }}
                     thumbColor="#fff"
                   />
                 </View>
@@ -404,9 +511,9 @@ export default function ConfigScreen() {
                 <View style={styles.timeRow}>
                   {[
                     { label: '🌅 Mañana', key: 'morningHour' as const, options: [7,8,9,10,11] },
-                    { label: '🔥 Tarde', key: 'afternoonHour' as const, options: [13,14,15,16,17] },
+                    { label: '⚡ Tarde', key: 'afternoonHour' as const, options: [13,14,15,16,17] },
                     { label: '🌙 Noche', key: 'nightHour' as const, options: [19,20,21,22,23] },
-                    { label: '🔥 Racha', key: 'streakReminderHour' as const, options: [18,19,20,21,22] },
+                    { label: '⚡ Racha', key: 'streakReminderHour' as const, options: [18,19,20,21,22] },
                   ].map(item => (
                     <View key={item.key} style={styles.timeCol}>
                       <Text style={styles.timeLabel}>{item.label}</Text>
@@ -560,7 +667,7 @@ export default function ConfigScreen() {
               return (
                 <View key={rank} style={[styles.card, { marginBottom: SPACING.sm }]}>
                   <Text style={[styles.toggleSub, { color: rankColor, marginBottom: SPACING.sm }]}>
-                    {rank.toUpperCase()}
+                    {RANK_LABELS[rank]}
                   </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                     {rankBadges.map(id => {

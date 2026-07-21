@@ -6,6 +6,7 @@ import { getStageTheme } from '@/lib/progression';
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'flame-outline',
+  coach: 'chatbubbles-outline',
   programa: 'calendar-outline',
   progreso: 'stats-chart-outline',
   discovery: 'compass-outline',
@@ -51,6 +52,16 @@ export default function TabsLayout() {
           tabBarAccessibilityLabel: 'Inicio de hoy',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name="index" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="coach"
+        options={{
+          title: 'Coach',
+          tabBarAccessibilityLabel: 'Chat con tu coach',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="coach" color={color} focused={focused} />
           ),
         }}
       />

@@ -1,10 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
-  Image,
-  ImageSourcePropType,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -23,73 +21,7 @@ import { useApp } from '@/context/AppContext';
 import { deriveAdaptiveProfile } from '@/data/program';
 import { trackOnboardingStepCompleted, trackOnboardingStepViewed } from '@/services/analytics';
 import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
-
-type CoachPreset = {
-  id: CoachId;
-  name: string;
-  emoji: string;
-  accent: string;
-  quote: string;
-  gameplay: string;
-  image: ImageSourcePropType;
-};
-
-const COACHES: CoachPreset[] = [
-  {
-    id: 'goku',
-    name: 'Goku',
-    emoji: '🐉',
-    accent: '#F59E0B',
-    quote: 'No importa cuantas veces caigas. Siempre levantate con mas hambre.',
-    gameplay: 'Hardcore energia',
-    image: require('../assets/coaches/goku/home.png'),
-  },
-  {
-    id: 'itachi',
-    name: 'Itachi',
-    emoji: '👁️',
-    accent: '#EF4444',
-    quote: 'Disciplina silenciosa. El control interno vence al caos externo.',
-    gameplay: 'Disciplina estoica fria',
-    image: require('../assets/coaches/itachi/home.png'),
-  },
-  {
-    id: 'gojo',
-    name: 'Gojo',
-    emoji: '♾️',
-    accent: '#38BDF8',
-    quote: 'Tu foco define tu limite. Expandilo.',
-    gameplay: 'Enfoque absoluto',
-    image: require('../assets/coaches/gojo/home.png'),
-  },
-  {
-    id: 'rengoku',
-    name: 'Rengoku',
-    emoji: '🔥',
-    accent: '#F97316',
-    quote: 'Prende fuego tu voluntad y empuja hasta el final.',
-    gameplay: 'Intensidad constante',
-    image: require('../assets/coaches/rengoku/home.png'),
-  },
-  {
-    id: 'jiraiya',
-    name: 'Jiraiya',
-    emoji: '📜',
-    accent: '#84CC16',
-    quote: 'El progreso real viene de entrenar, observar y ajustar.',
-    gameplay: 'Sabiduria tactica',
-    image: require('../assets/coaches/jiraiya/home.png'),
-  },
-  {
-    id: 'all_might',
-    name: 'All Might',
-    emoji: '💪',
-    accent: '#3B82F6',
-    quote: 'Cuando no puedas mas, da un paso extra. Plus Ultra.',
-    gameplay: 'Voluntad heroica',
-    image: require('../assets/coaches/all_might/home.png'),
-  },
-];
+import { getCoachById, getCoachPlaybook } from '@/lib/coach';
 
 const FOCUS_OPTIONS: Array<{ id: OnboardingFocus; label: string; emoji: string }> = [
   { id: 'cuerpo', label: 'Cuerpo', emoji: '💪' },
@@ -131,14 +63,12 @@ export default function OnboardingScreen() {
   const [waterLitersPerDay, setWaterLitersPerDay] = useState('2.5');
   const [targetWeight, setTargetWeight] = useState('');
   const [currentWeight, setCurrentWeight] = useState('');
-  const [selectedCoachId, setSelectedCoachId] = useState<CoachId>('goku');
 
   const transition = useRef(new Animated.Value(0)).current;
+  const ariseCoach = getCoachById('arise');
+  const arisePlaybook = getCoachPlaybook('arise');
+  const accent = '#818CF8';
 
-  const currentCoach = useMemo(
-    () => COACHES.find((coach) => coach.id === selectedCoachId) ?? COACHES[0],
-    [selectedCoachId],
-  );
   const showBodyMetrics = focusAreas.includes('cuerpo');
   const showMindMetrics = focusAreas.includes('mente');
   const showSpiritMetrics = focusAreas.includes('espiritu');
@@ -224,7 +154,7 @@ export default function OnboardingScreen() {
         currentWeight: parseNumber(currentWeight),
         targetWeight: parseNumber(targetWeight),
       }),
-      preferredCoachId: selectedCoachId,
+      preferredCoachId: 'arise' as CoachId,
     };
 
     const result = await completeOnboarding(onboardingData);
@@ -295,7 +225,7 @@ export default function OnboardingScreen() {
                   />
                 </View>
 
-                <View style={[styles.pactCard, { borderColor: `${currentCoach.accent}88` }]}>
+                <View style={[styles.pactCard, { borderColor: `${accent}88` }]}>
                   <Text style={styles.pactTitle}>Pacto Inmutable</Text>
                   <Text style={styles.pactBody}>
                     {name.trim() || 'Tu nombre'}, hoy quemas las naves: no hay retirada, solo avance.
@@ -325,7 +255,7 @@ export default function OnboardingScreen() {
                       onPress={() => toggleFocus(focus.id)}
                       style={[
                         styles.focusChip,
-                        active && { borderColor: currentCoach.accent, backgroundColor: `${currentCoach.accent}22` },
+                        active && { borderColor: accent, backgroundColor: `${accent}22` },
                       ]}
                     >
                       <Text style={styles.focusEmoji}>{focus.emoji}</Text>
@@ -362,33 +292,27 @@ export default function OnboardingScreen() {
 
           {step === 2 && (
             <ScrollView contentContainerStyle={styles.scroll}>
-              <Text style={styles.stepLabel}>PASO 3 · ARQUETIPO</Text>
-              <Text style={styles.title}>Selecciona tu mentor activo</Text>
+              <Text style={styles.stepLabel}>PASO 3 · COACH</Text>
+              <Text style={styles.title}>Tu coach ARISE</Text>
               <Text style={styles.subtitle}>
-                El coach define tono visual, energia y estilo de empuje durante todo el programa.
+                Un solo mentor. Cinco filosofias en una voz: Williamson, Hormozi, Goggins, Jim Rohn y Greg Plitt.
               </Text>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselRow}>
-                {COACHES.map((coach) => {
-                  const active = selectedCoachId === coach.id;
-                  return (
-                    <CoachOptionCard
-                      key={coach.id}
-                      coach={coach}
-                      active={active}
-                      reducedMotion={reducedMotion}
-                      onPress={() => setSelectedCoachId(coach.id)}
-                    />
-                  );
-                })}
-              </ScrollView>
-              <Text style={styles.carouselHint}>Desliza para ver mas coaches</Text>
-
-              <View style={[styles.selectionRecap, { borderColor: `${currentCoach.accent}55` }]}>
-                <Text style={[styles.selectionTitle, { color: currentCoach.accent }]}>
-                  Mentor seleccionado: {currentCoach.name}
+              <View style={[styles.selectionRecap, { borderColor: `${accent}55` }]}>
+                <Text style={[styles.selectionTitle, { color: accent }]}>
+                  {ariseCoach.name}
+                </Text>
+                <Text style={styles.selectionText}>{arisePlaybook.tone}</Text>
+                <Text style={[styles.selectionText, { marginTop: 10 }]}>
+                  · Cuando estas mal: honestidad + accion minima (Goggins / Plitt)
                 </Text>
                 <Text style={styles.selectionText}>
+                  · Cuando planificas: sistemas y resultados (Hormozi / Rohn)
+                </Text>
+                <Text style={styles.selectionText}>
+                  · Cuando reflexionas: claridad sin drama (Williamson)
+                </Text>
+                <Text style={[styles.selectionText, { marginTop: 12 }]}>
                   Focos: {focusAreas.length > 0 ? focusAreas.join(' · ') : 'sin definir'}
                 </Text>
                 <Text style={styles.selectionText}>
@@ -410,7 +334,7 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.primaryBtn, { backgroundColor: currentCoach.accent }]}
+            style={[styles.primaryBtn, { backgroundColor: accent }]}
             disabled={submitting}
             onPress={step === TOTAL_STEPS - 1 ? finishOnboarding : goNext}
           >
@@ -448,111 +372,6 @@ function MetricInput({
         placeholderTextColor={COLORS.textMuted}
       />
     </View>
-  );
-}
-
-function CoachOptionCard({
-  coach,
-  active,
-  reducedMotion = false,
-  onPress,
-}: {
-  coach: CoachPreset;
-  active: boolean;
-  reducedMotion?: boolean;
-  onPress: () => void;
-}) {
-  const aura = useRef(new Animated.Value(active ? 1 : 0)).current;
-  const lift = useRef(new Animated.Value(0)).current;
-  const pressScale = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (reducedMotion) {
-      aura.setValue(active ? 1 : 0);
-      return;
-    }
-    Animated.timing(aura, {
-      toValue: active ? 1 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [active, aura, reducedMotion]);
-
-  useEffect(() => {
-    if (reducedMotion || !active) {
-      lift.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(lift, { toValue: -4, duration: 900, useNativeDriver: true }),
-        Animated.timing(lift, { toValue: 0, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [active, lift, reducedMotion]);
-
-  function handlePressIn() {
-    if (reducedMotion) return;
-    Animated.timing(pressScale, {
-      toValue: 0.975,
-      duration: 110,
-      useNativeDriver: true,
-    }).start();
-  }
-
-  function handlePressOut() {
-    if (reducedMotion) return;
-    Animated.timing(pressScale, {
-      toValue: 1,
-      duration: 140,
-      useNativeDriver: true,
-    }).start();
-  }
-
-  const auraScale = aura.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.95, 1.08],
-  });
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.95}
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      accessibilityRole="button"
-      accessibilityLabel={`Seleccionar coach ${coach.name}`}
-    >
-      <Animated.View
-        style={[
-          styles.coachCard,
-          active && { borderColor: coach.accent, shadowColor: coach.accent, shadowOpacity: 0.5 },
-          { transform: [{ translateY: lift }, { scale: pressScale }] },
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.coachActiveAura,
-            {
-              backgroundColor: `${coach.accent}26`,
-              opacity: aura,
-              transform: [{ scale: auraScale }],
-            },
-          ]}
-        />
-        <View style={[styles.coachGlow, { backgroundColor: `${coach.accent}22` }]} />
-        <View style={[styles.coachPortraitFrame, { borderColor: `${coach.accent}88` }]}>
-          <Image source={coach.image} style={styles.coachPortrait} resizeMode="cover" />
-          <View style={styles.coachPortraitOverlay} />
-          <Text style={styles.coachEmoji}>{coach.emoji}</Text>
-        </View>
-        <Text style={[styles.coachName, active && { color: coach.accent }]}>{coach.name}</Text>
-        <Text style={styles.coachMode}>{coach.gameplay}</Text>
-        <Text style={styles.coachQuote}>“{coach.quote}”</Text>
-      </Animated.View>
-    </TouchableOpacity>
   );
 }
 

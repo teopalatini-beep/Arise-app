@@ -30,6 +30,8 @@ export interface NotifSettings {
   afternoonHour: number;
   nightHour: number;
   streakReminderHour: number;
+  /** When true, afternoon/night use coach chat memory if available */
+  personalCoachEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: NotifSettings = {
@@ -42,23 +44,40 @@ export const DEFAULT_SETTINGS: NotifSettings = {
   afternoonHour: 15,
   nightHour: 21,
   streakReminderHour: 20,
+  personalCoachEnabled: true,
 };
+
+/** Optional daily memory from personal coach chat */
+export interface CoachNotifContext {
+  topics?: string[];
+  commitments?: string[];
+  summary?: string;
+  afternoonTitle?: string;
+  afternoonBody?: string;
+  nightTitle?: string;
+  nightBody?: string;
+  morningTitle?: string;
+  morningBody?: string;
+  /** Open commitment from yesterday for morning follow-up */
+  yesterdayCommitment?: string;
+  yesterdayTopic?: string;
+}
 
 // ─── Mensajes por turno ───────────────────────────────────────────────────────
 
 // MAÑANA — encender el motor, disciplina antes de que el cerebro proteste
 const MORNING_MESSAGES = [
-  { title: '🔥 ARISE', body: 'La disciplina no negocia con el estado de ánimo. Arrancá ahora — el resto viene solo.' },
+  { title: '⚡ ARISE', body: 'La disciplina no negocia con el estado de ánimo. Arrancá ahora — el resto viene solo.' },
   { title: '⚡ Levantate', body: 'No esperes estar listo. Nadie grande esperó estarlo. Simplemente empezaron.' },
   { title: '⚔️ Modo guerrero', body: 'El Goku de hoy es el resultado de los entrenamientos que Goku de ayer no quería hacer.' },
   { title: '🐉 El Ki no espera', body: 'Cada mañana que arrancás con intención ya es una victoria. Capitalzala.' },
-  { title: '🔥 Sin excusas', body: 'El cansancio es mentira que el cerebro inventa. El cuerpo puede más de lo que creés.' },
+  { title: '⚡ Sin excusas', body: 'El cansancio es mentira que el cerebro inventa. El cuerpo puede más de lo que creés.' },
   { title: '⚡ Construís mientras dormían', body: 'Mientras otros piden cinco minutos más, vos ya estás construyendo quién vas a ser.' },
   { title: '🎯 Rock Lee lo sabía', body: 'Sin talento, pura disciplina. Mirá en lo que se convirtió. Vos tenés lo mismo adentro.' },
   { title: '🌅 El momento es ahora', body: '"No actúes como si tuvieras diez mil años de vida." — Marco Aurelio. Hoy es el día.' },
   { title: '⚔️ El ninja entrena', body: 'Itachi no llegó a ser el mejor esperando inspiración. Ni vos tampoco.' },
   { title: '💪 Empezá sin ganas', body: 'No tenés que querer hacerlo. Solo tenés que hacerlo. Las ganas aparecen en el camino.' },
-  { title: '🔥 90 días, un capítulo', body: 'Cada mañana que cumplís escribe una línea más en la historia de quien vas a ser.' },
+  { title: '⚡ 90 días, un capítulo', body: 'Cada mañana que cumplís escribe una línea más en la historia de quien vas a ser.' },
   { title: '⚡ Arise', body: '"La disciplina es el puente entre las metas y los logros." — Jim Rohn. Hoy cruzás ese puente.' },
   { title: '🌅 Primer movimiento', body: 'El secreto no es motivación. Es hacer el primer movimiento aunque cueste. Hacelo.' },
   { title: '🐉 Modo saiyan', body: 'Los saiyans se vuelven más fuertes después de cada derrota. Vos también. Hoy es un nuevo ciclo.' },
@@ -72,26 +91,26 @@ const MORNING_MESSAGES = [
   { title: '💪 Lo controlable', body: '"Algunas cosas dependen de nosotros y otras no." — Epicteto. Hoy solo te ocupás de las que sí.' },
   { title: '🌅 Te convertís', body: '"Te convertís en lo que le das tu atención." Elegí bien dónde ponés el foco esta mañana.' },
   // Mis agregados
-  { title: '🔥 No esperes el clima', body: 'No podés controlar el viento, pero sí ajustar la vela. Arrancá con lo que tenés ahora.' },
+  { title: '⚡ No esperes el clima', body: 'No podés controlar el viento, pero sí ajustar la vela. Arrancá con lo que tenés ahora.' },
   { title: '⚡ La hora más importante', body: 'La primera hora del día define el resto. Lo que hacés ahora mismo tiene más peso del que creés.' },
-  { title: '🌅 Naruto nunca bajó los brazos', body: 'Toda la aldea lo llamó fracasado. Él siguió de todas formas. Eso lo convirtió en Hokage.' },
+  { title: '🌅 Goku nunca bajó los brazos', body: 'Lo subestimaron una y otra vez. Siguió entrenando. Eso lo llevó más allá de cualquier límite.' },
 ];
 
 // TARDE — terminar fuerte, no dejar misiones pendientes
 const AFTERNOON_MESSAGES = [
-  { title: '🔥 Segunda mitad', body: 'La tarde es donde los que crecen se separan de los que sobreviven. ¿Dónde estás vos?' },
+  { title: '⚡ Segunda mitad', body: 'La tarde es donde los que crecen se separan de los que sobreviven. ¿Dónde estás vos?' },
   { title: '⚡ Check de misiones', body: 'Revisá qué te falta. Si algo está pendiente, ahora es el momento exacto. La noche llega rápido.' },
   { title: '💎 Presión = diamante', body: 'El cansancio de la tarde es el momento exacto donde se talla el carácter. No esquives ese momento.' },
-  { title: '🎯 Sharingan activado', body: 'Enfocate. Una misión a la vez. No necesitás perfección — necesitás que se haga.' },
+  { title: '🎯 Ki enfocado', body: 'Enfocate. Una misión a la vez. No necesitás perfección — necesitás que se haga.' },
   { title: '🐉 El único entreno malo', body: '"El único entrenamiento malo es el que no se hizo." Todavía estás a tiempo de hacerlo.' },
   { title: '⚔️ Los campeones no paran', body: 'Los campeones no tienen solo buenas mañanas. Tienen buenos hábitos de tarde también.' },
-  { title: '🔥 Terminá lo que empezaste', body: 'Empezar es fácil. Terminar separa al guerrero del resto. Terminá tu día fuerte.' },
+  { title: '⚡ Terminá lo que empezaste', body: 'Empezar es fácil. Terminar separa al guerrero del resto. Terminá tu día fuerte.' },
   { title: '⚡ Siete veces, ocho', body: '"Cae siete veces, levántate ocho." — Proverbio japonés. Hoy no caés ni una.' },
   { title: '💪 Ladrillo a ladrillo', body: 'Cada tarde que cerrás fuerte es un ladrillo más en el edificio de quien serás en 90 días.' },
   { title: '🎯 El momentum es tuyo', body: 'Si completaste misiones hoy, seguí. Si no, este es tu momento. El día no terminó.' },
   { title: '🌿 Fuerza mental', body: 'Los Hashira no son los más talentosos — son los que aguantaron cuando los demás se rindieron.' },
   { title: '⚡ Ventana abierta', body: 'Hay una ventana de tiempo antes de que cierre el día. Todavía estás dentro. Aprovechala.' },
-  { title: '🔥 Jiraiya lo haría', body: 'Jiraiya entrenó a Naruto incluso cuando estaba cansado. La grandeza no espera que pase el cansancio.' },
+  { title: '⚡ Vegeta lo haría', body: 'El orgullo de un guerrero no espera a que pase el cansancio. Entrená igual.' },
   { title: '💎 Sin negociación', body: 'Tu yo futuro no negocia excusas. Solo ve resultados. Dale algo de qué estar orgulloso.' },
   { title: '⚔️ El esfuerzo acumula', body: 'Cada acción de hoy se suma en silencio. En 30 días lo vas a ver clarísimo.' },
   // Estoicismo
@@ -100,7 +119,7 @@ const AFTERNOON_MESSAGES = [
   { title: '🎯 Valor proporcional', body: 'No toda tarea vale lo mismo. Identificá la más importante que te falta y hacela primero. — Marco Aurelio' },
   { title: '⚡ El bien que hacés', body: '"El que hace el bien a otro, también hace el bien a sí mismo." — Séneca. Cerrá el día siendo alguien de quien te orgullecés.' },
   // Mis agregados
-  { title: '🔥 Perspectiva', body: '"Todo lo que escuchamos es solo una opinión, no un hecho." — Marco Aurelio. La excusa que estás escuchando ahora mismo no es real.' },
+  { title: '⚡ Perspectiva', body: '"Todo lo que escuchamos es solo una opinión, no un hecho." — Marco Aurelio. La excusa que estás escuchando ahora mismo no es real.' },
   { title: '⚔️ Baja el ruido', body: 'El cerebro de la tarde fabrica urgencias falsas. Cerrá las distracciones. Abrí la app. Completá lo que queda.' },
   { title: '🌿 Gojo lo haría sin quejarse', body: 'El más poderoso del mundo no necesita excusas. Vos tampoco. Terminá el día como un Limitless.' },
 ];
@@ -118,7 +137,7 @@ const NIGHT_MESSAGES = [
   { title: '🌙 La racha vive', body: 'Un día más sostenido. Mañana arrancás con momentum — eso es un regalo que te diste hoy.' },
   { title: '💙 En el camino correcto', body: 'Días difíciles, días fáciles — seguiste igual. Eso es lo que hace a alguien extraordinario.' },
   { title: '🌙 Marco Aurelio', body: '"Termina cada día y descansa. Hiciste lo que pudiste." Lo hiciste. Ahora recuperate.' },
-  { title: '⭐ Naruto lo entendió', body: 'No era el más fuerte. Era el que nunca paraba. Vos tampoco parás. Eso lo cambia todo.' },
+  { title: '⭐ Goku lo entendió', body: 'No era el más talentoso. Era el que nunca paraba. Vos tampoco parás. Eso lo cambia todo.' },
   { title: '🌟 El proceso funciona', body: 'Confiá en el proceso aunque hoy no se vea el resultado. La semilla tarda en verse desde afuera.' },
   { title: '🌙 Sin culpa', body: 'Si hoy fue difícil, está bien. Mañana arrancás de nuevo. Lo importante es que seguís en el juego.' },
   { title: '💫 Escribí', body: 'Antes de dormir, una línea en el diario. Lo que sentís hoy es parte de tu historia de transformación.' },
@@ -139,11 +158,11 @@ const NIGHT_MESSAGES = [
 
 // RECORDATORIO DE RACHA — aviso nocturno para no perder la racha
 const STREAK_REMINDER_MESSAGES = [
-  { title: '🔥 Tu racha está en juego', body: 'Todavía hay tiempo. Completá tus misiones antes de cerrar el día y protegé lo que construiste.' },
+  { title: '⚡ Tu racha está en juego', body: 'Todavía hay tiempo. Completá tus misiones antes de cerrar el día y protegé lo que construiste.' },
   { title: '⚡ No rompas la cadena', body: 'La racha es sagrada. Si falta algo por hacer, este es el momento. No dejes que se corte.' },
   { title: '🎯 Última ventana', body: 'El día casi cierra. ¿Cerraste tus misiones? Tu racha depende de lo que hagas en las próximas horas.' },
   { title: '⚔️ El ninja no falla dos veces', body: 'Hoy todavía podés cumplir. La racha vale más de lo que cuesta hacer las misiones ahora.' },
-  { title: '🔥 No se negocia', body: 'Llevas días construyendo algo. No lo tires a la noche. Revisá el app y cerrá lo que falta.' },
+  { title: '⚡ No se negocia', body: 'Llevas días construyendo algo. No lo tires a la noche. Revisá el app y cerrá lo que falta.' },
   { title: '💎 La racha es tuya', body: 'Días de constancia acumulados. No los pierdas esta noche. Cerrá fuerte y dormí tranquilo.' },
   { title: '🌙 Antes de dormir', body: '¿Completaste el día? Si no, todavía estás a tiempo. Abrí la app y terminá lo que empezaste.' },
 ];
@@ -163,38 +182,13 @@ export interface CoachNotificationConfig {
 }
 
 const COACH_NAME: Record<CoachId, string> = {
-  goku: 'Goku',
-  itachi: 'Itachi',
-  rengoku: 'Rengoku',
-  jiraiya: 'Jiraiya',
-  gojo: 'Gojo',
-  all_might: 'All Might',
+  arise: 'Coach ARISE',
 };
 
 const COACH_WAKEUP_COPY: Record<CoachId, Message> = {
-  goku: {
-    title: 'Goku te exige atencion',
-    body: 'Levantate. El entrenamiento de hoy va a ser intenso. Tu poder se forja ahora.',
-  },
-  itachi: {
-    title: 'Itachi te exige atencion',
-    body: 'La debilidad es una eleccion. Cumple tu destino hoy con precision absoluta.',
-  },
-  rengoku: {
-    title: 'Rengoku te exige atencion',
-    body: 'Pon tu corazon en llamas desde temprano. Hoy no se negocia.',
-  },
-  jiraiya: {
-    title: 'Jiraiya te exige atencion',
-    body: 'El camino del sabio se construye con accion diaria. Empeza fuerte.',
-  },
-  gojo: {
-    title: 'Gojo te exige atencion',
-    body: 'Foco absoluto desde el primer bloque del dia. Tu limite se expande hoy.',
-  },
-  all_might: {
-    title: 'All Might te exige atencion',
-    body: 'Sonrei y avanza. Plus Ultra no espera a nadie.',
+  arise: {
+    title: 'Coach ARISE · Levantate',
+    body: 'No esperes ganas. Disciplina primero: el cuerpo arranca, la mente te sigue. Una accion ahora.',
   },
 };
 
@@ -241,11 +235,11 @@ export async function requestNotificationPermissions(source: string = 'unknown')
 // ─── Mensajes de hito (días 30, 60, 90) ──────────────────────────────────────
 const MILESTONE_MESSAGES: Record<number, { title: string; body: string }> = {
   30: {
-    title: '🌿 FASE 1 COMPLETADA — Genin desbloqueado',
-    body: '30 días de fuego puro. El 80% no llega aquí. Vos sí. La Fase 2 empieza mañana.',
+    title: '🌿 FASE 1 COMPLETADA — Guerrero desbloqueado',
+    body: '30 días de entrenamiento puro. El 80% no llega aquí. Vos sí. La Fase 2 empieza mañana.',
   },
   60: {
-    title: '⚔️ FASE 2 COMPLETADA — Chunin confirmado',
+    title: '⚔️ FASE 2 COMPLETADA — Super Saiyan confirmado',
     body: '60 días. Dos meses construyendo quien sos. Quedan 30 días para la leyenda. No pares.',
   },
   90: {
@@ -258,6 +252,8 @@ export interface SyncNotificationScheduleOptions {
   settings?: NotifSettings;
   coachConfig?: CoachNotificationConfig;
   requestPermission?: boolean;
+  /** Contextual copy from personal coach memory (topics / commitments) */
+  coachContext?: CoachNotifContext | null;
 }
 
 function buildGoalsLine(userProfile: UserProfile): string {
@@ -295,6 +291,16 @@ export async function syncNotificationSchedule(
     ...(options.settings ?? await loadNotifSettings()),
   };
   const coachConfig = options.coachConfig ?? {};
+  const coachContext = options.coachContext ?? null;
+  const useContextual =
+    settings.personalCoachEnabled !== false &&
+    Boolean(
+      coachContext &&
+        ((coachContext.topics && coachContext.topics.length > 0) ||
+          (coachContext.commitments && coachContext.commitments.length > 0) ||
+          coachContext.afternoonBody ||
+          coachContext.nightBody),
+    );
 
   // Single source of truth: every sync starts from a clean queue.
   await cancelAllScheduledNotifications();
@@ -306,9 +312,9 @@ export async function syncNotificationSchedule(
     : await requestNotificationPermissions('schedule_sync');
   if (!hasPermission) return;
 
-  const coachId = userProfile.preferredCoachId ?? 'goku';
-  const coachName = COACH_NAME[coachId] ?? 'Tu coach';
-  const wakeupCopy = COACH_WAKEUP_COPY[coachId] ?? COACH_WAKEUP_COPY.goku;
+  const coachId = userProfile.preferredCoachId ?? 'arise';
+  const coachName = COACH_NAME[coachId] ?? 'Coach ARISE';
+  const wakeupCopy = COACH_WAKEUP_COPY[coachId] ?? COACH_WAKEUP_COPY.arise;
   const morningFlavor = randomFrom(MORNING_MESSAGES);
   const phaseTag = retentionTag(userProfile.currentDay);
   const goalsLine = buildGoalsLine(userProfile);
@@ -322,10 +328,19 @@ export async function syncNotificationSchedule(
   const criticalMinute = coachConfig.criticalMinute ?? 0;
 
   if (settings.morning) {
+    const yesterdayFollowUp =
+      coachContext?.yesterdayCommitment || coachContext?.yesterdayTopic
+        ? `Ayer: ${coachContext.yesterdayTopic ?? 'tu foco'} — ${coachContext.yesterdayCommitment ?? 'segui el plan'}.`
+        : undefined;
+    const morningTitle = coachContext?.morningTitle ?? wakeupCopy.title;
+    const morningBody = coachContext?.morningBody
+      ? normalizeBody([coachContext.morningBody, goalsLine, phaseTag])
+      : normalizeBody([wakeupCopy.body, morningFlavor.body, yesterdayFollowUp, goalsLine, phaseTag]);
+
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: wakeupCopy.title,
-        body: normalizeBody([wakeupCopy.body, morningFlavor.body, goalsLine, phaseTag]),
+        title: morningTitle,
+        body: morningBody,
         sound: true,
       },
       trigger: {
@@ -338,14 +353,17 @@ export async function syncNotificationSchedule(
 
   if (settings.afternoon) {
     const combatMessage = randomFrom(AFTERNOON_MESSAGES);
+    const afternoonTitle = useContextual && coachContext?.afternoonTitle
+      ? coachContext.afternoonTitle
+      : `${coachName} | Misiones pendientes ⚔️`;
+    const afternoonBody = useContextual && coachContext?.afternoonBody
+      ? normalizeBody([coachContext.afternoonBody, goalsLine, todayLine])
+      : normalizeBody([combatMessage.body, goalsLine, todayLine]);
+
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `${coachName} | Misiones pendientes ⚔️`,
-        body: normalizeBody([
-          combatMessage.body,
-          goalsLine,
-          todayLine,
-        ]),
+        title: afternoonTitle,
+        body: afternoonBody,
         sound: true,
       },
       trigger: {
@@ -358,10 +376,17 @@ export async function syncNotificationSchedule(
 
   if (settings.night) {
     const nightMessage = randomFrom(NIGHT_MESSAGES);
+    const nightTitle = useContextual && coachContext?.nightTitle
+      ? coachContext.nightTitle
+      : `${coachName} | Cierre del dia 🌙`;
+    const nightBody = useContextual && coachContext?.nightBody
+      ? normalizeBody([coachContext.nightBody, goalsLine])
+      : normalizeBody([nightMessage.body, goalsLine]);
+
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: `${coachName} | Cierre del dia 🌙`,
-        body: normalizeBody([nightMessage.body, goalsLine]),
+        title: nightTitle,
+        body: nightBody,
         sound: true,
       },
       trigger: {
@@ -439,7 +464,7 @@ export async function scheduleAllNotifications(
     graceMonthRef: new Date().toISOString().slice(0, 7),
     programActive: true,
     programCompleted: false,
-    preferredCoachId: 'goku',
+    preferredCoachId: 'arise',
     goals: undefined,
   };
   await syncNotificationSchedule(fallbackProfile, {
@@ -494,4 +519,35 @@ export async function scheduleCoachNotifications(
     coachConfig,
     requestPermission: true,
   });
+}
+
+/** Map daily coach memory into notification schedule options */
+export function coachContextToNotifContext(ctx: {
+  topics?: string[];
+  commitments?: string[];
+  summary?: string;
+  notifAfternoonTitle?: string;
+  notifAfternoonBody?: string;
+  notifNightTitle?: string;
+  notifNightBody?: string;
+  notifMorningTitle?: string;
+  notifMorningBody?: string;
+} | null | undefined): CoachNotifContext | null {
+  if (!ctx) return null;
+  const hasMemory =
+    (ctx.topics && ctx.topics.length > 0) ||
+    (ctx.commitments && ctx.commitments.length > 0) ||
+    Boolean(ctx.notifAfternoonBody || ctx.notifNightBody);
+  if (!hasMemory) return null;
+  return {
+    topics: ctx.topics,
+    commitments: ctx.commitments,
+    summary: ctx.summary,
+    afternoonTitle: ctx.notifAfternoonTitle,
+    afternoonBody: ctx.notifAfternoonBody,
+    nightTitle: ctx.notifNightTitle,
+    nightBody: ctx.notifNightBody,
+    morningTitle: ctx.notifMorningTitle,
+    morningBody: ctx.notifMorningBody,
+  };
 }

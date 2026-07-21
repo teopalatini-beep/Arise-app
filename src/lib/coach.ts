@@ -3,7 +3,7 @@ import { AppData, CoachId, TaskCategory } from '../types';
 export interface CoachProfile {
   id: CoachId;
   name: string;
-  style: 'anime' | 'humano';
+  style: 'humano';
   opener: string;
   motivator: string;
 }
@@ -37,222 +37,233 @@ export interface WeeklyCoachReport {
   message: string;
 }
 
+/** Legacy anime IDs still may exist in local storage / Supabase */
+const LEGACY_COACH_IDS = new Set([
+  'goku', 'itachi', 'rengoku', 'jiraiya', 'gojo', 'all_might',
+]);
+
+export function normalizeCoachId(id?: string | null): CoachId {
+  if (!id || LEGACY_COACH_IDS.has(id) || id === 'arise') return 'arise';
+  return 'arise';
+}
+
+/**
+ * ARISE Coach — una sola voz fusionando:
+ * Chris Williamson · Alex Hormozi · David Goggins · Jim Rohn · Greg Plitt
+ *
+ * Cómo se combina (sin imitar identidad literal):
+ * - Williamson: claridad psicológica (procrastinación = miedo), cuerpo → mente, acción > consumir consejo
+ * - Hormozi: ejecución, mental toughness (tolerancia/fortaleza/resiliencia/adaptabilidad), sistemas
+ * - Goggins: callos mentales, regla del 40%, honestidad brutal, incomodidad programada
+ * - Rohn: disciplina diaria, “volverse la persona”, filosofía → hábitos → resultados
+ * - Plitt: el gym como metáfora de la vida, drive interno, el “quiero” se defiende con acción
+ */
 export const COACHES: CoachProfile[] = [
   {
-    id: 'goku',
-    name: 'Goku',
-    style: 'anime',
-    opener: 'Esta semana entrenaste como un verdadero saiyajin:',
-    motivator: 'Tu próximo nivel está en la siguiente repetición.',
-  },
-  {
-    id: 'itachi',
-    name: 'Itachi',
-    style: 'anime',
-    opener: 'Observación precisa de tu progreso:',
-    motivator: 'Dominarte a vos mismo es el verdadero poder.',
-  },
-  {
-    id: 'rengoku',
-    name: 'Rengoku',
-    style: 'anime',
-    opener: 'Tu llama está viva, y esta semana se notó:',
-    motivator: 'Pon tu corazón en llamas, otra vez.',
-  },
-  {
-    id: 'jiraiya',
-    name: 'Jiraiya',
-    style: 'anime',
-    opener: 'El verdadero ninja aprende de cada caída:',
-    motivator: 'El camino del sabio es largo pero no tiene límite.',
-  },
-  {
-    id: 'gojo',
-    name: 'Gojo',
-    style: 'anime',
-    opener: 'Con los ojos abiertos todo se ve claro:',
-    motivator: 'El más fuerte no nació así — se construyó.',
-  },
-  {
-    id: 'all_might',
-    name: 'All Might',
-    style: 'anime',
-    opener: 'Con una sonrisa siempre adelante:',
-    motivator: 'GO BEYOND — PLUS ULTRA.',
+    id: 'arise',
+    name: 'Coach ARISE',
+    style: 'humano',
+    opener: 'Semana cerrada. Acá va la lectura sin adornos:',
+    motivator: 'La disciplina pesa gramos. El arrepentimiento, toneladas. Elegí hoy.',
   },
 ];
 
+/** Una sola estética — AMOLED / premium (sin skins por personaje) */
+export const ARISE_VISUAL: CoachVisualProfile = {
+  icon: 'flash',
+  headerLabel: 'Coach ARISE',
+  homePhrases: [
+    'No esperes ganas. Construí el estándar y las ganas aparecen después.',
+    'El cuerpo disciplinado le enseña a la mente que puede hacer cosas difíciles.',
+    'Éxito = pocas disciplinas simples, todos los días. Fracaso = pocos errores, todos los días.',
+    'Cuando el cerebro diga “ya está”, todavía te queda más. Empujá un poco más.',
+    'Medí resultados, no solo esfuerzo. El esfuerzo sin impacto es hobby disfrazado.',
+  ],
+  overlays: [],
+  background: ['#060812', '#0C1020', '#121828'],
+  accent: ['#6366F1', '#38BDF8'],
+  tabActive: '#818CF8',
+  tabBorder: 'rgba(129,140,248,0.32)',
+  cardBackground: 'rgba(99,102,241,0.10)',
+  cardBorder: 'rgba(129,140,248,0.35)',
+  glowColor: '#67E8F9',
+  taskIcons: {
+    cuerpo: 'barbell',
+    mente: 'book',
+    bienestar: 'leaf',
+    productividad: 'flash',
+    motivacion: 'flame',
+  },
+};
+
 export const COACH_VISUALS: Record<CoachId, CoachVisualProfile> = {
-  goku: {
-    icon: 'flash',
-    headerLabel: 'Modo Saiyan',
-    homePhrases: [
-      'Hoy se entrena con alegria y hambre de mejorar.',
-      'Si superas tu limite de ayer, ganaste el dia.',
-      'Energia alta, mente limpia, progreso real.',
-    ],
-    overlays: [],
-    // Colors from image: dark charcoal bg, gold SSJ hair, orange-amber fire
-    background: ['#0E0800', '#1C1002', '#2A1804'],
-    accent: ['#F5C518', '#E84010'],
-    tabActive: '#F5C518',
-    tabBorder: 'rgba(245,197,24,0.38)',
-    cardBackground: 'rgba(245,197,24,0.10)',
-    cardBorder: 'rgba(245,197,24,0.42)',
-    glowColor: '#F5C518',
-    taskIcons: {
-      cuerpo: 'thunderstorm',
-      mente: 'flash',
-      bienestar: 'sunny',
-      productividad: 'rocket',
-      motivacion: 'flame',
-    },
-  },
-  itachi: {
-    icon: 'eye',
-    headerLabel: 'Modo Genjutsu',
-    homePhrases: [
-      'Control interno antes que ruido externo.',
-      'La disciplina silenciosa es poder acumulado.',
-      'Observa, decide, ejecuta sin desperdicio.',
-    ],
-    overlays: [],
-    // Colors from image: near-black with crimson red aura, crow darkness
-    background: ['#0A0004', '#160008', '#200010'],
-    accent: ['#C41230', '#A855F7'],
-    tabActive: '#C41230',
-    tabBorder: 'rgba(196,18,48,0.38)',
-    cardBackground: 'rgba(196,18,48,0.10)',
-    cardBorder: 'rgba(196,18,48,0.38)',
-    glowColor: '#C41230',
-    taskIcons: {
-      cuerpo: 'skull',
-      mente: 'eye',
-      bienestar: 'moon',
-      productividad: 'shield',
-      motivacion: 'flame',
-    },
-  },
-  rengoku: {
-    icon: 'flame',
-    headerLabel: 'Modo Corazon Ardiente',
-    homePhrases: [
-      'Set your heart ablaze: hoy no se negocia.',
-      'Avanza con firmeza incluso cuando cueste.',
-      'Tu fuego protege tu proceso.',
-    ],
-    overlays: [],
-    // Colors from image: deep ember black, fire orange, amber sparks
-    background: ['#150500', '#241000', '#341800'],
-    accent: ['#FF5500', '#FFAA00'],
-    tabActive: '#FF5500',
-    tabBorder: 'rgba(255,85,0,0.38)',
-    cardBackground: 'rgba(255,85,0,0.11)',
-    cardBorder: 'rgba(255,85,0,0.42)',
-    glowColor: '#FF5500',
-    taskIcons: {
-      cuerpo: 'flame',
-      mente: 'sunny',
-      bienestar: 'heart',
-      productividad: 'sparkles',
-      motivacion: 'flash',
-    },
-  },
-  jiraiya: {
-    icon: 'leaf',
-    headerLabel: 'Modo Sabio de las Ranas',
-    homePhrases: [
-      'El sabio aprende hasta del error más tonto.',
-      'La naturaleza no apura — pero siempre llega.',
-      'Cada caída es datos para el próximo intento.',
-    ],
-    overlays: [],
-    // Colors from image: deep forest green, mountain blue-gray, warm amber afternoon
-    background: ['#060D04', '#0F1A08', '#18260E'] as [string,string,string],
-    accent: ['#7AB828', '#D4A020'] as [string,string],
-    tabActive: '#7AB828',
-    tabBorder: 'rgba(122,184,40,0.38)',
-    cardBackground: 'rgba(122,184,40,0.10)',
-    cardBorder: 'rgba(122,184,40,0.40)',
-    glowColor: '#7AB828',
-    taskIcons: {
-      cuerpo: 'leaf',
-      mente: 'book',
-      bienestar: 'water',
-      productividad: 'pencil',
-      motivacion: 'sparkles',
-    },
-  },
-  gojo: {
-    icon: 'infinite',
-    headerLabel: 'Modo Infinito',
-    homePhrases: [
-      'El infinito no es una distancia — es una actitud.',
-      'Ves todo cuando no te aferrás a nada.',
-      'La técnica más fuerte es la que dominás sin pensar.',
-    ],
-    overlays: [],
-    // Colors from image: overcast steel-blue sky, cool navy, pale energy white
-    background: ['#040C14', '#081826', '#0C2438'] as [string,string,string],
-    accent: ['#38C4F0', '#A8D8F0'] as [string,string],
-    tabActive: '#38C4F0',
-    tabBorder: 'rgba(56,196,240,0.40)',
-    cardBackground: 'rgba(56,196,240,0.10)',
-    cardBorder: 'rgba(56,196,240,0.40)',
-    glowColor: '#38C4F0',
-    taskIcons: {
-      cuerpo: 'pulse',
-      mente: 'infinite',
-      bienestar: 'snow',
-      productividad: 'flash',
-      motivacion: 'eye',
-    },
-  },
-  all_might: {
-    icon: 'shield',
-    headerLabel: 'Modo Plus Ultra',
-    homePhrases: [
-      'Los símbolos no nacen — se forjan con acción.',
-      'Sonreí y empujá más allá del límite.',
-      'Ser el Nº 1 empieza siendo mejor que ayer.',
-    ],
-    overlays: [],
-    // Colors from image: deep night navy, royal blue energy, smoke-white beams
-    background: ['#020810', '#040E1E', '#06162E'] as [string,string,string],
-    accent: ['#3B82F6', '#FBBF24'] as [string,string],
-    tabActive: '#3B82F6',
-    tabBorder: 'rgba(59,130,246,0.40)',
-    cardBackground: 'rgba(59,130,246,0.10)',
-    cardBorder: 'rgba(59,130,246,0.40)',
-    glowColor: '#3B82F6',
-    taskIcons: {
-      cuerpo: 'barbell',
-      mente: 'shield',
-      bienestar: 'heart',
-      productividad: 'star',
-      motivacion: 'flash',
-    },
-  },
+  arise: ARISE_VISUAL,
 };
 
 export const COACH_STORAGE_KEY = 'arise_weekly_coach_v1';
 
-export function getCoachById(id: CoachId): CoachProfile {
-  return COACHES.find(c => c.id === id) ?? COACHES[0];
+export type CoachMoment =
+  | 'morning_checkin'
+  | 'midday_nudge'
+  | 'night_close'
+  | 'low_energy'
+  | 'missed_missions'
+  | 'celebration';
+
+export interface CoachPlaybook {
+  voice: string;
+  tone: string;
+  forbidden: string[];
+  moments: Record<CoachMoment, string>;
+  followUpAfternoon: string;
+  followUpNight: string;
+  systemPrompt: string;
+  /** Internal lenses used to bias replies by moment */
+  lenses: {
+    williamson: string;
+    hormozi: string;
+    goggins: string;
+    rohn: string;
+    plitt: string;
+  };
 }
 
-export function getCoachVisualProfile(id?: CoachId): CoachVisualProfile {
-  if (!id) return COACH_VISUALS.goku;
-  return COACH_VISUALS[id] ?? COACH_VISUALS.goku;
+export const ARISE_PLAYBOOK: CoachPlaybook = {
+  voice:
+    'Coach único, directo, adulto. Habla como un mentor que estudió a Williamson, Hormozi, Goggins, Rohn y Plitt — sin fingir ser ellos. Español rioplatense, sin fluff.',
+  tone:
+    'Claro y exigente, pero útil. Combina honestidad brutal con sistemas concretos. Nunca humilla; siempre empuja a la próxima acción.',
+  forbidden: [
+    'rendite',
+    'no podes',
+    'imposible',
+    'mañana arrancamos',
+    'todo bien si no haces nada',
+    'sos un fracaso',
+    'motivacion magica sin accion',
+  ],
+  moments: {
+    morning_checkin:
+      'Hoy no se negocia con el estado de animo. Una disciplina simple, hecha ahora, vale mas que un plan perfecto. Arranca el cuerpo: la mente te sigue.',
+    midday_nudge:
+      'Mitad del dia. Deja de contar esfuerzo y mira el resultado. Que mision concreta cierra ahora? Ejecucion > intencion.',
+    night_close:
+      'Cerra el dia con honestidad: que hiciste, que evitaste, por miedo a que. Manana no arregla lo que hoy no tocaste. Descansa, pero sin mentirte.',
+    low_energy:
+      'Sin ganas no es senal de parar: es el momento de callosiar la mente. Baja el liston a lo minimo no negociable y hazlo igual. El drive se construye entrenando, no esperando.',
+    missed_missions:
+      'Todavia hay tiempo. Un fallo no te define; repetirlo, si. Elegi UNA mision y cerra. Tolerancia, fortaleza, resiliencia, adaptabilidad: vuelve al baseline mas fuerte.',
+    celebration:
+      'Bien. Eso es volverte la persona, no perseguir el exito. Guarda el estandar: manana se repite la disciplina, no la celebracion.',
+  },
+  followUpAfternoon:
+    'Esta manana hablamos de {topic}. Chequa {commitment} ahora — el dia se decide en la ejecucion, no en la intencion.',
+  followUpNight:
+    'Hoy tocaste {topic}. Cumpliste {commitment}? Si no, nombra el miedo real y anota la accion de manana. Sin cuentos.',
+  lenses: {
+    williamson:
+      'Procrastinacion suele ser miedo disfrazado. No consumas mas consejo: actua. Cuerpo disciplinado → mente capaz. Errores de omision cuestan caro.',
+    hormozi:
+      'Mental toughness = tolerancia + fortaleza + resiliencia + adaptabilidad. Sistemas y ejecucion vencen a la motivacion. Medí outcomes.',
+    goggins:
+      'Cuando el cerebro diga basta, a menudo estas al ~40%. Programa incomodidad. Honestidad frente al espejo. Callos mentales se ganan haciendo lo que no queres.',
+    rohn:
+      'Disciplina es el puente entre metas y logros. Trabaja mas en vos que en el resultado. Pocas disciplinas diarias. Dolor de disciplina vs dolor de arrepentimiento.',
+    plitt:
+      'El gym es metafora de la vida: lo que plantas ahi florece afuera. El “quiero” se defiende con accion. Drive interno > aplauso externo.',
+  },
+  systemPrompt: `Sos el Coach ARISE: UN solo coach motivacional que fusiona la filosofia de Chris Williamson, Alex Hormozi, David Goggins, Jim Rohn y Greg Plitt — sin pretender ser ninguno de ellos ni copiar frases de marca registradas como eslogans.
+
+Habla en espanol rioplatense, breve (2-4 oraciones). Se concreto: siempre termina en una accion o pregunta util.
+
+Como pensas:
+- Williamson: claridad emocional; procrastinar = protegerse del miedo al fracaso; el cuerpo construye la mente; menos consejo, mas accion.
+- Hormozi: ejecucion y sistemas; dureza mental medible (aguantar, no derrumbarse, volver rapido, salir mas fuerte); importa el resultado, no solo el esfuerzo.
+- Goggins: incomodidad voluntaria; cuando queres parar todavia hay mas; honestidad brutal sin humillar; no negocias con la comodidad.
+- Rohn: te volves la persona; disciplinas diarias simples; filosofia → actitud → actividad → resultados; elegis el dolor de la disciplina.
+- Plitt: el entrenamiento es metafora de la vida; alimentas el “quiero” con accion; el estandar se sostiene cuando nadie mira.
+
+Cuando esta mal el usuario: baja energia / miedo / evitar → modo Goggins+Plitt+Williamson (accion minima + nombrar el miedo).
+Cuando esta bien / cumplio → modo Rohn+Hormozi (estandar + siguiente sistema).
+Planificacion / laburo / habitos → Hormozi+Rohn.
+Reflexion nocturna → Williamson+Rohn.
+
+Nunca diagnostiques medicamente. No uses jerga de anime. No digas que sos Goggins/Hormozi/etc.; sos Coach ARISE.`,
+};
+
+export const COACH_PLAYBOOKS: Record<CoachId, CoachPlaybook> = {
+  arise: ARISE_PLAYBOOK,
+};
+
+export function getCoachPlaybook(id?: CoachId | string): CoachPlaybook {
+  return COACH_PLAYBOOKS[normalizeCoachId(id)];
+}
+
+export function fillFollowUpTemplate(
+  template: string,
+  topic: string,
+  commitment: string,
+): string {
+  return template
+    .replace(/\{topic\}/g, topic || 'tu foco del dia')
+    .replace(/\{commitment\}/g, commitment || 'lo que te propusiste');
+}
+
+export function buildContextualNotifBodies(
+  coachId: CoachId | string,
+  topics: string[],
+  commitments: string[],
+): { afternoon: { title: string; body: string }; night: { title: string; body: string } } {
+  const coach = getCoachById(coachId);
+  const playbook = getCoachPlaybook(coachId);
+  const topic = topics[0] ?? 'tu dia';
+  const commitment = commitments[0] ?? 'tus misiones';
+  return {
+    afternoon: {
+      title: `${coach.name} · Seguimiento`,
+      body: fillFollowUpTemplate(playbook.followUpAfternoon, topic, commitment),
+    },
+    night: {
+      title: `${coach.name} · Cierre`,
+      body: fillFollowUpTemplate(playbook.followUpNight, topic, commitment),
+    },
+  };
+}
+
+export function getCoachById(id?: CoachId | string): CoachProfile {
+  return COACHES[0];
+}
+
+export function getCoachVisualProfile(id?: CoachId | string): CoachVisualProfile {
+  return ARISE_VISUAL;
 }
 
 export function getCoachTaskIcon(coachId: CoachId | undefined, category: TaskCategory): string {
-  const visual = getCoachVisualProfile(coachId);
-  return visual.taskIcons[category];
+  return ARISE_VISUAL.taskIcons[category];
 }
 
-export function buildWeeklyCoachReport(data: AppData, coachId: CoachId): WeeklyCoachReport {
-  const coach = getCoachById(coachId);
+/** Bias which lens dominates for local replies */
+export function pickMomentLens(moment: CoachMoment): keyof CoachPlaybook['lenses'] {
+  switch (moment) {
+    case 'low_energy':
+      return 'goggins';
+    case 'missed_missions':
+      return 'hormozi';
+    case 'celebration':
+      return 'rohn';
+    case 'morning_checkin':
+      return 'plitt';
+    case 'midday_nudge':
+      return 'hormozi';
+    case 'night_close':
+      return 'williamson';
+    default:
+      return 'rohn';
+  }
+}
+
+export function buildWeeklyCoachReport(data: AppData, _coachId?: CoachId): WeeklyCoachReport {
+  const coach = getCoachById('arise');
   const user = data.user;
   const currentWeek = Math.ceil(user.currentDay / 7);
   const weekStart = Math.max(1, (currentWeek - 1) * 7 + 1);
@@ -266,23 +277,23 @@ export function buildWeeklyCoachReport(data: AppData, coachId: CoachId): WeeklyC
   const breathMin = weekDays.reduce((sum, d) => sum + (d.metrics?.breathingMinutes ?? 0), 0);
 
   const wins: string[] = [];
-  if (completionRate >= 80) wins.push(`Consistencia alta: ${completionRate}% de dias completados.`);
-  else wins.push(`Manteniendo presencia: ${completionRate}% de cumplimiento.`);
-  if (trainMin > 0) wins.push(`Entrenamiento acumulado: ${trainMin} minutos.`);
-  if (readPages > 0) wins.push(`Lectura acumulada: ${readPages} paginas.`);
-  if (breathMin > 0) wins.push(`Respiracion y foco: ${breathMin} minutos.`);
+  if (completionRate >= 80) wins.push(`Disciplina sostenida: ${completionRate}% de dias cerrados.`);
+  else wins.push(`Presencia: ${completionRate}% de cumplimiento — el puente se construye dia a dia.`);
+  if (trainMin > 0) wins.push(`Cuerpo trabajado: ${trainMin} min. Eso endurece la mente.`);
+  if (readPages > 0) wins.push(`Inputs de calidad: ${readPages} pags. Ahora convierte eso en outputs.`);
+  if (breathMin > 0) wins.push(`Regulacion: ${breathMin} min de respiracion/foco.`);
 
   const focus: string[] = [];
-  if (completionRate < 70) focus.push('Subir cumplimiento semanal al menos a 5/7 dias.');
-  if (trainMin < 120) focus.push('Bloquear 3 sesiones cortas de entrenamiento de 40 min.');
-  if (readPages < 70) focus.push('Objetivo de lectura minimo: 10 paginas por dia.');
-  if (breathMin < 35) focus.push('Agregar 5 minutos diarios de respiracion guiada.');
-  if (focus.length === 0) focus.push('Sostener el ritmo actual y subir dificultad un 10%.');
+  if (completionRate < 70) focus.push('Subir a 5/7 dias: disciplina simple > motivacion esporadica.');
+  if (trainMin < 120) focus.push('3 sesiones cortas esta semana. El gym es metafora: planta ahi, cosecha afuera.');
+  if (readPages < 70) focus.push('10 pags/dia minimo. Formal education pays bills; self-education builds the edge.');
+  if (breathMin < 35) focus.push('5 min diarios de respiracion: baja el ruido, sube la ejecucion.');
+  if (focus.length === 0) focus.push('Sostene el estandar y subi dificultad un 10%. Adaptabilidad: sali mas fuerte.');
 
-  const summary = `${coach.opener} Semana ${currentWeek}: ${weekCompleted}/${weekTotal} dias, ${trainMin} min de entrenamiento y ${readPages} pags leidas.`;
+  const summary = `${coach.opener} Semana ${currentWeek}: ${weekCompleted}/${weekTotal} dias, ${trainMin} min entrenamiento, ${readPages} pags. Resultado > intencion.`;
 
   return {
-    title: `Coach semanal · ${coach.name}`,
+    title: `Coach ARISE · Semana ${currentWeek}`,
     summary,
     wins,
     focus,

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { format, differenceInCalendarDays, parseISO, startOfDay } from 'date-fns';
+import { format, differenceInCalendarDays, parseISO, startOfDay, subDays } from 'date-fns';
 import { AppData, UserProfile, DayRecord, TaskState, MissionState, DayMetrics, BadgeId, BADGE_DEFINITIONS, FitnessLevel, OnboardingData, CoachId } from '../types';
 import { buildProgram } from '../data/program';
 import { getMissionById, getDailyMissions, calcPoints, sumPoints, POINTS_TARGET_NORMAL, POINTS_TARGET_HARD, ALL_MISSIONS } from '../data/missions';
@@ -15,9 +15,12 @@ import {
   clearUserProgress,
 } from '../lib/db';
 import {
+  coachContextToNotifContext,
   requestNotificationPermissions,
   syncNotificationSchedule,
 } from '../lib/notifications';
+import { loadLocalCoachContext } from '../services/coachMemory';
+import { normalizeCoachId } from '../lib/coach';
 import {
   trackAppOpened,
   trackMissionProgress,
@@ -278,7 +281,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || !data || !data.user.hasCompletedOnboarding) return;
 
-    const coachId = data.user.preferredCoachId ?? 'goku';
+    const coachId = data.user.preferredCoachId ?? 'arise';
     const goals = data.user.goals;
     const scheduleKey = [
       coachId,
@@ -293,7 +296,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void (async () => {
       const granted = await requestNotificationPermissions('app_context');
       if (!granted) return;
-      await syncNotificationSchedule(data.user, { requestPermission: false });
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+      const [todayCtx, yesterdayCtx] = await Promise.all([
+        loadLocalCoachContext(today),
+        loadLocalCoachContext(yesterday),
+      ]);
+      const coachContext = coachContextToNotifContext(todayCtx);
+      if (coachContext && yesterdayCtx) {
+        coachContext.yesterdayCommitment = yesterdayCtx.commitments?.[0];
+        coachContext.yesterdayTopic = yesterdayCtx.topics?.[0];
+      } else if (!coachContext && yesterdayCtx?.commitments?.length) {
+        await syncNotificationSchedule(data.user, {
+          requestPermission: false,
+          coachContext: {
+            yesterdayCommitment: yesterdayCtx.commitments[0],
+            yesterdayTopic: yesterdayCtx.topics?.[0],
+          },
+        });
+        return;
+      }
+      await syncNotificationSchedule(data.user, {
+        requestPermission: false,
+        coachContext,
+      });
     })();
   }, [
     loading,
@@ -420,7 +446,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               goals: stored?.user.goals ?? onboarding?.goals,
               adaptiveProfile: stored?.user.adaptiveProfile ?? onboarding?.adaptiveProfile,
               nutritionProfile: stored?.user.nutritionProfile ?? onboarding?.nutritionProfile,
-              preferredCoachId: stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'goku',
+              preferredCoachId: normalizeCoachId(
+                stored?.user.preferredCoachId ?? onboarding?.preferredCoachId ?? 'arise',
+              ),
               focusAreas: stored?.user.focusAreas ?? profile.focusAreas ?? onboarding?.focusAreas,
               hasCompletedOnboarding: resolveOnboardingStatus(
                 stored?.user,
@@ -996,7 +1024,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...data,
       user: {
         ...data.user,
-        preferredCoachId: coachId,
+        preferredCoachId: normalizeCoachId(coachId),
       },
     };
     persist(newData);
@@ -1023,7 +1051,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         goals: normalizedGoals,
         adaptiveProfile: onboardingData.adaptiveProfile ?? base.user.adaptiveProfile,
         nutritionProfile: onboardingData.nutritionProfile ?? base.user.nutritionProfile,
-        preferredCoachId: onboardingData.preferredCoachId ?? base.user.preferredCoachId ?? 'goku',
+        preferredCoachId: normalizeCoachId(
+          onboardingData.preferredCoachId ?? base.user.preferredCoachId ?? 'arise',
+        ),
         focusAreas: onboardingData.focusAreas ?? base.user.focusAreas ?? [],
         hasCompletedOnboarding: true,
       },
@@ -1048,7 +1078,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     scheduledNotifKeyRef.current = '';
 
     void trackOnboardingCompleted(
-      newData.user.preferredCoachId ?? 'goku',
+      newData.user.preferredCoachId ?? 'arise',
       newData.user.focusAreas ?? [],
       {
         targetReadingPagesPerDay: normalizedGoals.targetReadingPagesPerDay,
@@ -1090,7 +1120,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           source: 'onboarding',
           waterLitersPerDay: onboardingData.goals?.targetWaterLitersPerDay ?? null,
           focusAreas: onboardingData.focusAreas ?? [],
-          coach: onboardingData.preferredCoachId ?? 'goku',
+          coach: onboardingData.preferredCoachId ?? 'arise',
         }),
       };
       await upsertMetrics(user.id, 1, onboardingMetrics);

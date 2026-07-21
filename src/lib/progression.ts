@@ -29,29 +29,29 @@ export interface StageTheme {
 const STAGES: PowerStage[] = [
   {
     id: 'rookie',
-    title: 'Genin Inicial',
-    auraLabel: 'Base Form',
-    colors: ['#E8460A', '#7C3AED'],
+    title: 'Guerrero Base',
+    auraLabel: 'Forma base',
+    colors: ['#6366F1', '#38BDF8'],
     difficultyMultiplier: 1,
   },
   {
     id: 'awakened',
-    title: 'Sharingan 2 Tomoe',
-    auraLabel: 'Awakened',
-    colors: ['#EF4444', '#A855F7'],
+    title: 'Super Saiyan',
+    auraLabel: 'Ki despertado',
+    colors: ['#60A5FA', '#A855F7'],
     difficultyMultiplier: 1.12,
   },
   {
     id: 'elite',
-    title: 'Super Saiyan Fase 2',
-    auraLabel: 'Elite Form',
-    colors: ['#F59E0B', '#EF4444'],
+    title: 'Super Saiyan 2',
+    auraLabel: 'Forma elite',
+    colors: ['#818CF8', '#C084FC'],
     difficultyMultiplier: 1.25,
   },
   {
     id: 'mythic',
-    title: 'Legendario Supremo',
-    auraLabel: 'Mythic Form',
+    title: 'Ultra Instinto',
+    auraLabel: 'Forma mítica',
     colors: ['#38BDF8', '#7C3AED'],
     difficultyMultiplier: 1.4,
   },
@@ -60,27 +60,27 @@ const STAGES: PowerStage[] = [
 const STAGE_THEMES: Record<PowerStage['id'], StageTheme> = {
   rookie: {
     background: ['#05050A', '#0A0A14', '#0F0F1E'],
-    accent: ['#E8460A', '#7C3AED'],
+    accent: ['#6366F1', '#38BDF8'],
     tabBackground: '#05050A',
-    tabBorder: 'rgba(232,70,10,0.2)',
-    tabActive: '#E8460A',
+    tabBorder: 'rgba(99,102,241,0.22)',
+    tabActive: '#6366F1',
     tabInactive: '#3D3A50',
   },
   awakened: {
-    background: ['#09040B', '#140812', '#1B0A1A'],
-    accent: ['#EF4444', '#A855F7'],
-    tabBackground: '#09040B',
-    tabBorder: 'rgba(239,68,68,0.25)',
-    tabActive: '#EF4444',
-    tabInactive: '#5B4462',
+    background: ['#060812', '#0C1020', '#121828'],
+    accent: ['#60A5FA', '#A855F7'],
+    tabBackground: '#060812',
+    tabBorder: 'rgba(96,165,250,0.25)',
+    tabActive: '#60A5FA',
+    tabInactive: '#4A5568',
   },
   elite: {
-    background: ['#0B0702', '#1A1105', '#231507'],
-    accent: ['#F59E0B', '#EF4444'],
-    tabBackground: '#0B0702',
-    tabBorder: 'rgba(245,158,11,0.3)',
-    tabActive: '#F59E0B',
-    tabInactive: '#6A583A',
+    background: ['#080818', '#101028', '#181838'],
+    accent: ['#818CF8', '#C084FC'],
+    tabBackground: '#080818',
+    tabBorder: 'rgba(129,140,248,0.28)',
+    tabActive: '#818CF8',
+    tabInactive: '#5B5B7A',
   },
   mythic: {
     background: ['#04080E', '#07111D', '#0D1830'],
@@ -92,14 +92,16 @@ const STAGE_THEMES: Record<PowerStage['id'], StageTheme> = {
   },
 };
 
-// Per-sensei rank names for the 4 stages (rookie→awakened→elite→mythic)
+const ARISE_RANKS: [string, string, string, string] = [
+  'En construccion',
+  'Disciplinado',
+  'Estandar alto',
+  'Inquebrantable',
+];
+
+// Single coach ranks (legacy multi-coach map collapsed)
 export const SENSEI_RANKS: Record<CoachId, [string, string, string, string]> = {
-  goku:      ['Guerrero', 'Super Saiyan', 'Super Saiyan 2', 'Ultra Instinto'],
-  itachi:    ['Genin', 'Chunin', 'ANBU', 'Mangekyo Sharingan'],
-  rengoku:   ['Aprendiz', 'Pilar del Fuego', 'Hashira Supremo', 'Más Allá del Humano'],
-  jiraiya:   ['Aprendiz Ninja', 'Modo Sabio', 'Sabio de Ranas', 'Sannin Legendario'],
-  gojo:      ['Hechicero Grado 2', 'Grado 1', 'Grado Especial', 'El Más Fuerte'],
-  all_might: ['Estudiante', 'Héroe Pro', 'Héroe Nº 1', 'Símbolo de la Paz'],
+  arise: ARISE_RANKS,
 };
 
 const STAGE_INDEX: Record<PowerStage['id'], number> = {
@@ -141,7 +143,7 @@ export function getNextStageHint(user: UserProfile, coachId?: CoachId): string {
   const nextIdx = STAGE_INDEX[stage.id] + 1;
   const nextTitle = resolvedCoachId && SENSEI_RANKS[resolvedCoachId]
     ? SENSEI_RANKS[resolvedCoachId][nextIdx]
-    : ['Guerrero', 'Super Saiyan', 'Super Saiyan 2', 'Ultra Instinto'][nextIdx];
+    : ARISE_RANKS[nextIdx];
 
   if (stage.id === 'elite') return `Siguiente rango: ${nextTitle} — racha 90 o completar 90 días.`;
   if (stage.id === 'awakened') return `Siguiente rango: ${nextTitle} — racha 60 o completar 60 días.`;

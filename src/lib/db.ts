@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { UserProfile, DayRecord, DayMetrics, MissionState, SaveDailyMetricsInput, TaskState } from '../types';
+import { normalizeCoachId } from './coach';
 
 function parseJson<T>(value: unknown, fallback: T): T {
   if (value === null || value === undefined) return fallback;
@@ -77,7 +78,7 @@ export async function fetchProfile(userId: string): Promise<UserProfile | null> 
     goals: goals as UserProfile['goals'],
     adaptiveProfile: parseJson(data.adaptive_profile, undefined),
     nutritionProfile: parseJson(data.nutrition_profile, undefined),
-    preferredCoachId: data.preferred_coach_id ?? undefined,
+    preferredCoachId: normalizeCoachId(data.preferred_coach_id),
     focusAreas: Array.isArray(data.focus_areas)
       ? (data.focus_areas as UserProfile['focusAreas'])
       : Array.isArray(meta?.focusAreas)
@@ -465,12 +466,14 @@ export async function rpcCompleteUserMissionSecure(
 // ─── User data lifecycle ─────────────────────────────────────────────────────
 
 export async function deleteUserData(userId: string): Promise<string | null> {
-  const [journalRes, metricsRes, dayRes, canonicalMetricsRes, canonicalJournalRes, profileRes] = await Promise.all([
+  const [journalRes, metricsRes, dayRes, canonicalMetricsRes, canonicalJournalRes, coachCtxRes, coachMsgRes, profileRes] = await Promise.all([
     supabase.from('journal').delete().eq('user_id', userId),
     supabase.from('metrics').delete().eq('user_id', userId),
     supabase.from('day_records').delete().eq('user_id', userId),
     supabase.from('user_metrics').delete().eq('user_id', userId),
     supabase.from('journal_entries').delete().eq('user_id', userId),
+    supabase.from('coach_daily_context').delete().eq('user_id', userId),
+    supabase.from('coach_messages').delete().eq('user_id', userId),
     supabase.from('profiles').delete().eq('id', userId),
   ]);
 
@@ -480,6 +483,8 @@ export async function deleteUserData(userId: string): Promise<string | null> {
     dayRes.error ??
     canonicalMetricsRes.error ??
     canonicalJournalRes.error ??
+    coachCtxRes.error ??
+    coachMsgRes.error ??
     profileRes.error;
   return firstError ? firstError.message : null;
 }

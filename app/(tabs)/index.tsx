@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, Pressable,
   StyleSheet, SafeAreaView, Alert, Modal, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useApp, xpForLevel } from '@/context/AppContext';
-import { COLORS, FONT, RADIUS, SPACING, SHADOW } from '@/theme';
+import { COLORS, FONT, RADIUS, SEMANTIC, SPACING, SHADOW, SURFACES, TOUCH } from '@/theme';
 import { AppData, CATEGORY_INFO, MissionDef, TaskCategory, UserProfile } from '@/types';
 import { pointsByCategory, ALL_MISSIONS } from '@/data/missions';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '@/lib/progression';
@@ -18,20 +18,15 @@ import PomodoroTimer from '@components/PomodoroTimer';
 import CoachParticles from '@components/CoachParticles';
 import ScreenLoadingState from '@components/ui/ScreenLoadingState';
 import StaggerIn from '@components/ui/StaggerIn';
+import HeroZone from '@components/ui/HeroZone';
 import MissionCard from '@components/misiones/MissionCard';
 import BadgeModal from '@components/misiones/BadgeModal';
 import WeeklyReview from '@components/misiones/WeeklyReview';
 import PenaltyScreen from '@components/misiones/PenaltyScreen';
 import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
 
-const COACH_EMOJI: Record<string, string> = {
-  goku: '⚡', itachi: '🪶', rengoku: '🔥', jiraiya: '📜', gojo: '💜', all_might: '💪',
-};
-
 const COACH_MISSION_ACCENT: Record<string, string> = {
-  goku: '#E8460A',
-  gojo: '#7C3AED',
-  itachi: '#C41230',
+  arise: '#818CF8',
 };
 
 const TRACK_DIRECTION: Record<string, string> = {
@@ -99,7 +94,7 @@ const FALLBACK_USER: UserProfile = {
   graceMonthRef: '',
   programActive: true,
   programCompleted: false,
-  preferredCoachId: 'goku',
+  preferredCoachId: 'arise',
 };
 
 const EMPTY_DATA: AppData = {
@@ -155,7 +150,7 @@ export default function HoyScreen() {
       ]),
       // Screen flash: 0 → 0.10 → 0 in 280ms
       Animated.sequence([
-        Animated.timing(screenFlash, { toValue: 0.10, duration: 80,  useNativeDriver: true }),
+        Animated.timing(screenFlash, { toValue: 0.06, duration: 80,  useNativeDriver: true }),
         Animated.timing(screenFlash, { toValue: 0,    duration: 200, useNativeDriver: true }),
       ]),
     ]).start(() => clearXpEarned());
@@ -348,7 +343,7 @@ export default function HoyScreen() {
     () => Math.min(quotes.length - 1, Math.floor(avgGoalProgress * quotes.length)),
     [quotes, avgGoalProgress],
   );
-  const coachId = user.preferredCoachId ?? 'goku';
+  const coachId = user.preferredCoachId ?? 'arise';
   const coach = useMemo(() => getCoachById(coachId), [coachId]);
   const coachVisual = useMemo(() => getCoachVisualProfile(coachId), [coachId]);
   const missionAccentColor = COACH_MISSION_ACCENT[coachId] ?? coachVisual.glowColor;
@@ -485,11 +480,11 @@ export default function HoyScreen() {
               90 días. Sin excusas.{'\n'}Lo lograste.
             </Text>
 
-            <View style={[styles.card, { borderColor: '#F59E0B60', width: '100%' }]}>
-              <Text style={[styles.cardLabel, { color: '#F59E0B' }]}>TUS NÚMEROS FINALES</Text>
+            <View style={[styles.card, { borderColor: COLORS.gold + '50', width: '100%' }]}>
+              <Text style={[styles.cardLabel, { color: COLORS.gold }]}>TUS NÚMEROS FINALES</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: SPACING.sm }}>
                 <View style={{ alignItems: 'center' }}>
-                  <Text style={[styles.bigNumber, { color: '#F59E0B' }]}>{user.maxStreak}🔥</Text>
+                  <Text style={[styles.bigNumber, { color: COLORS.gold }]}>{user.maxStreak}</Text>
                   <Text style={styles.cardLabel}>RACHA MÁX</Text>
                 </View>
                 <View style={{ alignItems: 'center' }}>
@@ -546,7 +541,7 @@ export default function HoyScreen() {
 
             <View style={[styles.card, { borderColor: COLORS.success + '40' }]}>
               <Text style={[styles.cardLabel, { color: COLORS.success }]}>RACHA ACTUAL</Text>
-              <Text style={styles.bigNumber}>{user.streak} 🔥</Text>
+              <Text style={styles.bigNumber}>{user.streak}</Text>
             </View>
 
             <View style={styles.row}>
@@ -567,16 +562,15 @@ export default function HoyScreen() {
             <Text style={styles.nextDayText}>
               Mañana: Día {user.currentDay} de 90
             </Text>
-            <TouchableOpacity
+            <Pressable
               style={styles.completeCta}
               onPress={() => setDismissedDayComplete(true)}
-              activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Continuar en la pantalla de hoy"
             >
               <Ionicons name="rocket-outline" size={18} color="#FFFFFF" />
               <Text style={styles.completeCtaText}>Seguir entrenando hoy</Text>
-            </TouchableOpacity>
+            </Pressable>
           </ScrollView>
           </SafeAreaView>
         </Animated.View>
@@ -587,7 +581,7 @@ export default function HoyScreen() {
   // ── Main daily screen ───────────────────────────────────────────────────
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={coachId ?? 'goku'} tappable reducedMotion={reducedMotion} />
+      <CoachParticles coachId={coachId ?? 'arise'} reducedMotion={reducedMotion} />
       {/* Screen flash overlay — fires when XP is earned */}
       <Animated.View
         pointerEvents="none"
@@ -608,7 +602,7 @@ export default function HoyScreen() {
             weekNumber={currentWeekNum}
             stats={weeklyStats}
             coachName={coach.name}
-            coachEmoji={COACH_EMOJI[coachId] ?? '🏆'}
+            coachIcon={coachVisual.icon as React.ComponentProps<typeof Ionicons>['name']}
             wins={weeklyReport.wins}
             focus={weeklyReport.focus}
             coachMessage={weeklyReport.message}
@@ -636,57 +630,77 @@ export default function HoyScreen() {
                 <Text style={styles.dayLabel}>DÍA {user.currentDay} DE 90</Text>
                 {syncing && (
                   <View style={styles.syncBadge}>
-                    <Ionicons name="cloud-upload-outline" size={12} color="#60A5FA" />
+                    <Ionicons name="cloud-upload-outline" size={12} color={SEMANTIC.brandLight} />
                     <Text style={styles.syncText}>Sincronizando</Text>
                   </View>
                 )}
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
-              <TouchableOpacity
+              <Pressable
                 style={styles.configBtn}
                 onPress={() => router.push('/(tabs)/config')}
-                activeOpacity={0.8}
+                hitSlop={TOUCH.hitSlop}
                 accessibilityRole="button"
                 accessibilityLabel="Abrir configuracion"
               >
-                <Ionicons name="settings-outline" size={16} color={COLORS.textSecondary} />
-              </TouchableOpacity>
+                <Ionicons name="settings-outline" size={16} color={SEMANTIC.onSurfaceVariant} />
+              </Pressable>
               {currentWeekNum > 1 && (
-                <TouchableOpacity
+                <Pressable
                   style={styles.weekReviewBtn}
                   onPress={() => setShowWeeklyReview(true)}
-                  activeOpacity={0.8}
+                  hitSlop={TOUCH.hitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir review de semana ${currentWeekNum - 1}`}
                 >
-                  <Ionicons name="bar-chart-outline" size={14} color={COLORS.accent} />
+                  <Ionicons name="bar-chart-outline" size={14} color={SEMANTIC.primary} />
                   <Text style={styles.weekReviewBtnText}>Sem. {currentWeekNum - 1}</Text>
-                </TouchableOpacity>
+                </Pressable>
               )}
               {user.streak > 3 && (
                 <Animated.View style={[styles.comboBadge, {
                   opacity: comboOpac,
-                  borderColor: coachVisual.glowColor + '70',
-                  backgroundColor: coachVisual.glowColor + '18',
+                  borderColor: COLORS.streak + '55',
+                  backgroundColor: COLORS.streak + '14',
                 }]}>
-                  <Text style={[styles.comboText, { color: coachVisual.glowColor }]}>
-                    COMBO 🔥
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="flash" size={11} color={COLORS.streak} />
+                    <Text style={[styles.comboText, { color: COLORS.streak }]}>
+                      COMBO
+                    </Text>
+                  </View>
                 </Animated.View>
               )}
-              <View style={styles.streakBadge}>
+              <View style={styles.streakBadge} accessibilityLabel={`Racha de ${user.streak} días`}>
+                <Ionicons name="flash-outline" size={14} color={COLORS.streak} />
                 <Text style={styles.streakNumber}>{user.streak}</Text>
-                <Text style={styles.streakFire}>🔥</Text>
               </View>
             </View>
           </View>
 
+          <HeroZone
+            trustBadge={`Día ${user.currentDay} · Nivel ${user.level}`}
+            headline={{ line1: 'Hoy decide', line2: 'tu racha' }}
+            subtitle={
+              dayCompleted
+                ? 'Día completado. Mantené el ritmo mañana.'
+                : `Sumá ${pointsTarget} pts en las misiones de hoy. Un foco, una acción.`
+            }
+          />
+
           {/* ── Primary loop first: progress + missions ── */}
           <View style={styles.pointsSection}>
             <View style={styles.pointsHeader}>
-              <Text style={styles.pointsLabel}>
-                {dayCompleted ? '✅ DÍA COMPLETADO' : 'PUNTOS DE HOY'}
-              </Text>
-              <Text style={[styles.pointsCount, { color: dayCompleted ? COLORS.success : stageTheme.tabActive }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {dayCompleted ? (
+                  <Ionicons name="checkmark-circle" size={14} color={SEMANTIC.success} />
+                ) : null}
+                <Text style={styles.pointsLabel}>
+                  {dayCompleted ? 'DÍA COMPLETADO' : 'PUNTOS DE HOY'}
+                </Text>
+              </View>
+              <Text style={[styles.pointsCount, { color: dayCompleted ? SEMANTIC.success : stageTheme.tabActive }]}>
                 {totalPoints} / {pointsTarget} pts
               </Text>
             </View>
@@ -727,7 +741,7 @@ export default function HoyScreen() {
                   textShadowOffset: { width: 0, height: 0 },
                   textShadowRadius: 14,
                 }]}>
-                  +{xpLastEarned} XP ⚡
+                  +{xpLastEarned} XP
                 </Animated.Text>
               )}
             </View>
@@ -746,21 +760,23 @@ export default function HoyScreen() {
               <Text style={styles.sectionTitle}>MISIONES DE HOY</Text>
               <Text style={styles.missionsMeta}>{todayMissions.length} misiones · tope 10pt/categoría</Text>
             </View>
-            <TouchableOpacity
+            <Pressable
               style={[styles.calendarBtn, addingToCalendar && { opacity: 0.5 }]}
               onPress={handleAddToCalendar}
-              activeOpacity={0.8}
               disabled={addingToCalendar}
             >
               <Ionicons name="calendar-outline" size={16} color={stageTheme.tabActive} />
               <Text style={[styles.calendarBtnText, { color: stageTheme.tabActive }]}>
                 {addingToCalendar ? '...' : 'Agendar'}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
           {/* Fixed missions first */}
-          <Text style={styles.missionGroupLabel}>📌 FIJAS</Text>
+          <View style={styles.missionGroupLabelRow}>
+            <Ionicons name="pin" size={12} color={SEMANTIC.onSurfaceMuted} />
+            <Text style={styles.missionGroupLabel}>FIJAS</Text>
+          </View>
           {todayMissions.filter(m => m.isFixed).map((mission, index) => (
             <StaggerIn key={mission.id} index={index} reducedMotion={reducedMotion}>
               <MissionCard
@@ -774,7 +790,10 @@ export default function HoyScreen() {
           ))}
 
           {/* Daily rotating missions */}
-          <Text style={[styles.missionGroupLabel, { marginTop: SPACING.sm }]}>🎲 MISIONES DEL DÍA</Text>
+          <View style={[styles.missionGroupLabelRow, { marginTop: SPACING.sm }]}>
+            <Ionicons name="shuffle" size={12} color={SEMANTIC.onSurfaceMuted} />
+            <Text style={styles.missionGroupLabel}>MISIONES DEL DÍA</Text>
+          </View>
           {todayMissions.filter(m => !m.isFixed).map((mission, index) => (
             <StaggerIn
               key={mission.id}
@@ -792,24 +811,32 @@ export default function HoyScreen() {
           ))}
 
           {/* More missions button */}
-          <TouchableOpacity
+          <Pressable
             style={styles.repoBtn}
             onPress={() => setShowMissionRepo(true)}
-            activeOpacity={0.8}
           >
             <Ionicons name="add-circle-outline" size={18} color={stageTheme.tabActive} />
             <Text style={[styles.repoBtnText, { color: stageTheme.tabActive }]}>Ver repositorio de misiones</Text>
-          </TouchableOpacity>
+          </Pressable>
 
           {/* ── Compact coach briefing (secondary) ── */}
-          <View style={[styles.coachIdentityCard, coachCardStyle]}>
+          <Pressable
+            style={[styles.coachIdentityCard, coachCardStyle]}
+            onPress={() => router.push('/coach' as any)}
+            accessibilityRole="button"
+            accessibilityLabel={`Hablar con ${coach.name}`}
+          >
             <View style={styles.coachIdentityRow}>
               <Ionicons name={coachVisual.icon as any} size={16} color={stageTheme.tabActive} />
               <Text style={[styles.coachIdentityLabel, { color: stageTheme.tabActive }]}>{coachVisual.headerLabel}</Text>
+              <Ionicons name="chatbubbles-outline" size={14} color={stageTheme.tabActive} style={{ marginLeft: 'auto' }} />
             </View>
-            <Text style={styles.coachIdentityName}>Coach activo: {coach.name}</Text>
+            <Text style={styles.coachIdentityName}>Coach ARISE</Text>
             <Text style={styles.coachIdentityNote}>{coach.motivator}</Text>
-          </View>
+            <Text style={[styles.coachIdentityNote, { marginTop: 8, color: stageTheme.tabActive }]}>
+              Toca para chatear — Williamson · Hormozi · Goggins · Rohn · Plitt
+            </Text>
+          </Pressable>
 
           <View style={[styles.powerCard, coachCardStyle]}>
             <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerAura}>
@@ -820,14 +847,16 @@ export default function HoyScreen() {
           </View>
 
           {weekIntention && (
-            <TouchableOpacity
+            <Pressable
               style={[styles.intentionCard, coachCardStyle]}
               onPress={() => setShowWeeklyReview(true)}
-              activeOpacity={0.85}
             >
-              <Text style={styles.intentionLabel}>⚡ INTENCIÓN SEMANA {currentWeekNum}</Text>
+              <View style={styles.intentionLabelRow}>
+                <Ionicons name="flash" size={12} color={SEMANTIC.primary} />
+                <Text style={styles.intentionLabel}>INTENCIÓN SEMANA {currentWeekNum}</Text>
+              </View>
               <Text style={styles.intentionText}>"{weekIntention}"</Text>
-            </TouchableOpacity>
+            </Pressable>
           )}
 
           <View style={{ height: 100 }} />
@@ -839,9 +868,9 @@ export default function HoyScreen() {
             <SafeAreaView style={{ flex: 1 }}>
               <View style={repoStyles.header}>
                 <Text style={repoStyles.title}>Repositorio de misiones</Text>
-                <TouchableOpacity onPress={() => setShowMissionRepo(false)} style={{ padding: 8 }}>
+                <Pressable onPress={() => setShowMissionRepo(false)} style={{ padding: 8 }}>
                   <Ionicons name="close-circle" size={28} color={COLORS.textMuted} />
-                </TouchableOpacity>
+                </Pressable>
               </View>
               <Text style={repoStyles.subtitle}>
                 Ancla hasta 5 misiones para que aparezcan todos los días junto a las fijas.
@@ -870,17 +899,16 @@ export default function HoyScreen() {
                             {inToday && !isPinned ? (
                               <Text style={repoStyles.todayBadge}>Hoy</Text>
                             ) : (
-                              <TouchableOpacity
+                              <Pressable
                                 style={[repoStyles.pinBtn, isPinned && { backgroundColor: info.color }]}
                                 onPress={() => isPinned ? unpinMission(m.id) : pinMission(m.id)}
-                                activeOpacity={0.8}
                               >
                                 <Ionicons
                                   name={isPinned ? 'pin' : 'pin-outline'}
                                   size={16}
                                   color={isPinned ? '#fff' : COLORS.textMuted}
                                 />
-                              </TouchableOpacity>
+                              </Pressable>
                             )}
                           </View>
                         );
@@ -935,12 +963,12 @@ const styles = StyleSheet.create({
   // ── Program Complete styles ──────────────────────────────────────────────
   ariseCompleteKanji: {
     fontSize: 80,
-    color: '#F59E0B',
+    color: COLORS.gold,
     textAlign: 'center',
     marginBottom: SPACING.md,
-    textShadowColor: '#F59E0B',
+    textShadowColor: COLORS.accent,
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 30,
+    textShadowRadius: 24,
   },
   ariseCompleteTitle: {
     fontSize: 48,
@@ -988,19 +1016,19 @@ const styles = StyleSheet.create({
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(251,146,60,0.15)',
+    gap: 4,
+    backgroundColor: 'rgba(129,140,248,0.12)',
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
     borderWidth: 1,
-    borderColor: 'rgba(251,146,60,0.3)',
+    borderColor: 'rgba(129,140,248,0.28)',
   },
   streakNumber: {
     fontSize: FONT.lg,
     fontWeight: '800',
     color: COLORS.streak,
   },
-  streakFire: { fontSize: FONT.lg, marginLeft: 2 },
   weekReviewBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: COLORS.accent + '15',
@@ -1081,13 +1109,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: SPACING.md,
     marginBottom: SPACING.md,
-  },
-  intentionLabel: {
-    fontSize: FONT.xs,
-    color: COLORS.accent,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: SPACING.sm,
   },
   intentionText: {
     fontSize: FONT.base,
@@ -1179,7 +1200,20 @@ const styles = StyleSheet.create({
   },
   calendarBtnText: { fontSize: FONT.xs, fontWeight: '700' },
   missionsMeta: { fontSize: FONT.xs, color: COLORS.textMuted },
-  missionGroupLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: COLORS.textMuted, marginBottom: SPACING.sm },
+  missionGroupLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: SPACING.sm,
+  },
+  missionGroupLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 2, color: SEMANTIC.onSurfaceMuted },
+  intentionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  intentionLabel: {
+    fontSize: FONT.xs,
+    color: SEMANTIC.onSurfaceVariant,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
   repoBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: SPACING.sm, padding: SPACING.sm,
