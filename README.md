@@ -1,19 +1,36 @@
-# ARISE — Tu programa de 90 días
+# ARISE — 90 Day Challenge
 
-> "Arise — levantáte."  
-> App personal de transformación de 90 días. Construida para Teo.
+> App de productividad y transformación personal, tematizada con estética anime/shonen (Naruto, Dragon Ball, Jujutsu Kaisen, Demon Slayer). Convertí tu rutina diaria en un sistema de niveles, rangos y logros.
+
+**Stack:** React Native · Expo (Router, SDK 54) · TypeScript · Supabase (Auth + Postgres + RLS)
 
 ---
 
-## Pantallas
+## El concepto
 
-| Tab | Función |
-|-----|---------|
-| ☀️ Hoy | Tareas del día con checkboxes. Frase motivacional. Progreso del día. |
-| ⊞ Programa | Grilla de los 90 días con colores de estado. Hitos del camino. |
-| 📊 Progreso | Métricas diarias (peso, entrenamiento, lectura, meditación). Historial. |
-| 📓 Diario | Notas y reflexiones diarias. Preguntas para reflexionar. Historial. |
-| ⚙️ Config | Nivel XP, estadísticas, día de gracia, info del programa. |
+ARISE toma la lógica de progresión de un RPG/anime shonen — XP, niveles, rangos ninja (Genin → Chunin → Jonin → Kage), "formas de poder" al estilo Super Saiyan/Sharingan — y la aplica a un programa real de 90 días de hábitos: entrenamiento, lectura, meditación, trabajo enfocado, journaling.
+
+La idea de fondo: la disciplina diaria se siente más como "subir de nivel" que como una lista de tareas. Cada día completado suma puntos y XP, las rachas desbloquean "auras" y transformaciones visuales, y fallar un día activa una misión de penitencia en vez de simplemente romper el progreso.
+
+## Funcionalidades implementadas
+
+- **Programa de 90 días en 4 fases** (Fundación → Construcción → Momentum → Elite), con misiones que escalan en dificultad (minutos de entrenamiento, páginas de lectura, meditación, ducha fría, visualización, trabajo profundo).
+- **Sistema de misiones con puntos**: misiones binarias, escalonadas (steps) y proporcionales, con puntaje diario objetivo (30 normal / 40 modo difícil).
+- **XP, niveles y "power stages"**: 4 etapas visuales que cambian colores/tema de la app según el progreso.
+- **Sistema de rachas y penitencia**: perder un día activa una misión de penitencia; incluye 1 día de gracia mensual que no rompe la racha.
+- **Coaches temáticos seleccionables**: cada uno con frases, overlays visuales y reportes semanales de progreso con tono propio.
+- **Insignias / badges** con rangos ninja por rachas, fases completadas, hitos de lectura/entrenamiento, etc.
+- **Grilla del programa**: vista de los 90 días con estado (completado/fallado/pendiente) e hitos.
+- **Progreso y diario**: métricas diarias (peso, entrenamiento, lectura, meditación, ánimo) con historial, más notas y reflexiones diarias.
+- **Discovery**: biblioteca curada de ejercicios y libros recomendados, organizados por fase.
+- **Timer Pomodoro** integrado para bloques de trabajo enfocado.
+- **Integración con calendario nativo** (expo-calendar) y **notificaciones locales** programables.
+- **Autenticación y sync en la nube** vía Supabase: registro/login/reset de contraseña, datos persistidos por usuario con Row Level Security.
+- **Onboarding adaptativo**: cuestionario inicial que genera un perfil y recomendaciones personalizadas.
+
+## Estado del proyecto
+
+Proyecto personal en desarrollo activo (WIP), originalmente pensado para uso propio y pulido luego con vistas a una eventual publicación en tiendas (incluye configuración de EAS Build/Submit y política de privacidad). No es un producto comercial ni tiene usuarios externos.
 
 ---
 
@@ -48,55 +65,21 @@ Se abre automáticamente en el navegador.
 
 ```
 arise-app/
-├── app/
-│   ├── _layout.tsx          → Root con provider
-│   └── (tabs)/
-│       ├── _layout.tsx      → Tab bar
-│       ├── index.tsx        → Pantalla "Hoy"
-│       ├── programa.tsx     → Grilla 90 días
-│       ├── progreso.tsx     → Métricas y progreso
-│       ├── diario.tsx       → Diario personal
-│       └── config.tsx       → Configuración
+├── app/                      → rutas (Expo Router)
+│   ├── welcome.tsx / login.tsx / onboarding.tsx
+│   └── (tabs)/                → Hoy · Programa · Progreso · Diario · Discovery · Config
 ├── src/
-│   ├── context/
-│   │   └── AppContext.tsx   → Estado global + AsyncStorage
-│   ├── data/
-│   │   └── program.ts       → Las 90 tareas de Teo
-│   ├── theme/
-│   │   └── index.ts         → Colores y tipografía
-│   └── types/
-│       └── index.ts         → Tipos TypeScript
-└── package.json
+│   ├── context/                → AppContext (estado global + AsyncStorage/Supabase), AuthContext
+│   ├── data/                   → definición de las 90 misiones/día y estructura del programa
+│   ├── lib/                    → progresión/XP, coaches, calendario, notificaciones, frases, db, cliente Supabase
+│   ├── components/              → PomodoroTimer, CoachParticles (efectos visuales)
+│   └── theme/                   → tokens de color y tipografía
+└── supabase/
+    ├── schema.sql               → tablas + políticas RLS
+    └── migrations/
 ```
 
----
-
-## Tu programa de 90 días
-
-**Fase 1 (Días 1-10): Fundación**
-- Entrenamiento: 20-28 min
-- Lectura: 10-13 páginas
-- Meditación: 5-7 min
-- Agua: 2L / Trabajo enfocado: 45-58 min
-
-**Fase 2 (Días 11-30): Construcción**
-- Entrenamiento: sube hasta ~45 min
-- Lectura: sube a ~20 páginas
-- Meditación: sube a ~10 min
-- Trabajo: sube a ~90 min
-
-**Fase 3 (Días 31-60): Momentum**
-- Se agrega Visualización (día 20+)
-- Se agrega Ducha fría (día 40+)
-- Entrenamiento: 45-65 min con HIIT y pesas
-- Trabajo profundo: hasta 135 min
-
-**Fase 4 (Días 61-90): Elite**
-- Entrenamiento: 70-95 min
-- Lectura: hasta 40 páginas
-- Meditación: 20 min
-- Trabajo: hasta 3 horas
-- Ducha fría: hasta 5 min
+**Backend:** Supabase (Postgres) con autenticación propia y tablas `profiles`, `day_records`, `metrics`, `journal`, todas protegidas con Row Level Security por `auth.uid()` — cada usuario solo accede a sus propios datos.
 
 ---
 
@@ -104,7 +87,7 @@ arise-app/
 
 - **Si fallás un día** → Aparece una misión de penitencia (entrenamiento doble + meditación + carta de compromiso)
 - **Si completás la penitencia** → Continuás desde donde estabas (racha reset a 0)
-- **Día de gracia** → 1 por mes. No pierdes el progreso, solo la racha. Usalo con criterio.
+- **Día de gracia** → 1 por mes. No perdés el progreso, solo la racha.
 
 ---
 
@@ -140,4 +123,4 @@ También podés repetirlo para `preview` o `development` cambiando `--environmen
 
 ---
 
-*Arise — levantáte. 90 días. Sin excusas.*
+*Construida con Expo + TypeScript + Supabase.*
