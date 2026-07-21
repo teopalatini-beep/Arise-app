@@ -1,20 +1,28 @@
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  SafeAreaView, Modal, Pressable, Alert, Animated,
+  View, Text, ScrollView, StyleSheet, Pressable,
+  SafeAreaView, Modal, Alert, Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useApp } from '@/context/AppContext';
-import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { COLORS, FONT, METAL, RADIUS, SEMANTIC, SPACING, SURFACES, TOUCH } from '@/theme';
 import { getStageTheme, StageTheme } from '@/lib/progression';
-import CoachParticles from '@components/CoachParticles';
 import StaggerIn from '@components/ui/StaggerIn';
+import HeroZone from '@components/ui/HeroZone';
 import DiscoveryToolCard from '@components/discovery/DiscoveryToolCard';
 import DiscoveryToolHeroModal from '@components/discovery/DiscoveryToolHeroModal';
 import DiscoverySkeleton from '@components/discovery/DiscoverySkeleton';
 import { DISCOVERY_TOOLS, DiscoveryTool } from '@/data/discoveryTools';
 import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
+
+const DISCOVERY_HERO = {
+  trustBadge: 'Ciencia y alto rendimiento',
+  headline: { line1: 'Claridad', line2: 'mental' },
+  subtitle:
+    'Herramientas para enfoque, hábitos y control del día.',
+} as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Phase = 1 | 2 | 3;
@@ -64,7 +72,7 @@ interface MindsetItem {
 const EXERCISES: Exercise[] = [
   // FASE 1
   {
-    id: 'e1', name: 'HIIT Básico', emoji: '🔥', category: 'Cardio',
+    id: 'e1', name: 'HIIT Básico', emoji: '💪', category: 'Cardio',
     difficulty: 1, duration: '20-30 min', muscles: ['Cuerpo completo', 'Core'],
     description: 'El mejor punto de partida para construir capacidad cardiovascular y quemar grasa sin necesitar equipamiento.',
     protocol: [
@@ -145,7 +153,7 @@ const EXERCISES: Exercise[] = [
       'Pausa de 1 seg en el piso entre repeticiones (no rebotar)',
       'Terminá con 1 serie × 8 al 60% para sentir el patrón',
     ],
-    phase: 2, color: '#C084FC',
+    phase: 2, color: '#D4AF37',
   },
   // FASE 3
   {
@@ -234,7 +242,7 @@ const BOOKS: Book[] = [
   },
   // FASE 2
   {
-    id: 'b4', title: 'No te rindas', author: 'David Goggins', emoji: '💀',
+    id: 'b4', title: 'No te rindas', author: 'David Goggins', emoji: '',
     pages: 364, rating: 5, category: 'Disciplina',
     review: 'El libro más brutal y honesto sobre la mente humana. Goggins pasó de ser un hombre obeso a convertirse en Navy SEAL, ultramaratonista y dueño del récord mundial de dominadas.',
     whyRead: 'Te muestra que el 99% de tus límites son mentales. Perfecto para la Fase 2 cuando querés bajar el ritmo.',
@@ -270,7 +278,7 @@ const BOOKS: Book[] = [
       'La voluntad acepta lo que no puede controlar',
       'Amor fati: amá tu destino, incluyendo los problemas',
     ],
-    phase: 2, color: '#C084FC',
+    phase: 2, color: '#D4AF37',
   },
   // FASE 3
   {
@@ -347,7 +355,7 @@ const MINDSET_ITEMS: MindsetItem[] = [
       'Cuando flaquees, volvé a la identidad: ¿qué haría la persona que soy?',
       'Revisá tu identidad escrita cada semana',
     ],
-    phase: 1, color: '#C084FC',
+    phase: 1, color: '#D4AF37',
   },
   // FASE 2 — mixto
   {
@@ -386,7 +394,7 @@ const MINDSET_ITEMS: MindsetItem[] = [
   },
   // FASE 3 — pura disciplina
   {
-    id: 'm7', title: 'Amor Fati', emoji: '🔥', type: 'disciplina',
+    id: 'm7', title: 'Amor Fati', emoji: '💎', type: 'disciplina',
     description: 'El concepto estoico más poderoso: no solo aceptar lo que te pasa, sino amarlo. El dolor de hoy es el carácter de mañana. La adversidad no te pasa a vos — te pasa para vos.',
     howTo: [
       'Cuando algo sale mal, preguntate: ¿cómo esto me sirve?',
@@ -394,7 +402,7 @@ const MINDSET_ITEMS: MindsetItem[] = [
       'Escribe las adversidades del mes y qué te enseñaron',
       'Practica la incomodidad voluntaria (ducha fría, ayuno, silencio)',
     ],
-    phase: 3, color: '#C084FC',
+    phase: 3, color: '#D4AF37',
   },
   {
     id: 'm8', title: 'Visualización de Contraste', emoji: '🧠', type: 'disciplina',
@@ -408,7 +416,7 @@ const MINDSET_ITEMS: MindsetItem[] = [
     phase: 3, color: '#4895EF',
   },
   {
-    id: 'm9', title: 'Revisión Semanal de Elite', emoji: '⚔️', type: 'disciplina',
+    id: 'm9', title: 'Revisión Semanal de Elite', emoji: '', type: 'disciplina',
     description: 'Los mejores del mundo no improvizan — revisan sistemáticamente. Una hora semanal de revisión vale más que 20 horas de ejecución sin dirección.',
     howTo: [
       'Todos los domingos: 60 min sin celular ni interrupciones',
@@ -447,7 +455,7 @@ const TRACK_TIPS: Record<string, string> = {
 function getRecommendations(track: string, phase: Phase): Recommendation[] {
   const recs: Record<string, Recommendation[]> = {
     fat_loss: [
-      { label: 'Ejercicio', emoji: '🔥', color: '#FF6B6B', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e5' : 'e1'))! },
+      { label: 'Ejercicio', emoji: '💪', color: '#F87171', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e5' : 'e1'))! },
       { label: 'Mentalidad', emoji: '🔗', color: '#68D391', item: MINDSET_ITEMS.find(m => m.id === 'm1')! },
       { label: 'Libro', emoji: '⚛️', color: '#F6E05E', item: BOOKS.find(b => b.id === 'b1')! },
     ],
@@ -457,14 +465,14 @@ function getRecommendations(track: string, phase: Phase): Recommendation[] {
       { label: 'Libro', emoji: '💀', color: '#FF6B6B', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b4' : 'b3'))! },
     ],
     recomposition: [
-      { label: 'Ejercicio', emoji: '🔩', color: '#C084FC', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e6' : 'e2'))! },
+      { label: 'Ejercicio', emoji: '🔩', color: '#D4AF37', item: EXERCISES.find(e => e.id === (phase >= 2 ? 'e6' : 'e2'))! },
       { label: 'Mentalidad', emoji: '🚫', color: '#FF6B6B', item: MINDSET_ITEMS.find(m => m.id === (phase >= 2 ? 'm5' : 'm2'))! },
       { label: 'Libro', emoji: '🎯', color: '#4895EF', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b5' : 'b1'))! },
     ],
     maintenance: [
       { label: 'Ejercicio', emoji: '🏃', color: '#FF6B6B', item: EXERCISES.find(e => e.id === (phase >= 3 ? 'e7' : phase >= 2 ? 'e5' : 'e3'))! },
-      { label: 'Mentalidad', emoji: '🔥', color: '#C084FC', item: MINDSET_ITEMS.find(m => m.id === (phase >= 3 ? 'm7' : 'm3'))! },
-      { label: 'Libro', emoji: '🪨', color: '#C084FC', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b6' : 'b2'))! },
+      { label: 'Mentalidad', emoji: '✨', color: '#D4AF37', item: MINDSET_ITEMS.find(m => m.id === (phase >= 3 ? 'm7' : 'm3'))! },
+      { label: 'Libro', emoji: '🪨', color: '#D4AF37', item: BOOKS.find(b => b.id === (phase >= 2 ? 'b6' : 'b2'))! },
     ],
   };
   return (recs[track] ?? recs['maintenance']).filter(r => r.item != null);
@@ -488,7 +496,7 @@ function RecomendadoSection({
   return (
     <View style={recStyles.container}>
       <View style={recStyles.header}>
-        <Text style={recStyles.title}>⭐ Recomendado para vos</Text>
+        <Text style={recStyles.title}>Recomendado para vos</Text>
         <View style={recStyles.trackBadge}>
           <Text style={recStyles.trackLabel}>{trackLabel}</Text>
         </View>
@@ -496,7 +504,7 @@ function RecomendadoSection({
 
       <View style={recStyles.cards}>
         {recs.map((rec, i) => (
-          <TouchableOpacity key={i} style={[recStyles.card, { borderColor: rec.color + '40' }]} onPress={() => onPress(rec.item)} activeOpacity={0.8}>
+          <Pressable key={i} style={[recStyles.card, { borderColor: rec.color + '40' }]} onPress={() => onPress(rec.item)}>
             <View style={[recStyles.cardIcon, { backgroundColor: rec.color + '20' }]}>
               <Text style={{ fontSize: 20 }}>{rec.emoji}</Text>
             </View>
@@ -504,7 +512,7 @@ function RecomendadoSection({
             <Text style={recStyles.cardName} numberOfLines={2}>
               {'title' in rec.item ? (rec.item as Book).title : 'name' in rec.item ? (rec.item as Exercise).name : (rec.item as MindsetItem).title}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
 
@@ -547,9 +555,9 @@ function getPhase(day: number): Phase {
 }
 
 const PHASE_INFO = {
-  1: { label: 'FUNDACIÓN', subtitle: 'Días 1-30', color: COLORS.success, gradient: [COLORS.success + '30', 'transparent'] as string[] },
-  2: { label: 'CONSTRUCCIÓN', subtitle: 'Días 31-60', color: COLORS.warning, gradient: [COLORS.warning + '30', 'transparent'] as string[] },
-  3: { label: 'ELITE', subtitle: 'Días 61-90', color: COLORS.danger, gradient: [COLORS.danger + '30', 'transparent'] as string[] },
+  1: { label: 'Fundación', subtitle: 'Días 1-30', color: COLORS.success, gradient: [COLORS.success + '30', 'transparent'] as string[] },
+  2: { label: 'Construcción', subtitle: 'Días 31-60', color: COLORS.warning, gradient: [COLORS.warning + '30', 'transparent'] as string[] },
+  3: { label: 'Elite', subtitle: 'Días 61-90', color: METAL.gold, gradient: [METAL.goldWash, 'transparent'] as string[] },
 };
 
 // ─── Star rating ──────────────────────────────────────────────────────────────
@@ -670,9 +678,9 @@ function DetailModal({ item, onClose, stageTheme }: { item: Exercise | Book | Mi
             <View style={{ height: 40 }} />
           </ScrollView>
 
-          <TouchableOpacity style={[modalStyles.closeBtn, { backgroundColor: (item as any).color }]} onPress={onClose}>
+          <Pressable style={[modalStyles.closeBtn, { backgroundColor: (item as any).color }]} onPress={onClose}>
             <Text style={modalStyles.closeBtnText}>Cerrar</Text>
-          </TouchableOpacity>
+          </Pressable>
         </LinearGradient>
       </View>
     </Modal>
@@ -682,7 +690,7 @@ function DetailModal({ item, onClose, stageTheme }: { item: Exercise | Book | Mi
 // ─── Card components ──────────────────────────────────────────────────────────
 function ExerciseCard({ item, locked, onPress }: { item: Exercise; locked: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }} activeOpacity={0.8}>
+    <Pressable onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }}>
       <View style={[cardStyles.card, locked && cardStyles.locked, { borderColor: item.color + '30' }]}>
         <View style={[cardStyles.emoji, { backgroundColor: item.color + '20' }]}>
           <Text style={{ fontSize: 22 }}>{locked ? '🔒' : item.emoji}</Text>
@@ -697,13 +705,13 @@ function ExerciseCard({ item, locked, onPress }: { item: Exercise; locked: boole
         </View>
         {!locked && <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 function BookCard({ item, locked, onPress }: { item: Book; locked: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }} activeOpacity={0.8}>
+    <Pressable onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }}>
       <View style={[cardStyles.card, locked && cardStyles.locked, { borderColor: item.color + '30' }]}>
         <View style={[cardStyles.emoji, { backgroundColor: item.color + '20' }]}>
           <Text style={{ fontSize: 22 }}>{locked ? '🔒' : item.emoji}</Text>
@@ -717,13 +725,13 @@ function BookCard({ item, locked, onPress }: { item: Book; locked: boolean; onPr
         </View>
         {!locked && <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 function MindsetCard({ item, locked, onPress }: { item: MindsetItem; locked: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }} activeOpacity={0.8}>
+    <Pressable onPress={() => { if (locked) { Alert.alert('Bloqueado', `Este contenido se desbloquea en la Fase ${item.phase}.`); return; } onPress(); }}>
       <View style={[cardStyles.card, locked && cardStyles.locked, { borderColor: item.color + '30' }]}>
         <View style={[cardStyles.emoji, { backgroundColor: item.color + '20' }]}>
           <Text style={{ fontSize: 22 }}>{locked ? '🔒' : item.emoji}</Text>
@@ -735,7 +743,7 @@ function MindsetCard({ item, locked, onPress }: { item: MindsetItem; locked: boo
         </View>
         {!locked && <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -743,6 +751,7 @@ function MindsetCard({ item, locked, onPress }: { item: MindsetItem; locked: boo
 type Tab = 'ejercicios' | 'libros' | 'mentalidad' | 'herramientas';
 
 export default function DiscoveryScreen() {
+  const router = useRouter();
   const { reducedMotion, screenAnimStyle } = useTabScreenMotion('discovery');
   const { data, loading } = useApp();
   const [activeTab, setActiveTab] = useState<Tab>('ejercicios');
@@ -750,20 +759,18 @@ export default function DiscoveryScreen() {
   const [selectedTool, setSelectedTool] = useState<DiscoveryTool | null>(null);
 
   if (!data && loading) {
-    const fallbackTheme = getStageTheme();
     return (
-      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
+      <View style={[styles.container, { backgroundColor: SURFACES.base }]}>
         <SafeAreaView style={styles.safe}>
           <DiscoverySkeleton />
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
   if (!data) {
-    const fallbackTheme = getStageTheme();
     return (
-      <LinearGradient colors={fallbackTheme.background} style={styles.container}>
+      <View style={[styles.container, { backgroundColor: SURFACES.base }]}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.emptyWrap}>
             <Ionicons name="compass-outline" size={40} color={COLORS.textMuted} />
@@ -771,7 +778,7 @@ export default function DiscoveryScreen() {
             <Text style={styles.emptyText}>Verifica conexión e inicia sesión nuevamente.</Text>
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -780,33 +787,44 @@ export default function DiscoveryScreen() {
   const stageTheme = getStageTheme(user);
   const currentPhase = getPhase(currentDay);
   const phaseInfo = PHASE_INFO[currentPhase];
-  const coachId = user.preferredCoachId ?? 'goku';
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'ejercicios', label: 'Ejercicios', icon: 'barbell' },
     { key: 'libros', label: 'Libros', icon: 'book' },
     { key: 'mentalidad', label: 'Mentalidad', icon: 'brain' },
-    { key: 'herramientas', label: 'Tools', icon: 'heart' },
+    { key: 'herramientas', label: 'Herramientas', icon: 'heart' },
   ];
 
   return (
-    <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={coachId} screen="discovery" tappable reducedMotion={reducedMotion} />
+    <View style={[styles.container, { backgroundColor: SURFACES.base }]}>
       <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
         <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Discovery</Text>
-              <Text style={styles.subtitle}>Recursos para tu transformación</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+              <Pressable
+                onPress={() => router.push("/(tabs)/mas" as any)}
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Volver a Más"
+                hitSlop={TOUCH.hitSlop}
+              >
+                <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>Descubre</Text>
+                <Text style={styles.subtitle}>{DISCOVERY_HERO.subtitle}</Text>
+              </View>
             </View>
             <LinearGradient colors={[phaseInfo.color + '30', phaseInfo.color + '10']} style={styles.phaseBadge}>
               <Text style={[styles.phaseLabel, { color: phaseInfo.color }]}>{phaseInfo.label}</Text>
               <Text style={styles.phaseSub}>{phaseInfo.subtitle}</Text>
             </LinearGradient>
           </View>
+
+          <HeroZone {...DISCOVERY_HERO} />
 
           {/* Phase progress bar */}
           <View style={styles.phaseBarBg}>
@@ -831,14 +849,22 @@ export default function DiscoveryScreen() {
           {/* Tab selector */}
           <View style={styles.tabRow}>
             {tabs.map(t => (
-              <TouchableOpacity
+              <Pressable
                 key={t.key}
-                style={[styles.tab, activeTab === t.key && styles.tabActive]}
+                style={({ pressed }) => [
+                  styles.tab,
+                  activeTab === t.key && styles.tabActive,
+                  pressed && { opacity: 0.85 },
+                ]}
                 onPress={() => setActiveTab(t.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: activeTab === t.key }}
+                accessibilityLabel={t.label}
+                hitSlop={TOUCH.hitSlop}
               >
-                <Ionicons name={t.icon as any} size={14} color={activeTab === t.key ? COLORS.accent : COLORS.textMuted} />
+                <Ionicons name={t.icon as any} size={14} color={activeTab === t.key ? SEMANTIC.primary : SEMANTIC.onSurfaceMuted} />
                 <Text style={[styles.tabLabel, activeTab === t.key && styles.tabLabelActive]}>{t.label}</Text>
-              </TouchableOpacity>
+              </Pressable>
             ))}
           </View>
 
@@ -941,13 +967,8 @@ export default function DiscoveryScreen() {
 
           {activeTab === 'herramientas' && (
             <>
-              <View style={{ marginBottom: SPACING.md }}>
-                <Text style={{ fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 }}>
-                  Protocolos emocionales para los momentos difíciles. Tocá el estado que sentís para ver qué hacer.
-                </Text>
-              </View>
               {DISCOVERY_TOOLS.map((tool, index) => (
-                <StaggerIn key={tool.id} index={index} reducedMotion={reducedMotion}>
+                <StaggerIn key={tool.id} index={index + 1} reducedMotion={reducedMotion}>
                   <DiscoveryToolCard tool={tool} onPress={setSelectedTool} />
                 </StaggerIn>
               ))}
@@ -961,7 +982,7 @@ export default function DiscoveryScreen() {
 
       <DetailModal item={selected} stageTheme={stageTheme} onClose={() => setSelected(null)} />
       <DiscoveryToolHeroModal tool={selectedTool} onClose={() => setSelectedTool(null)} />
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -972,54 +993,64 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: SPACING.sm, marginBottom: SPACING.md },
-  title: { fontSize: FONT.xxl, fontWeight: '800', color: COLORS.textPrimary },
-  subtitle: { fontSize: FONT.sm, color: COLORS.textSecondary, marginTop: 2 },
+  backBtn: {
+    width: TOUCH.minTarget,
+    height: TOUCH.minTarget,
+    borderRadius: TOUCH.minTarget / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: SURFACES.glass,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassBorder,
+  },
+  title: { fontSize: FONT.xxl, fontWeight: '800', color: SEMANTIC.onSurface },
+  subtitle: { fontSize: FONT.sm, color: SEMANTIC.onSurfaceVariant, marginTop: 2 },
   phaseBadge: { borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', minWidth: 90 },
   phaseLabel: { fontSize: FONT.xs, fontWeight: '900', letterSpacing: 1 },
-  phaseSub: { fontSize: 9, color: COLORS.textMuted, marginTop: 2 },
-  phaseBarBg: { height: 4, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: SPACING.xs },
+  phaseSub: { fontSize: 9, color: SEMANTIC.onSurfaceMuted, marginTop: 2 },
+  phaseBarBg: { height: 4, backgroundColor: SURFACES.glass, borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: SPACING.xs },
   phaseBarFill: { height: '100%', borderRadius: RADIUS.full },
-  phaseProgress: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.lg },
-  tabRow: { flexDirection: 'row', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: 4, gap: 2, marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
-  tab: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 10, borderRadius: RADIUS.md },
-  tabActive: { backgroundColor: 'rgba(72,149,239,0.15)' },
-  tabLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '600' },
-  tabLabelActive: { color: COLORS.accent },
+  phaseProgress: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceMuted, marginBottom: SPACING.lg },
+  tabRow: { flexDirection: 'row', backgroundColor: SURFACES.glass, borderRadius: RADIUS.lg, padding: 4, gap: TOUCH.minGap, marginBottom: SPACING.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: SURFACES.glassBorder },
+  tab: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 10, borderRadius: RADIUS.md, minHeight: TOUCH.minTarget },
+  tabActive: { backgroundColor: SURFACES.elevated },
+  tabLabel: { fontSize: 9, color: SEMANTIC.onSurfaceMuted, fontWeight: '600' },
+  tabLabelActive: { color: SEMANTIC.primary },
   phaseHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md, marginBottom: SPACING.sm },
   phaseTitle: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 1.5 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.lg, gap: 8 },
-  emptyTitle: { color: COLORS.textPrimary, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center' },
-  emptyText: { color: COLORS.textSecondary, fontSize: FONT.sm, textAlign: 'center' },
+  emptyTitle: { color: SEMANTIC.onSurface, fontSize: FONT.lg, fontWeight: '800', textAlign: 'center' },
+  emptyText: { color: SEMANTIC.onSurfaceVariant, fontSize: FONT.sm, textAlign: 'center' },
 });
 
 const cardStyles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1 },
+  card: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: SURFACES.glass, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: StyleSheet.hairlineWidth, borderColor: SURFACES.glassBorder },
   locked: { opacity: 0.45 },
   emoji: { width: 44, height: 44, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  name: { fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
-  lockedText: { color: COLORS.textMuted },
-  meta: { fontSize: FONT.xs, color: COLORS.textSecondary, lineHeight: 16 },
-  lockedLabel: { fontSize: FONT.xs, color: COLORS.textMuted, fontStyle: 'italic' },
+  name: { fontSize: FONT.base, fontWeight: '700', color: SEMANTIC.onSurface, marginBottom: 2 },
+  lockedText: { color: SEMANTIC.onSurfaceMuted },
+  meta: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceVariant, lineHeight: 16 },
+  lockedLabel: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceMuted, fontStyle: 'italic' },
 });
 
 const modalStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  backdrop: { flex: 1, backgroundColor: SEMANTIC.scrim },
   sheet: { maxHeight: '85%' },
   content: { borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, paddingTop: SPACING.sm },
-  handle: { width: 36, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.md },
-  header: { flexDirection: 'row', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1, marginBottom: SPACING.lg, alignItems: 'flex-start' },
+  handle: { width: 36, height: 4, backgroundColor: SURFACES.glassBorder, borderRadius: 2, alignSelf: 'center', marginBottom: SPACING.md },
+  header: { flexDirection: 'row', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: SURFACES.glassBorder, marginBottom: SPACING.lg, alignItems: 'flex-start', backgroundColor: SURFACES.glass },
   emoji: { fontSize: 36 },
-  title: { fontSize: FONT.lg, fontWeight: '800', color: COLORS.textPrimary },
-  author: { fontSize: FONT.sm, color: COLORS.textSecondary, marginTop: 2 },
-  meta: { fontSize: FONT.xs, color: COLORS.textMuted },
+  title: { fontSize: FONT.lg, fontWeight: '800', color: SEMANTIC.onSurface },
+  author: { fontSize: FONT.sm, color: SEMANTIC.onSurfaceVariant, marginTop: 2 },
+  meta: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceMuted },
   tag: { fontSize: 9, fontWeight: '700', borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 6, paddingVertical: 2, letterSpacing: 0.5 },
-  sectionLabel: { fontSize: FONT.xs, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.md },
-  description: { fontSize: FONT.base, color: COLORS.textSecondary, lineHeight: 24 },
+  sectionLabel: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.md },
+  description: { fontSize: FONT.base, color: SEMANTIC.onSurfaceVariant, lineHeight: 24 },
   listItem: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
   bullet: { width: 6, height: 6, borderRadius: 3, marginTop: 7, flexShrink: 0 },
   stepNum: { fontSize: FONT.base, fontWeight: '900', width: 20, flexShrink: 0 },
-  listText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22 },
-  muscleTag: { fontSize: FONT.xs, color: COLORS.textSecondary, borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
-  closeBtn: { borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.sm },
-  closeBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.base, letterSpacing: 0.5 },
+  listText: { flex: 1, fontSize: FONT.sm, color: SEMANTIC.onSurfaceVariant, lineHeight: 22 },
+  muscleTag: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceVariant, borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
+  closeBtn: { borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.sm, minHeight: TOUCH.minTarget, justifyContent: 'center' },
+  closeBtnText: { color: SEMANTIC.onPrimary, fontWeight: '800', fontSize: FONT.base, letterSpacing: 0.5 },
 });

@@ -85,7 +85,7 @@ export async function addMissionsToCalendar(
       mente: '🧠',
       bienestar: '🌿',
       productividad: '🎯',
-      motivacion: '🔥',
+      motivacion: '⚡',
     };
 
     const emoji = mission.isFixed
@@ -128,7 +128,7 @@ export async function addTrainingBlock(
   endDate.setMinutes(endDate.getMinutes() + durationMinutes);
 
   await Calendar.createEventAsync(calendarId, {
-    title: `🔥 Entrenamiento — ARISE Día ${dayNumber}`,
+    title: `⚡ Entrenamiento — ARISE Día ${dayNumber}`,
     notes: 'Bloque de entrenamiento del programa ARISE 90 días.',
     startDate,
     endDate,

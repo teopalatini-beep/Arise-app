@@ -271,47 +271,47 @@ export interface AppData {
 }
 
 export const CATEGORY_INFO: Record<TaskCategory, { color: string; icon: string; label: string }> = {
-  cuerpo:        { color: '#FF6B6B', icon: 'barbell',        label: 'Cuerpo' },
-  mente:         { color: '#4FC3F7', icon: 'book',           label: 'Mente' },
-  bienestar:     { color: '#68D391', icon: 'leaf',           label: 'Bienestar' },
-  productividad: { color: '#818CF8', icon: 'flash',          label: 'Productividad' },
-  motivacion:    { color: '#C084FC', icon: 'star',           label: 'Motivación' },
+  cuerpo:        { color: '#F87171', icon: 'barbell',        label: 'Cuerpo' },
+  mente:         { color: '#94A3B8', icon: 'book',           label: 'Mente' },
+  bienestar:     { color: '#34D399', icon: 'leaf',           label: 'Bienestar' },
+  productividad: { color: '#A8A29E', icon: 'flash',          label: 'Productividad' },
+  motivacion:    { color: '#D4AF37', icon: 'star',           label: 'Motivación' },
 };
 
 export const BADGE_DEFINITIONS: Record<BadgeId, Omit<Badge, 'id' | 'unlockedAt'>> = {
-  first_day:       { name: 'Primer Paso',           emoji: '🌱', rank: 'genin',  description: 'Completaste tu primer día' },
-  week1:           { name: 'Semana Guerrero',       emoji: '⚡', rank: 'genin',  description: '7 días completados' },
-  week2:           { name: 'Doble Semana',          emoji: '💫', rank: 'genin',  description: '14 días completados' },
-  week4:           { name: 'Super Saiyan I',        emoji: '⚔️', rank: 'chunin', description: 'Fase 1 completada — 30 días' },
-  week8:           { name: 'Super Saiyan 2',        emoji: '🐉', rank: 'jonin',  description: 'Fase 2 completada — 60 días' },
-  week12:          { name: 'Legendario Supremo',    emoji: '👑', rank: 'kage',   description: '90 días completados' },
-  streak7:         { name: 'Racha Ki',              emoji: '⚡', rank: 'genin',  description: '7 días consecutivos' },
-  streak14:        { name: 'Racha Ascendida',       emoji: '💥', rank: 'chunin', description: '14 días consecutivos' },
-  streak30:        { name: 'Modo Saiyan',           emoji: '✨', rank: 'chunin', description: '30 días consecutivos' },
-  streak60:        { name: 'Super Saiyan',          emoji: '🌟', rank: 'jonin',  description: '60 días consecutivos' },
-  streak90:        { name: 'Legendario',            emoji: '🏆', rank: 'kage',   description: '90 días consecutivos — perfecto' },
-  phase1:          { name: 'Fase 1: Guerrero',      emoji: '🌿', rank: 'genin',  description: 'Completaste los primeros 30 días' },
-  phase2:          { name: 'Fase 2: Super Saiyan',  emoji: '⚔️', rank: 'chunin', description: 'Completaste 60 días' },
-  phase3:          { name: 'Fase 3: Legendario',    emoji: '👑', rank: 'kage',   description: 'Completaste los 90 días' },
-  perfect_week:    { name: 'Semana Perfecta',       emoji: '💎', rank: 'chunin', description: '7 días seguidos sin fallar' },
-  early_riser:     { name: 'Madrugador',            emoji: '🌅', rank: 'genin',  description: 'Completaste 10 días antes de las 9am' },
-  bookworm:        { name: 'Devorador de Libros',   emoji: '📚', rank: 'chunin', description: '500 páginas leídas en total' },
-  iron_body:       { name: 'Cuerpo de Hierro',      emoji: '🦾', rank: 'jonin',  description: '50 horas de entrenamiento acumuladas' },
-  no_miss:         { name: 'Sin Faltas',            emoji: '🎯', rank: 'jonin',  description: '30 días sin perder ninguno' },
-  arise_complete:  { name: 'ARISE COMPLETE',        emoji: '🏆', rank: 'kage',   description: 'Terminaste los 90 días. Leyenda.' },
+  first_day:       { name: 'Primer Paso',           emoji: '', rank: 'genin',  description: 'Completaste tu primer día' },
+  week1:           { name: 'Primera Semana',        emoji: '', rank: 'genin',  description: '7 días completados' },
+  week2:           { name: 'Dos Semanas',           emoji: '', rank: 'genin',  description: '14 días completados' },
+  week4:           { name: 'Fase 1 Completa',       emoji: '', rank: 'chunin', description: 'Fase 1 completada — 30 días' },
+  week8:           { name: 'Fase 2 Completa',       emoji: '', rank: 'jonin',  description: 'Fase 2 completada — 60 días' },
+  week12:          { name: 'Programa Completo',     emoji: '', rank: 'kage',   description: '90 días completados' },
+  streak7:         { name: 'Racha de 7',            emoji: '', rank: 'genin',  description: '7 días consecutivos' },
+  streak14:        { name: 'Racha de 14',           emoji: '', rank: 'chunin', description: '14 días consecutivos' },
+  streak30:        { name: 'Racha de 30',           emoji: '', rank: 'chunin', description: '30 días consecutivos' },
+  streak60:        { name: 'Racha de 60',           emoji: '', rank: 'jonin',  description: '60 días consecutivos' },
+  streak90:        { name: 'Racha Perfecta',        emoji: '', rank: 'kage',   description: '90 días consecutivos' },
+  phase1:          { name: 'Fase 1',                emoji: '', rank: 'genin',  description: 'Completaste los primeros 30 días' },
+  phase2:          { name: 'Fase 2',                emoji: '', rank: 'chunin', description: 'Completaste 60 días' },
+  phase3:          { name: 'Fase 3',                emoji: '', rank: 'kage',   description: 'Completaste los 90 días' },
+  perfect_week:    { name: 'Semana Perfecta',       emoji: '', rank: 'chunin', description: '7 días seguidos sin fallar' },
+  early_riser:     { name: 'Madrugador',            emoji: '', rank: 'genin',  description: 'Completaste 10 días antes de las 9am' },
+  bookworm:        { name: 'Lector Constante',      emoji: '', rank: 'chunin', description: '500 páginas leídas en total' },
+  iron_body:       { name: 'Cuerpo Firme',          emoji: '', rank: 'jonin',  description: '50 horas de entrenamiento acumuladas' },
+  no_miss:         { name: 'Sin Faltas',            emoji: '', rank: 'jonin',  description: '30 días sin perder ninguno' },
+  arise_complete:  { name: 'ARISE Completo',        emoji: '', rank: 'kage',   description: 'Terminaste los 90 días.' },
 };
 
-/** Etiquetas visibles de rango — universo DBZ (keys internas sin cambio por compatibilidad DB) */
+/** Etiquetas visibles de rango (keys internas sin cambio por compatibilidad DB) */
 export const RANK_LABELS: Record<Badge['rank'], string> = {
   genin:  'Guerrero',
-  chunin: 'Super Saiyan',
+  chunin: 'Disciplinado',
   jonin:  'Elite',
   kage:   'Legendario',
 };
 
 export const RANK_COLORS: Record<Badge['rank'], string> = {
   genin:  '#68D391',
-  chunin: '#60A5FA',
-  jonin:  '#C084FC',
-  kage:   '#A5B4FC',
+  chunin: '#D4AF37',
+  jonin:  '#E8C547',
+  kage:   '#F5E6A3',
 };

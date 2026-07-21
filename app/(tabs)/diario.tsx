@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useApp } from '@/context/AppContext';
 import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
 import { DayMetrics } from '@/types';
@@ -66,7 +67,7 @@ function EmotionCard({ tool }: { tool: EmotionTool }) {
       {expanded && (
         <View style={toolStyles.expanded}>
           {/* Message */}
-          <View style={[toolStyles.messageBox, { borderLeftColor: tool.color }]}>
+          <View style={[toolStyles.messageBox, { borderColor: tool.color + '55', backgroundColor: tool.color + '12' }]}>
             <Text style={toolStyles.messageText}>{tool.message}</Text>
           </View>
 
@@ -108,7 +109,9 @@ const toolStyles = StyleSheet.create({
   emotionLabel: { flex: 1, fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary },
   expanded: { paddingHorizontal: SPACING.md, paddingBottom: SPACING.md },
   messageBox: {
-    borderLeftWidth: 3, paddingLeft: SPACING.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
     marginBottom: SPACING.md,
   },
   messageText: { fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22 },
@@ -130,7 +133,7 @@ function MoodTrendStrip({
   currentDay: number;
   onPress: (day: number) => void;
 }) {
-  const MOOD_COLORS = ['#EF4444', '#F97316', '#A3A3A3', '#22C55E', '#10B981'];
+  const MOOD_COLORS = ['#EF4444', '#FB7185', '#A3A3A3', '#22C55E', '#10B981'];
   const last14 = Array.from({ length: 14 }, (_, i) => currentDay - 13 + i).filter(d => d >= 1);
 
   return (
@@ -198,6 +201,7 @@ const trendStyles = StyleSheet.create({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function DiarioScreen() {
+  const router = useRouter();
   const { reducedMotion, screenAnimStyle } = useTabScreenMotion('diario');
   const { data, todayRecord, saveJournal, saveMetrics, getDayRecord, loading } = useApp();
   const { saveJournalEntry } = useJournal();
@@ -220,7 +224,7 @@ export default function DiarioScreen() {
           {loading ? (
             <ScreenLoadingState
               title="Diario"
-              subtitle="Abriendo tu pergamino emocional..."
+              subtitle="Abriendo tu diario..."
               icon="book-outline"
               accent={fallbackTheme.tabActive}
               reducedMotion={reducedMotion}
@@ -245,7 +249,7 @@ export default function DiarioScreen() {
 
   const { user, days } = data;
   const stageTheme = getStageTheme(user);
-  const coachId = user.preferredCoachId ?? 'goku';
+  const coachId = user.preferredCoachId ?? 'arise';
 
   // Days with journal entries
   const journalDays = days
@@ -294,7 +298,7 @@ export default function DiarioScreen() {
     const m = viewingRecord.metrics;
     return (
       <LinearGradient colors={stageTheme.background} style={styles.container}>
-        <CoachParticles coachId={coachId} screen="diario" tappable reducedMotion={reducedMotion} />
+        <CoachParticles coachId={coachId} screen="diario" reducedMotion={reducedMotion} />
         <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.viewerHeader}>
@@ -361,7 +365,7 @@ export default function DiarioScreen() {
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={coachId} screen="diario" tappable reducedMotion={reducedMotion} />
+      <CoachParticles coachId={coachId} screen="diario" reducedMotion={reducedMotion} />
       <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
@@ -372,10 +376,22 @@ export default function DiarioScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Diario</Text>
-              <Text style={styles.subtitle}>
-                {format(new Date(), "EEEE d 'de' MMMM", { locale: es })}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <TouchableOpacity
+                  onPress={() => router.push("/(tabs)/mas" as any)}
+                  style={styles.backBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Volver a Más"
+                >
+                  <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.title}>Diario</Text>
+                  <Text style={styles.subtitle}>
+                    {format(new Date(), "EEEE d 'de' MMMM", { locale: es })}
+                  </Text>
+                </View>
+              </View>
             </View>
 
             {/* Today's entry */}
@@ -578,6 +594,11 @@ const styles = StyleSheet.create({
   scroll: { padding: SPACING.md },
 
   header: { marginBottom: SPACING.lg, marginTop: SPACING.sm },
+  backBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
   title: { fontSize: FONT.xxl, fontWeight: '800', color: COLORS.textPrimary },
   subtitle: { fontSize: FONT.base, color: COLORS.textSecondary, marginTop: 2, textTransform: 'capitalize' },
 

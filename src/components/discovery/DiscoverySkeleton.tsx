@@ -1,23 +1,48 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { COLORS, RADIUS, SPACING } from '@/theme';
+import { StyleSheet, View } from 'react-native';
+import { RADIUS, SPACING, SURFACES } from '@/theme';
+
+function Block({ height, radius = RADIUS.xxl }: { height: number; radius?: number }) {
+  return (
+    <View
+      style={[
+        styles.block,
+        {
+          height,
+          borderRadius: radius,
+        },
+      ]}
+    />
+  );
+}
 
 export default function DiscoverySkeleton() {
   return (
     <View style={styles.wrap}>
-      {[120, 56, 72, 88, 88, 88].map((height, index) => (
-        <View key={index} style={[styles.block, { height }]} />
-      ))}
+      <Block height={168} radius={RADIUS.xxl} />
+      <View style={styles.cardStack}>
+        <Block height={156} />
+        <Block height={156} />
+        <Block height={156} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { padding: SPACING.md, gap: SPACING.sm, marginTop: SPACING.sm },
+  wrap: {
+    padding: SPACING.md,
+    gap: SPACING.lg,
+    flex: 1,
+    backgroundColor: SURFACES.base,
+  },
+  cardStack: {
+    gap: SPACING.md,
+  },
   block: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: SURFACES.elevated,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassBorder,
+    opacity: 0.85,
   },
 });

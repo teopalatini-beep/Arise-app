@@ -36,7 +36,7 @@ export const DISCOVERY_TOOLS: DiscoveryTool[] = [
     id: 'ansiedad',
     emotion: 'Ansiedad',
     emoji: '⚡',
-    color: '#FBBF24',
+    color: '#D4AF37',
     description: 'La ansiedad es energía mal dirigida. Tu cuerpo se preparó para actuar — dale algo concreto que hacer.',
     immediate: [
       'Respiración 4-7-8: inhalá 4 seg, retené 7, exhalá 8. Repetí 4 veces',
@@ -57,7 +57,7 @@ export const DISCOVERY_TOOLS: DiscoveryTool[] = [
     id: 'motivacion',
     emotion: 'Sin motivación',
     emoji: '🔋',
-    color: '#C084FC',
+    color: '#D4AF37',
     description: 'La motivación no viene sola — se construye con acción. El truco es empezar sin esperar sentirla.',
     immediate: [
       'Empezá con 2 minutos de la tarea que evitás — el inicio genera momentum',
@@ -77,7 +77,7 @@ export const DISCOVERY_TOOLS: DiscoveryTool[] = [
   {
     id: 'enojo',
     emotion: 'Enojo',
-    emoji: '🔥',
+    emoji: '💢',
     color: '#F87171',
     description: 'El enojo no controlado destruye lo que construiste. Aprendé a usarlo como combustible, no como explosivo.',
     immediate: [
@@ -120,7 +120,7 @@ export const DISCOVERY_TOOLS: DiscoveryTool[] = [
     id: 'presion',
     emotion: 'Bajo presión',
     emoji: '💎',
-    color: '#FB923C',
+    color: '#A8A29E',
     description: 'La presión no te rompe: te define. Lo que sentís ahora puede convertirse en foco y ejecución.',
     immediate: [
       'Priorizá: ¿cuál es la única cosa crítica a resolver ahora?',

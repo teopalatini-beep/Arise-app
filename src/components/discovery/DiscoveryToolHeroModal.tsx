@@ -1,17 +1,32 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import {
-  Animated,
+  Dimensions,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { DiscoveryTool } from '@/data/discoveryTools';
 import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
-import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { discoveryToolEmojiTag, discoveryToolTitleTag } from '@/lib/discoveryTransitions';
+import DisplayText from '@/components/ui/DisplayText';
+import { SharedText, SharedView } from '@/components/ui/SharedTransition';
+import { DISPLAY, INK, OPACITY, RADIUS, SPACING, SURFACES } from '@/theme';
+
+const { height: SH } = Dimensions.get('window');
+const SHEET_HEIGHT = SH * 0.88;
+const BACKDROP_DURATION = 280;
 
 type Props = {
   tool: DiscoveryTool | null;
@@ -20,161 +35,263 @@ type Props = {
 
 export default function DiscoveryToolHeroModal({ tool, onClose }: Props) {
   const { reducedMotion } = useReducedMotionSetting();
-  const backdrop = useRef(new Animated.Value(0)).current;
-  const sheetY = useRef(new Animated.Value(48)).current;
+  const backdropOpacity = useSharedValue(0);
+  const sheetY = useSharedValue(56);
 
   useEffect(() => {
     if (!tool) return;
 
-    backdrop.setValue(0);
-    sheetY.setValue(reducedMotion ? 0 : 48);
-
     if (reducedMotion) {
-      backdrop.setValue(1);
+      backdropOpacity.value = 1;
+      sheetY.value = 0;
       return;
     }
 
-    Animated.parallel([
-      Animated.spring(backdrop, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 22,
-        bounciness: 0,
-      }),
-      Animated.spring(sheetY, {
-        toValue: 0,
-        useNativeDriver: true,
-        speed: 18,
-        bounciness: 7,
-      }),
-    ]).start();
-  }, [backdrop, reducedMotion, sheetY, tool]);
+    backdropOpacity.value = withTiming(1, { duration: BACKDROP_DURATION });
+    sheetY.value = withSpring(0, { damping: 20, stiffness: 240 });
+  }, [backdropOpacity, reducedMotion, sheetY, tool]);
 
-  if (!tool) return null;
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetY.value }],
+  }));
+
+  function finishClose() {
+    onClose();
+  }
 
   function handleClose() {
+    if (!tool) return;
     if (reducedMotion) {
-      onClose();
+      finishClose();
       return;
     }
 
-    Animated.parallel([
-      Animated.spring(backdrop, {
-        toValue: 0,
-        useNativeDriver: true,
-        speed: 24,
-        bounciness: 0,
-      }),
-      Animated.spring(sheetY, {
-        toValue: 48,
-        useNativeDriver: true,
-        speed: 24,
-        bounciness: 0,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) onClose();
+    backdropOpacity.value = withTiming(0, { duration: BACKDROP_DURATION });
+    sheetY.value = withSpring(56, { damping: 22, stiffness: 280 }, (finished) => {
+      if (finished) {
+        runOnJS(finishClose)();
+      }
     });
   }
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={handleClose}>
-      <View style={styles.root}>
-        <Animated.View style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdrop }]}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
-        </Animated.View>
+    <Modal
+      visible={!!tool}
+      transparent
+      animationType="none"
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      {tool ? (
+        <View style={styles.root}>
+          <Animated.View style={[StyleSheet.absoluteFillObject, backdropStyle]}>
+            {Platform.OS === 'ios' ? (
+              <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFillObject} />
+            ) : null}
+            <View style={styles.scrim} />
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={handleClose}
+              accessibilityLabel="Cerrar herramienta"
+            />
+          </Animated.View>
 
-        <Animated.View style={{ transform: [{ translateY: sheetY }] }}>
-          <LinearGradient colors={['#0D1628', '#111E35']} style={styles.sheet}>
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Animated.View style={[styles.sheetWrap, { height: SHEET_HEIGHT }, sheetStyle]}>
+            {Platform.OS === 'ios' ? (
+              <BlurView intensity={64} tint="dark" style={StyleSheet.absoluteFillObject} />
+            ) : null}
+            <View style={styles.sheetFallback} />
+
+            <View style={styles.sheetInner}>
               <View style={styles.handle} />
 
-              <View style={[styles.header, { borderColor: tool.color + '30', backgroundColor: tool.color + '10' }]}>
-                <Text style={styles.emoji}>{tool.emoji}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.title}>Cuando estás {tool.emotion.toLowerCase()}</Text>
-                  <Text style={[styles.meta, { color: tool.color, marginTop: 4 }]}>Toolkit emocional</Text>
+              <ScrollView
+                contentContainerStyle={styles.content}
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={[styles.header, { borderColor: `${tool.color}22` }]}>
+                  <SharedView
+                    tag={discoveryToolEmojiTag(tool.id)}
+                    style={[styles.emojiWrap, { backgroundColor: `${tool.color}20` }]}
+                  >
+                    <Text style={styles.emoji}>{tool.emoji}</Text>
+                  </SharedView>
+                  <View style={{ flex: 1 }}>
+                    <DisplayText variant="caption">Cuando estás</DisplayText>
+                    <SharedText tag={discoveryToolTitleTag(tool.id)} style={styles.titleNative}>
+                      {tool.emotion}
+                    </SharedText>
+                    <DisplayText variant="caption" style={{ color: tool.color, marginTop: 4 }}>
+                      Toolkit emocional
+                    </DisplayText>
+                  </View>
                 </View>
-              </View>
 
-              <Text style={[styles.description, { marginBottom: SPACING.md }]}>{tool.description}</Text>
+                <DisplayText variant="subtitle" style={styles.description}>
+                  {tool.description}
+                </DisplayText>
 
-              <Text style={styles.sectionLabel}>ACCIÓN INMEDIATA</Text>
-              {tool.immediate.map((step, i) => (
-                <View key={i} style={styles.listItem}>
-                  <Text style={[styles.stepNum, { color: tool.color }]}>{i + 1}</Text>
-                  <Text style={styles.listText}>{step}</Text>
+                <DisplayText variant="caption" style={styles.sectionLabel}>ACCIÓN INMEDIATA</DisplayText>
+                {tool.immediate.map((step, i) => (
+                  <View key={i} style={styles.listItem}>
+                    <Text style={[styles.stepNum, { color: INK.primary }]}>{i + 1}</Text>
+                    <DisplayText variant="cardBody">{step}</DisplayText>
+                  </View>
+                ))}
+
+                <DisplayText variant="caption" style={styles.sectionLabel}>ESTRATEGIA A CORTO PLAZO</DisplayText>
+                {tool.shortTerm.map((item, i) => (
+                  <View key={i} style={styles.listItem}>
+                    <View style={[styles.bullet, { backgroundColor: INK.secondary }]} />
+                    <DisplayText variant="cardBody">{item}</DisplayText>
+                  </View>
+                ))}
+
+                <DisplayText variant="caption" style={styles.sectionLabel}>CAMBIO DE MENTALIDAD</DisplayText>
+                <View style={[styles.quoteBox, { borderLeftColor: tool.color }]}>
+                  <DisplayText variant="cardBody" style={{ color: INK.primary }}>{tool.mindset}</DisplayText>
                 </View>
-              ))}
 
-              <Text style={styles.sectionLabel}>ESTRATEGIA A CORTO PLAZO</Text>
-              {tool.shortTerm.map((item, i) => (
-                <View key={i} style={styles.listItem}>
-                  <View style={[styles.bullet, { backgroundColor: tool.color }]} />
-                  <Text style={styles.listText}>{item}</Text>
+                <DisplayText variant="caption" style={styles.sectionLabel}>PERSPECTIVA ESTOICA</DisplayText>
+                <View style={styles.stoicBox}>
+                  <DisplayText variant="cardBody" style={styles.stoicText}>{tool.stoic}</DisplayText>
                 </View>
-              ))}
 
-              <Text style={styles.sectionLabel}>CAMBIO DE MENTALIDAD</Text>
-              <View style={[styles.quoteBox, { backgroundColor: tool.color + '15', borderLeftColor: tool.color }]}>
-                <Text style={[styles.listText, { color: COLORS.textPrimary }]}>{tool.mindset}</Text>
-              </View>
-
-              <Text style={styles.sectionLabel}>PERSPECTIVA ESTOICA</Text>
-              <View style={styles.stoicBox}>
-                <Text style={[styles.listText, { color: COLORS.textSecondary, fontStyle: 'italic' }]}>{tool.stoic}</Text>
-              </View>
-
-              <Pressable style={[styles.closeBtn, { backgroundColor: tool.color }]} onPress={handleClose}>
-                <Text style={styles.closeBtnText}>Cerrar</Text>
-              </Pressable>
-            </ScrollView>
-          </LinearGradient>
-        </Animated.View>
-      </View>
+                <Pressable style={styles.closeBtn} onPress={handleClose}>
+                  <Text style={styles.closeBtnText}>Cerrar</Text>
+                </Pressable>
+              </ScrollView>
+            </View>
+          </Animated.View>
+        </View>
+      ) : null}
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.6)' },
-  sheet: { maxHeight: '85%', borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl },
-  content: { padding: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: SPACING.xl },
+  root: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'transparent',
+  },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: `rgba(0,0,0,${OPACITY.sheetScrim})`,
+  },
+  sheetWrap: {
+    borderTopLeftRadius: RADIUS.xxxl,
+    borderTopRightRadius: RADIUS.xxxl,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassHighlight,
+    borderBottomWidth: 0,
+  },
+  sheetFallback: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: SURFACES.overlay,
+  },
+  sheetInner: {
+    flex: 1,
+  },
   handle: {
-    width: 36,
+    width: 40,
     height: 4,
-    backgroundColor: COLORS.border,
+    backgroundColor: SURFACES.glassHighlight,
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
+  },
+  content: {
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xxl,
   },
   header: {
     flexDirection: 'row',
     gap: SPACING.md,
     padding: SPACING.md,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
+    borderRadius: RADIUS.xl,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: SPACING.lg,
     alignItems: 'flex-start',
+    backgroundColor: SURFACES.glass,
   },
-  emoji: { fontSize: 36 },
-  title: { fontSize: FONT.lg, fontWeight: '800', color: COLORS.textPrimary },
-  meta: { fontSize: FONT.xs, color: COLORS.textMuted },
+  emojiWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassBorder,
+  },
+  emoji: { fontSize: 34 },
+  titleNative: {
+    ...DISPLAY.cardTitle,
+    color: INK.primary,
+    marginTop: 2,
+  },
+  description: {
+    marginBottom: SPACING.md,
+  },
   sectionLabel: {
-    fontSize: FONT.xs,
-    color: COLORS.textMuted,
-    fontWeight: '700',
-    letterSpacing: 2,
     marginBottom: SPACING.sm,
     marginTop: SPACING.md,
+    letterSpacing: 1.2,
   },
-  description: { fontSize: FONT.base, color: COLORS.textSecondary, lineHeight: 24 },
-  listItem: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
-  bullet: { width: 6, height: 6, borderRadius: 3, marginTop: 7, flexShrink: 0 },
-  stepNum: { fontSize: FONT.base, fontWeight: '900', width: 20, flexShrink: 0 },
-  listText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 22 },
-  quoteBox: { borderRadius: RADIUS.md, padding: SPACING.md, borderLeftWidth: 3, marginBottom: SPACING.md },
-  stoicBox: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md },
-  closeBtn: { borderRadius: RADIUS.lg, paddingVertical: SPACING.md, alignItems: 'center', marginTop: SPACING.sm },
-  closeBtnText: { color: '#fff', fontWeight: '800', fontSize: FONT.base, letterSpacing: 0.5 },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  bullet: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    marginTop: 7,
+    flexShrink: 0,
+  },
+  stepNum: {
+    fontSize: 15,
+    fontWeight: '800',
+    width: 20,
+    flexShrink: 0,
+  },
+  quoteBox: {
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    borderLeftWidth: 2,
+    backgroundColor: SURFACES.glass,
+    marginBottom: SPACING.md,
+  },
+  stoicBox: {
+    backgroundColor: SURFACES.glass,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassBorder,
+  },
+  stoicText: {
+    fontStyle: 'italic',
+  },
+  closeBtn: {
+    borderRadius: RADIUS.xl,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    backgroundColor: INK.primary,
+  },
+  closeBtnText: {
+    color: INK.inverse,
+    fontWeight: '800',
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
 });

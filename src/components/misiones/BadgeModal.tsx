@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BADGE_DEFINITIONS, BadgeId, RANK_COLORS } from '../../types';
+import { BADGE_DEFINITIONS, BadgeId, RANK_COLORS, RANK_LABELS } from '../../types';
 import { COLORS, FONT, RADIUS, SPACING } from '../../theme';
 
 interface BadgeModalProps {
@@ -26,7 +26,7 @@ export default function BadgeModal({ badges, onClose }: BadgeModalProps) {
           <Text style={styles.unlocked}>🏅 ¡LOGRO DESBLOQUEADO!</Text>
           <Text style={styles.emoji}>{def.emoji}</Text>
           <Text style={[styles.name, { color: rankColor }]}>{def.name}</Text>
-          <Text style={styles.rank}>{def.rank.toUpperCase()}</Text>
+          <Text style={styles.rank}>{RANK_LABELS[def.rank]}</Text>
           <Text style={styles.desc}>{def.description}</Text>
           {badges.length > 1 && (
             <Text style={styles.more}>+{badges.length - 1} logro{badges.length > 2 ? 's' : ''} más</Text>
@@ -35,7 +35,7 @@ export default function BadgeModal({ badges, onClose }: BadgeModalProps) {
             style={[styles.btn, { backgroundColor: rankColor }]}
             onPress={onClose}
           >
-            <Text style={styles.btnText}>GENIAL 🔥</Text>
+            <Text style={styles.btnText}>GENIAL</Text>
           </TouchableOpacity>
         </LinearGradient>
       </View>
@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     gap: SPACING.sm,
   },
-  unlocked: { fontSize: FONT.xs, color: '#F59E0B', fontWeight: '800', letterSpacing: 2 },
+  unlocked: { fontSize: FONT.xs, color: COLORS.gold, fontWeight: '800', letterSpacing: 2 },
   emoji: { fontSize: 64, marginVertical: SPACING.sm },
   name: { fontSize: 24, fontWeight: '900', textAlign: 'center' },
   rank: { fontSize: FONT.xs, fontWeight: '800', letterSpacing: 2, color: COLORS.textMuted },

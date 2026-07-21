@@ -5,7 +5,7 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
@@ -14,7 +14,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/context/AppContext';
-import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import {
+  FONT,
+  GRADIENTS,
+  INK,
+  METAL,
+  RADIUS,
+  SPACING,
+  SURFACES,
+  TOUCH,
+} from '@/theme';
 import { CoachChatMessage } from '@/types';
 import { getCoachById, getCoachVisualProfile } from '@/lib/coach';
 import { getStageTheme } from '@/lib/progression';
@@ -30,8 +39,10 @@ import {
 } from '@/services/coachMemory';
 import CoachMessageBubble from '@components/coach/CoachMessageBubble';
 import { ALL_MISSIONS } from '@/data/missions';
+import { useRouter } from 'expo-router';
 
 export default function CoachChatScreen() {
+  const router = useRouter();
   const { data, todayRecord } = useApp();
   const listRef = useRef<FlatList<CoachChatMessage>>(null);
   const [messages, setMessages] = useState<CoachChatMessage[]>([]);
@@ -81,7 +92,6 @@ export default function CoachChatScreen() {
     setInput('');
     setSending(true);
 
-    // Optimistic user bubble
     const optimistic: CoachChatMessage = {
       id: `tmp-${Date.now()}`,
       role: 'user',
@@ -133,14 +143,24 @@ export default function CoachChatScreen() {
 
   if (!enabled) {
     return (
-      <LinearGradient colors={stageTheme.background} style={styles.container}>
+      <LinearGradient colors={[...GRADIENTS.ambient]} style={styles.container}>
         <SafeAreaView style={styles.safe}>
           <View style={styles.disabledCard}>
-            <Ionicons name="chatbubbles-outline" size={36} color={COLORS.textMuted} />
+            <Ionicons name="chatbubbles-outline" size={36} color={METAL.goldDim} />
             <Text style={styles.disabledTitle}>Coach personal desactivado</Text>
             <Text style={styles.disabledText}>
-              Activalo en Configuracion para chatear y recibir notificaciones contextuales.
+              Activalo en Ajustes para chatear y recibir notificaciones contextuales.
             </Text>
+            <Pressable
+              style={styles.disabledCta}
+              onPress={() => router.push("/(tabs)/config" as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir ajustes"
+              hitSlop={TOUCH.hitSlop}
+            >
+              <Text style={styles.disabledCtaText}>Ir a Ajustes</Text>
+              <Ionicons name="chevron-forward" size={16} color={INK.inverse} />
+            </Pressable>
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -148,7 +168,7 @@ export default function CoachChatScreen() {
   }
 
   return (
-    <LinearGradient colors={stageTheme.background} style={styles.container}>
+    <LinearGradient colors={[...stageTheme.background]} style={styles.container}>
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -156,13 +176,15 @@ export default function CoachChatScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
         >
           <View style={styles.header}>
-            <View style={[styles.avatar, { borderColor: accent + '66', backgroundColor: accent + '22' }]}>
-              <Ionicons name={visual.icon as any} size={22} color={accent} />
+            <View style={styles.avatarBezel}>
+              <View style={[styles.avatar, { borderColor: accent + '66', backgroundColor: accent + '18' }]}>
+                <Ionicons name={visual.icon as any} size={22} color={accent} />
+              </View>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{coach.name}</Text>
               <Text style={styles.subtitle}>
-                Williamson · Hormozi · Goggins · Rohn · Plitt — una sola voz
+                Disciplina, claridad y seguimiento diario
               </Text>
             </View>
           </View>
@@ -188,30 +210,37 @@ export default function CoachChatScreen() {
             />
           )}
 
-          <View style={styles.composer}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder={`Escribile a ${coach.name}...`}
-              placeholderTextColor={COLORS.textMuted}
-              multiline
-              maxLength={800}
-              editable={!sending}
-              onSubmitEditing={handleSend}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: accent }, (!input.trim() || sending) && styles.sendDisabled]}
-              onPress={handleSend}
-              disabled={!input.trim() || sending}
-              accessibilityLabel="Enviar mensaje al coach"
-            >
-              {sending ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Ionicons name="send" size={18} color="#fff" />
-              )}
-            </TouchableOpacity>
+          <View style={styles.composerBezel}>
+            <View style={styles.composer}>
+              <TextInput
+                style={styles.input}
+                value={input}
+                onChangeText={setInput}
+                placeholder="Escribe tu foco, miedo o compromiso..."
+                placeholderTextColor={INK.muted}
+                multiline
+                maxLength={800}
+                editable={!sending}
+                onSubmitEditing={handleSend}
+              />
+              <Pressable
+                style={({ pressed }) => [
+                  styles.sendBtn,
+                  { backgroundColor: accent, opacity: !input.trim() || sending ? 0.4 : pressed ? 0.88 : 1 },
+                ]}
+                onPress={handleSend}
+                disabled={!input.trim() || sending}
+                accessibilityRole="button"
+                accessibilityLabel="Enviar mensaje al coach"
+                hitSlop={TOUCH.hitSlop}
+              >
+                {sending ? (
+                  <ActivityIndicator color={INK.inverse} size="small" />
+                ) : (
+                  <Ionicons name="arrow-up" size={20} color={INK.inverse} />
+                )}
+              </Pressable>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -225,31 +254,50 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: METAL.goldBorder,
+  },
+  avatarBezel: {
+    padding: 2,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: METAL.goldBorder,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  kicker: {
+    color: METAL.gold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.6,
+    marginBottom: 2,
+  },
   title: {
-    color: COLORS.textPrimary,
+    color: INK.primary,
     fontSize: FONT.xl,
     fontWeight: '800',
+    letterSpacing: -0.4,
   },
   subtitle: {
-    color: COLORS.textSecondary,
-    fontSize: FONT.sm,
-    marginTop: 2,
+    color: INK.secondary,
+    fontSize: FONT.xs,
+    marginTop: 3,
+    letterSpacing: 0.2,
   },
   list: {
     paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
     paddingBottom: SPACING.md,
     flexGrow: 1,
   },
@@ -258,28 +306,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  composerBezel: {
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.full,
+    padding: 2,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: METAL.goldBorder,
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingLeft: SPACING.md,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    backgroundColor: SURFACES.elevated,
   },
   input: {
     flex: 1,
     minHeight: 44,
     maxHeight: 120,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    color: COLORS.textPrimary,
-    paddingHorizontal: SPACING.md,
+    color: INK.primary,
     paddingVertical: SPACING.sm,
-    fontSize: FONT.md,
+    fontSize: FONT.base,
   },
   sendBtn: {
     width: 44,
@@ -288,29 +340,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendDisabled: {
-    opacity: 0.45,
-  },
   disabledCard: {
     margin: SPACING.lg,
     padding: SPACING.xl,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: RADIUS.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: METAL.goldBorder,
+    backgroundColor: SURFACES.glass,
     alignItems: 'center',
     gap: SPACING.sm,
   },
   disabledTitle: {
-    color: COLORS.textPrimary,
+    color: INK.primary,
     fontSize: FONT.lg,
     fontWeight: '700',
     textAlign: 'center',
   },
   disabledText: {
-    color: COLORS.textSecondary,
+    color: INK.secondary,
     fontSize: FONT.sm,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  disabledCta: {
+    marginTop: SPACING.md,
+    minHeight: TOUCH.minTarget,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.full,
+    backgroundColor: METAL.gold,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  disabledCtaText: {
+    color: INK.inverse,
+    fontWeight: '700',
+    fontSize: FONT.sm,
   },
 });

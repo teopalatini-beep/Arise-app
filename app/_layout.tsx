@@ -1,4 +1,5 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
+import 'react-native-reanimated';
 import { useEffect, Component, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, LogBox } from 'react-native';
 import { AppProvider, useApp } from '@/context/AppContext';
@@ -124,7 +125,14 @@ function RootNavigator() {
         }
       }
 
-      if (inLogin) {
+      const inTabs = segments[0] === '(tabs)';
+
+      if (hasCompletedOnboarding && !inTabs && !inOnboarding && !inWelcome) {
+        router.replace('/(tabs)');
+        return;
+      }
+
+      if (inLogin && hasCompletedOnboarding) {
         router.replace('/(tabs)');
       }
     }
@@ -165,6 +173,7 @@ function RootNavigator() {
     <>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ animation: 'none' }} />
         <Stack.Screen name="login" options={{ animation: 'fade' }} />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />

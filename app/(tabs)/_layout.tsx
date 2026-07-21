@@ -1,14 +1,16 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { useApp } from '@/context/AppContext';
 import { getStageTheme } from '@/lib/progression';
+import { METAL, SURFACES } from '@/theme';
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'flame-outline',
   coach: 'chatbubbles-outline',
   programa: 'calendar-outline',
   progreso: 'stats-chart-outline',
+  mas: 'ellipsis-horizontal-circle-outline',
   discovery: 'compass-outline',
   diario: 'book-outline',
   config: 'settings-outline',
@@ -29,15 +31,15 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          backgroundColor: stageTheme.tabBackground,
-          borderTopColor: stageTheme.tabBorder,
-          borderTopWidth: 1,
+          backgroundColor: stageTheme.tabBackground || SURFACES.base,
+          borderTopColor: METAL.goldBorder,
+          borderTopWidth: StyleSheet.hairlineWidth,
           height: Platform.OS === 'ios' ? 86 : 70,
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: stageTheme.tabActive,
-        tabBarInactiveTintColor: stageTheme.tabInactive,
+        tabBarActiveTintColor: stageTheme.tabActive || METAL.gold,
+        tabBarInactiveTintColor: stageTheme.tabInactive || '#78716C',
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700',
@@ -86,23 +88,25 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="mas"
+        options={{
+          title: 'Más',
+          tabBarAccessibilityLabel: 'Diario, descubre y ajustes',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="mas" color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="discovery"
         options={{
-          title: 'Descubre',
-          tabBarAccessibilityLabel: 'Herramientas discovery',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="discovery" color={color} focused={focused} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
         name="diario"
         options={{
-          title: 'Diario',
-          tabBarAccessibilityLabel: 'Diario emocional',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="diario" color={color} focused={focused} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen

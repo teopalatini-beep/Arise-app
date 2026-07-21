@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CoachChatMessage } from '@/types';
-import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { FONT, INK, METAL, RADIUS, SPACING, SURFACES } from '@/theme';
 
 interface Props {
   message: CoachChatMessage;
@@ -20,12 +20,11 @@ export default function CoachMessageBubble({ message, accent, coachName }: Props
       <View
         style={[
           styles.bubble,
-          isUser
-            ? styles.bubbleUser
-            : [styles.bubbleCoach, { borderColor: accent + '55', backgroundColor: accent + '18' }],
+          isUser ? styles.bubbleUser : styles.bubbleCoach,
+          !isUser && { borderColor: accent + '44', backgroundColor: accent + '14' },
         ]}
       >
-        <Text style={styles.text}>{message.content}</Text>
+        <Text style={[styles.text, isUser && styles.textOnGold]}>{message.content}</Text>
       </View>
     </View>
   );
@@ -33,8 +32,8 @@ export default function CoachMessageBubble({ message, accent, coachName }: Props
 
 const styles = StyleSheet.create({
   row: {
-    marginBottom: SPACING.sm,
-    maxWidth: '92%',
+    marginBottom: SPACING.sm + 2,
+    maxWidth: '90%',
   },
   rowUser: {
     alignSelf: 'flex-end',
@@ -43,28 +42,33 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   sender: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    marginBottom: 4,
-    marginLeft: 4,
-    letterSpacing: 0.3,
+    marginBottom: 6,
+    marginLeft: 6,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   bubble: {
-    borderRadius: RADIUS.lg,
+    borderRadius: RADIUS.xl,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 2,
+    paddingVertical: SPACING.sm + 4,
   },
   bubbleUser: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: METAL.gold,
+    borderWidth: 0,
   },
   bubbleCoach: {
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: SURFACES.glass,
   },
   text: {
-    color: COLORS.textPrimary,
-    fontSize: FONT.md,
+    color: INK.primary,
+    fontSize: FONT.base,
     lineHeight: 22,
+  },
+  textOnGold: {
+    color: INK.inverse,
+    fontWeight: '600',
   },
 });

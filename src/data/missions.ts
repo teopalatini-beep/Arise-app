@@ -431,7 +431,7 @@ export const MISSION_POOL: MissionDef[] = [
   {
     id: 'two_hour_focus',
     name: '2 horas de foco total',
-    emoji: '🔥',
+    emoji: '⚡',
     category: 'productividad',
     description: 'Dos horas continuas sin ninguna distracción.',
     type: 'binary',

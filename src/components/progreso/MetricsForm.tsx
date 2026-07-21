@@ -79,7 +79,7 @@ export default function MetricsForm({
   const accentColors =
     accent.length >= 2
       ? (accent as readonly [string, string, ...string[]])
-      : (['#E8460A', '#7C3AED'] as const);
+      : (['#E8460A', '#D4AF37'] as const);
 
   return (
     <>

@@ -1,9 +1,19 @@
 import React, { memo } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import GlassCard from '@/components/ui/GlassCard';
+import DisplayText from '@/components/ui/DisplayText';
+import { SharedText, SharedView } from '@/components/ui/SharedTransition';
 import { DiscoveryTool } from '@/data/discoveryTools';
-import { usePressSpring } from '@/hooks/usePressSpring';
-import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
+import { discoveryToolEmojiTag, discoveryToolTitleTag } from '@/lib/discoveryTransitions';
+import { INK, MOTION, RADIUS, SPACING, TOUCH } from '@/theme';
 
 type Props = {
   tool: DiscoveryTool;
@@ -11,33 +21,67 @@ type Props = {
 };
 
 function DiscoveryToolCardBase({ tool, onPress }: Props) {
-  const { animatedStyle, pressHandlers, triggerHaptic } = usePressSpring(0.97);
+  const { reducedMotion } = useReducedMotionSetting();
+  const scale = useSharedValue(1);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  function handlePressIn() {
+    if (reducedMotion) return;
+    scale.value = withSpring(MOTION.pressScale, MOTION.spring);
+  }
+
+  function handlePressOut() {
+    if (reducedMotion) return;
+    scale.value = withSpring(1, {
+      damping: MOTION.spring.damping,
+      stiffness: MOTION.spring.stiffness + 20,
+    });
+  }
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Abrir herramienta para ${tool.emotion}`}
+      hitSlop={TOUCH.hitSlop}
       onPress={() => {
-        triggerHaptic();
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress(tool);
       }}
-      {...pressHandlers}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
     >
-      <Animated.View
-        style={[
-          styles.card,
-          { borderColor: tool.color + '30', backgroundColor: tool.color + '10' },
-          animatedStyle,
-        ]}
-      >
-        <View style={[styles.emoji, { backgroundColor: tool.color + '25' }]}>
-          <Text style={styles.emojiText}>{tool.emoji}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{tool.emotion}</Text>
-          <Text style={styles.meta} numberOfLines={2}>{tool.description}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={tool.color} />
+      <Animated.View style={[styles.wrap, cardStyle]}>
+        <GlassCard accentColor={tool.color} elevated="lg">
+          <View style={styles.body}>
+            <View style={styles.topRow}>
+              <SharedView
+                tag={discoveryToolEmojiTag(tool.id)}
+                style={[styles.emojiOrb, { backgroundColor: `${tool.color}18` }]}
+              >
+                <Text style={styles.emoji}>{tool.emoji}</Text>
+              </SharedView>
+              <View style={styles.cta}>
+                <Ionicons name="arrow-forward" size={16} color={INK.secondary} />
+              </View>
+            </View>
+
+            <View style={styles.copy}>
+              <SharedText tag={discoveryToolTitleTag(tool.id)} style={styles.titleNative}>
+                {tool.emotion}
+              </SharedText>
+              <DisplayText variant="cardBody" numberOfLines={2}>
+                {tool.description}
+              </DisplayText>
+            </View>
+
+            <DisplayText variant="caption" style={styles.footer}>
+              Toolkit emocional · Tocá para explorar
+            </DisplayText>
+          </View>
+        </GlassCard>
       </Animated.View>
     </Pressable>
   );
@@ -46,24 +90,49 @@ function DiscoveryToolCardBase({ tool, onPress }: Props) {
 export default memo(DiscoveryToolCardBase);
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
+  wrap: {
+    marginBottom: SPACING.md,
   },
-  emoji: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.sm,
+  body: {
+    padding: SPACING.lg,
+    minHeight: 156,
+    justifyContent: 'space-between',
+    gap: SPACING.md,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  emojiOrb: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  emojiText: { fontSize: 24 },
-  name: { fontSize: FONT.base, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
-  meta: { fontSize: FONT.xs, color: COLORS.textSecondary, lineHeight: 16 },
+  emoji: { fontSize: 28 },
+  cta: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  copy: { gap: 6 },
+  titleNative: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    lineHeight: 22,
+    color: INK.primary,
+  },
+  footer: {
+    marginTop: 2,
+  },
 });

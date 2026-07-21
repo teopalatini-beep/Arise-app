@@ -11,14 +11,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONT, RADIUS, SPACING } from '../../theme';
 
 const PENALTY_TASKS = [
-  { emoji: '💥', text: '100 sentadillas + 50 flexiones + 30 burpees (sin descanso)' },
-  { emoji: '🧊', text: '5 minutos de ducha fría — sin negociar' },
-  { emoji: '🏃', text: '30 minutos de cardio intenso (carrera, HIIT o saltar la soga)' },
-  { emoji: '✍️', text: 'Carta de compromiso: escribí 200 palabras sobre por qué vas a terminar estos 90 días' },
+  { icon: 'barbell-outline' as const, text: '100 sentadillas + 50 flexiones + 30 burpees (sin descanso)' },
+  { icon: 'water-outline' as const, text: '5 minutos de ducha fría — sin negociar' },
+  { icon: 'flash-outline' as const, text: '30 minutos de cardio intenso (carrera, HIIT o saltar la soga)' },
+  { icon: 'create-outline' as const, text: 'Carta de compromiso: escribí 200 palabras sobre por qué vas a terminar estos 90 días' },
 ];
 
 interface PenaltyScreenProps {
@@ -39,7 +40,7 @@ export default function PenaltyScreen({ dayNumber, onComplete, onGrace }: Penalt
   function handleComplete() {
     if (!allChecked) {
       Alert.alert(
-        'Penitencia incompleta',
+        'Recuperación incompleta',
         'Completá todas las tareas y escribí al menos 50 palabras en la carta de compromiso.',
         [{ text: 'OK' }],
       );
@@ -48,7 +49,7 @@ export default function PenaltyScreen({ dayNumber, onComplete, onGrace }: Penalt
 
     Alert.alert(
       '¿Confirmás que completaste todo?',
-      'Tu palabra es tu honor. Solo marcá como completo si realmente lo hiciste.',
+      'Tu palabra es tu estándar. Solo marcá como completo si realmente lo hiciste.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Sí, lo hice', onPress: onComplete },
@@ -64,15 +65,15 @@ export default function PenaltyScreen({ dayNumber, onComplete, onGrace }: Penalt
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <View style={styles.header}>
-              <Text style={styles.skull}>💀</Text>
-              <Text style={styles.title}>MISIÓN DE{'\n'}PENITENCIA</Text>
+              <Ionicons name="alert-circle" size={52} color="#EF4444" style={styles.alertIcon} />
+              <Text style={styles.title}>DÍA DE{'\n'}RECUPERACIÓN</Text>
               <Text style={styles.subtitle}>
-                Día {dayNumber} — fallaste ayer. No se negocia, no se pospone.{'\n'}
+                Día {dayNumber} — ayer no cumpliste. Hoy se corrige, sin negociar.{'\n'}
                 Completá todo antes de seguir.
               </Text>
             </View>
 
-            <Text style={styles.sectionLabel}>LAS 4 PRUEBAS</Text>
+            <Text style={styles.sectionLabel}>LAS 4 TAREAS</Text>
             {PENALTY_TASKS.map((task, i) => (
               <TouchableOpacity
                 key={i}
@@ -83,7 +84,12 @@ export default function PenaltyScreen({ dayNumber, onComplete, onGrace }: Penalt
                 <View style={[styles.checkbox, checked[i] && styles.checkboxDone]}>
                   {checked[i] && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900' }}>✓</Text>}
                 </View>
-                <Text style={styles.taskEmoji}>{task.emoji}</Text>
+                <Ionicons
+                  name={task.icon}
+                  size={20}
+                  color={checked[i] ? COLORS.success : '#EF4444'}
+                  style={styles.taskIcon}
+                />
                 <Text style={[styles.taskText, checked[i] && styles.taskTextDone]}>{task.text}</Text>
               </TouchableOpacity>
             ))}
@@ -97,7 +103,7 @@ export default function PenaltyScreen({ dayNumber, onComplete, onGrace }: Penalt
               value={letter}
               onChangeText={setLetter}
               multiline
-              placeholder="Escribí desde el corazón. Mínimo 50 palabras..."
+              placeholder="Escribí con claridad. Mínimo 50 palabras..."
               placeholderTextColor={COLORS.textMuted}
               textAlignVertical="top"
             />
@@ -111,20 +117,20 @@ export default function PenaltyScreen({ dayNumber, onComplete, onGrace }: Penalt
               activeOpacity={0.85}
             >
               <LinearGradient
-                colors={allChecked ? ['#EF4444', '#7C3AED'] : ['#333', '#222']}
+                colors={allChecked ? ['#EF4444', '#D4AF37'] : ['#333', '#222']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.completeBtnInner}
               >
                 <Text style={styles.completeBtnText}>
-                  {allChecked ? '⚔️ COMPLETÉ LA PENITENCIA' : `Faltan ${checked.filter(Boolean).length}/4 tareas`}
+                  {allChecked ? 'COMPLETÉ LA RECUPERACIÓN' : `Faltan ${checked.filter(Boolean).length}/4 tareas`}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
 
             {onGrace && (
               <TouchableOpacity style={styles.graceBtn} onPress={onGrace}>
-                <Text style={{ fontSize: 16 }}>🛡️</Text>
+                <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.warning} />
                 <Text style={styles.graceBtnText}>Usar día de gracia (1 disponible este mes)</Text>
               </TouchableOpacity>
             )}
@@ -142,7 +148,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
   header: { alignItems: 'center', paddingVertical: SPACING.lg },
-  skull: { fontSize: 56, marginBottom: SPACING.sm },
+  alertIcon: { marginBottom: SPACING.sm },
   title: {
     fontSize: 34,
     fontWeight: '900',
@@ -180,7 +186,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   checkboxDone: { backgroundColor: COLORS.success, borderColor: COLORS.success },
-  taskEmoji: { fontSize: 20, flexShrink: 0 },
+  taskIcon: { flexShrink: 0, marginTop: 2 },
   taskText: { flex: 1, fontSize: FONT.sm, color: COLORS.textSecondary, lineHeight: 20 },
   taskTextDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   letterHint: { fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.sm, lineHeight: 18 },

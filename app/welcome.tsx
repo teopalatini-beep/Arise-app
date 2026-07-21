@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions, SafeAreaView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
@@ -127,7 +128,7 @@ export default function WelcomeScreen() {
               style={styles.btn}
             >
               <Text style={styles.btnText}>COMENZAR JORNADA</Text>
-              <Text style={styles.btnIcon}>⚔️</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" style={styles.btnIcon} />
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity
@@ -274,7 +275,7 @@ const styles = StyleSheet.create({
     color: '#fff', fontSize: FONT.base,
     fontWeight: '900', letterSpacing: 2,
   },
-  btnIcon: { fontSize: 18 },
+  btnIcon: { marginLeft: 8 },
   skipBtn: {
     marginTop: SPACING.sm,
     alignSelf: 'center',

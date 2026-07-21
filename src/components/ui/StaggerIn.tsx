@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated } from 'react-native';
+import { Animated, Easing } from 'react-native';
+import { MOTION } from '@/theme';
 
 type StaggerInProps = {
   index: number;
   reducedMotion?: boolean;
   children: React.ReactNode;
 };
+
+const easeOut = Easing.bezier(...MOTION.easeOutBezier);
 
 export default function StaggerIn({
   index,
@@ -22,17 +25,20 @@ export default function StaggerIn({
       return;
     }
 
+    const delay = index * MOTION.staggerMs;
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 220,
-        delay: index * 45,
+        duration: MOTION.enterMs,
+        delay,
+        easing: easeOut,
         useNativeDriver: true,
       }),
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 240,
-        delay: index * 45,
+        duration: MOTION.enterMs,
+        delay,
+        easing: easeOut,
         useNativeDriver: true,
       }),
     ]).start();

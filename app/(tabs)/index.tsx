@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useApp, xpForLevel } from '@/context/AppContext';
-import { COLORS, FONT, RADIUS, SEMANTIC, SPACING, SHADOW, SURFACES, TOUCH } from '@/theme';
+import { COLORS, FONT, INK, METAL, RADIUS, SEMANTIC, SPACING, SHADOW, SURFACES, TOUCH } from '@/theme';
 import { AppData, CATEGORY_INFO, MissionDef, TaskCategory, UserProfile } from '@/types';
 import { pointsByCategory, ALL_MISSIONS } from '@/data/missions';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme } from '@/lib/progression';
@@ -18,7 +18,6 @@ import PomodoroTimer from '@components/PomodoroTimer';
 import CoachParticles from '@components/CoachParticles';
 import ScreenLoadingState from '@components/ui/ScreenLoadingState';
 import StaggerIn from '@components/ui/StaggerIn';
-import HeroZone from '@components/ui/HeroZone';
 import MissionCard from '@components/misiones/MissionCard';
 import BadgeModal from '@components/misiones/BadgeModal';
 import WeeklyReview from '@components/misiones/WeeklyReview';
@@ -26,7 +25,7 @@ import PenaltyScreen from '@components/misiones/PenaltyScreen';
 import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
 
 const COACH_MISSION_ACCENT: Record<string, string> = {
-  arise: '#818CF8',
+  arise: '#D4AF37',
 };
 
 const TRACK_DIRECTION: Record<string, string> = {
@@ -492,16 +491,16 @@ export default function HoyScreen() {
                   <Text style={styles.cardLabel}>XP TOTAL</Text>
                 </View>
                 <View style={{ alignItems: 'center' }}>
-                  <Text style={[styles.bigNumber, { color: COLORS.purple }]}>Nv.{user.level}</Text>
+                  <Text style={[styles.bigNumber, { color: METAL.gold }]}>Nv.{user.level}</Text>
                   <Text style={styles.cardLabel}>NIVEL</Text>
                 </View>
               </View>
             </View>
 
-            <View style={[styles.card, { borderColor: '#7C3AED60', width: '100%' }]}>
-              <Text style={[styles.cardLabel, { color: '#C084FC' }]}>LOGRO MÁXIMO</Text>
+            <View style={[styles.card, { borderColor: METAL.goldBorder, width: '100%' }]}>
+              <Text style={[styles.cardLabel, { color: METAL.gold }]}>LOGRO MÁXIMO</Text>
               <Text style={{ fontSize: 48, textAlign: 'center', marginVertical: 8 }}>👑</Text>
-              <Text style={{ color: '#F5F0FF', fontWeight: '900', fontSize: 18, textAlign: 'center' }}>ARISE COMPLETE</Text>
+              <Text style={{ color: INK.primary, fontWeight: '900', fontSize: 18, textAlign: 'center' }}>ARISE COMPLETE</Text>
               <Text style={{ color: COLORS.textSecondary, textAlign: 'center', marginTop: 4, fontSize: FONT.sm }}>
                 Leyenda. Solo el 1% de los que empiezan llegan aquí.
               </Text>
@@ -553,7 +552,7 @@ export default function HoyScreen() {
               </View>
               <View style={[styles.card, styles.halfCard]}>
                 <Text style={styles.cardLabel}>NIVEL</Text>
-                <Text style={[styles.bigNumber, { color: COLORS.purple }]}>
+                <Text style={[styles.bigNumber, { color: METAL.gold }]}>
                   {user.level}
                 </Text>
               </View>
@@ -622,12 +621,12 @@ export default function HoyScreen() {
         )}
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-          {/* Header */}
+          {/* Header — day context only */}
           <View style={styles.header}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>Arise, {user.name}.</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                <Text style={styles.dayLabel}>DÍA {user.currentDay} DE 90</Text>
+                <Text style={styles.dayLabel}>Día {user.currentDay} de 90</Text>
                 {syncing && (
                   <View style={styles.syncBadge}>
                     <Ionicons name="cloud-upload-outline" size={12} color={SEMANTIC.brandLight} />
@@ -637,15 +636,6 @@ export default function HoyScreen() {
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
-              <Pressable
-                style={styles.configBtn}
-                onPress={() => router.push('/(tabs)/config')}
-                hitSlop={TOUCH.hitSlop}
-                accessibilityRole="button"
-                accessibilityLabel="Abrir configuracion"
-              >
-                <Ionicons name="settings-outline" size={16} color={SEMANTIC.onSurfaceVariant} />
-              </Pressable>
               {currentWeekNum > 1 && (
                 <Pressable
                   style={styles.weekReviewBtn}
@@ -658,38 +648,23 @@ export default function HoyScreen() {
                   <Text style={styles.weekReviewBtnText}>Sem. {currentWeekNum - 1}</Text>
                 </Pressable>
               )}
-              {user.streak > 3 && (
-                <Animated.View style={[styles.comboBadge, {
-                  opacity: comboOpac,
-                  borderColor: COLORS.streak + '55',
-                  backgroundColor: COLORS.streak + '14',
-                }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="flash" size={11} color={COLORS.streak} />
-                    <Text style={[styles.comboText, { color: COLORS.streak }]}>
-                      COMBO
-                    </Text>
-                  </View>
-                </Animated.View>
-              )}
               <View style={styles.streakBadge} accessibilityLabel={`Racha de ${user.streak} días`}>
                 <Ionicons name="flash-outline" size={14} color={COLORS.streak} />
                 <Text style={styles.streakNumber}>{user.streak}</Text>
               </View>
+              <Pressable
+                style={styles.configBtn}
+                onPress={() => router.push("/(tabs)/mas" as any)}
+                hitSlop={TOUCH.hitSlop}
+                accessibilityRole="button"
+                accessibilityLabel="Abrir Más"
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color={SEMANTIC.onSurfaceVariant} />
+              </Pressable>
             </View>
           </View>
 
-          <HeroZone
-            trustBadge={`Día ${user.currentDay} · Nivel ${user.level}`}
-            headline={{ line1: 'Hoy decide', line2: 'tu racha' }}
-            subtitle={
-              dayCompleted
-                ? 'Día completado. Mantené el ritmo mañana.'
-                : `Sumá ${pointsTarget} pts en las misiones de hoy. Un foco, una acción.`
-            }
-          />
-
-          {/* ── Primary loop first: progress + missions ── */}
+          {/* Viewport 1: points + missions */}
           <View style={styles.pointsSection}>
             <View style={styles.pointsHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -697,7 +672,7 @@ export default function HoyScreen() {
                   <Ionicons name="checkmark-circle" size={14} color={SEMANTIC.success} />
                 ) : null}
                 <Text style={styles.pointsLabel}>
-                  {dayCompleted ? 'DÍA COMPLETADO' : 'PUNTOS DE HOY'}
+                  {dayCompleted ? 'Día completado' : 'Puntos de hoy'}
                 </Text>
               </View>
               <Text style={[styles.pointsCount, { color: dayCompleted ? SEMANTIC.success : stageTheme.tabActive }]}>
@@ -712,7 +687,6 @@ export default function HoyScreen() {
                 style={[styles.pointsBarFill, { width: `${pointsProgress * 100}%` as any }]}
               />
             </View>
-            {/* Category breakdown pills */}
             <View style={styles.catRow}>
               {(Object.keys(CATEGORY_INFO) as TaskCategory[]).map(cat => {
                 const pts = catPts[cat] ?? 0;
@@ -728,36 +702,9 @@ export default function HoyScreen() {
             </View>
           </View>
 
-          {/* XP Bar + floating reward */}
-          <View style={styles.xpSection}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.xpLabel}>Nivel {user.level} — {user.xp} XP</Text>
-              {xpLastEarned > 0 && (
-                <Animated.Text style={[styles.xpFloat, {
-                  opacity: xpFloatOp,
-                  color: coachVisual.glowColor,
-                  transform: [{ translateY: xpFloatY }, { scale: xpScale }],
-                  textShadowColor: coachVisual.glowColor,
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: 14,
-                }]}>
-                  +{xpLastEarned} XP
-                </Animated.Text>
-              )}
-            </View>
-            <View style={styles.xpBarBg}>
-              {/* Bar fill uses coach glow color instead of static purple */}
-              <View style={[styles.xpBarFill, {
-                width: `${Math.min(xpProgress * 100, 100)}%` as any,
-                backgroundColor: coachVisual.glowColor,
-              }]} />
-            </View>
-          </View>
-
-          {/* ── Missions ── */}
           <View style={styles.missionsHeader}>
             <View>
-              <Text style={styles.sectionTitle}>MISIONES DE HOY</Text>
+              <Text style={styles.sectionTitle}>Misiones de hoy</Text>
               <Text style={styles.missionsMeta}>{todayMissions.length} misiones · tope 10pt/categoría</Text>
             </View>
             <Pressable
@@ -772,10 +719,9 @@ export default function HoyScreen() {
             </Pressable>
           </View>
 
-          {/* Fixed missions first */}
           <View style={styles.missionGroupLabelRow}>
             <Ionicons name="pin" size={12} color={SEMANTIC.onSurfaceMuted} />
-            <Text style={styles.missionGroupLabel}>FIJAS</Text>
+            <Text style={styles.missionGroupLabel}>Fijas</Text>
           </View>
           {todayMissions.filter(m => m.isFixed).map((mission, index) => (
             <StaggerIn key={mission.id} index={index} reducedMotion={reducedMotion}>
@@ -789,10 +735,9 @@ export default function HoyScreen() {
             </StaggerIn>
           ))}
 
-          {/* Daily rotating missions */}
           <View style={[styles.missionGroupLabelRow, { marginTop: SPACING.sm }]}>
             <Ionicons name="shuffle" size={12} color={SEMANTIC.onSurfaceMuted} />
-            <Text style={styles.missionGroupLabel}>MISIONES DEL DÍA</Text>
+            <Text style={styles.missionGroupLabel}>Del día</Text>
           </View>
           {todayMissions.filter(m => !m.isFixed).map((mission, index) => (
             <StaggerIn
@@ -810,7 +755,6 @@ export default function HoyScreen() {
             </StaggerIn>
           ))}
 
-          {/* More missions button */}
           <Pressable
             style={styles.repoBtn}
             onPress={() => setShowMissionRepo(true)}
@@ -819,22 +763,46 @@ export default function HoyScreen() {
             <Text style={[styles.repoBtnText, { color: stageTheme.tabActive }]}>Ver repositorio de misiones</Text>
           </Pressable>
 
-          {/* ── Compact coach briefing (secondary) ── */}
+          {/* Below the fold: XP, coach teaser, stage */}
+          <View style={styles.xpSection}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.xpLabel}>Nivel {user.level} — {user.xp} XP</Text>
+              {xpLastEarned > 0 && (
+                <Animated.Text style={[styles.xpFloat, {
+                  opacity: xpFloatOp,
+                  color: coachVisual.glowColor,
+                  transform: [{ translateY: xpFloatY }, { scale: xpScale }],
+                  textShadowColor: coachVisual.glowColor,
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 14,
+                }]}>
+                  +{xpLastEarned} XP
+                </Animated.Text>
+              )}
+            </View>
+            <View style={styles.xpBarBg}>
+              <View style={[styles.xpBarFill, {
+                width: `${Math.min(xpProgress * 100, 100)}%` as any,
+                backgroundColor: coachVisual.glowColor,
+              }]} />
+            </View>
+          </View>
+
           <Pressable
             style={[styles.coachIdentityCard, coachCardStyle]}
-            onPress={() => router.push('/coach' as any)}
+            onPress={() => router.push("/(tabs)/coach" as any)}
             accessibilityRole="button"
             accessibilityLabel={`Hablar con ${coach.name}`}
           >
             <View style={styles.coachIdentityRow}>
               <Ionicons name={coachVisual.icon as any} size={16} color={stageTheme.tabActive} />
-              <Text style={[styles.coachIdentityLabel, { color: stageTheme.tabActive }]}>{coachVisual.headerLabel}</Text>
+              <Text style={[styles.coachIdentityLabel, { color: stageTheme.tabActive }]}>Coach</Text>
               <Ionicons name="chatbubbles-outline" size={14} color={stageTheme.tabActive} style={{ marginLeft: 'auto' }} />
             </View>
             <Text style={styles.coachIdentityName}>Coach ARISE</Text>
             <Text style={styles.coachIdentityNote}>{coach.motivator}</Text>
             <Text style={[styles.coachIdentityNote, { marginTop: 8, color: stageTheme.tabActive }]}>
-              Toca para chatear — Williamson · Hormozi · Goggins · Rohn · Plitt
+              Tocá para chatear
             </Text>
           </Pressable>
 
@@ -853,7 +821,7 @@ export default function HoyScreen() {
             >
               <View style={styles.intentionLabelRow}>
                 <Ionicons name="flash" size={12} color={SEMANTIC.primary} />
-                <Text style={styles.intentionLabel}>INTENCIÓN SEMANA {currentWeekNum}</Text>
+                <Text style={styles.intentionLabel}>Intención semana {currentWeekNum}</Text>
               </View>
               <Text style={styles.intentionText}>"{weekIntention}"</Text>
             </Pressable>
@@ -973,7 +941,7 @@ const styles = StyleSheet.create({
   ariseCompleteTitle: {
     fontSize: 48,
     fontWeight: '900',
-    color: '#F5F0FF',
+    color: '#F5F5F5',
     textAlign: 'center',
     letterSpacing: 4,
     lineHeight: 54,
@@ -1017,12 +985,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(129,140,248,0.12)',
+    backgroundColor: METAL.goldWash,
     borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
     borderWidth: 1,
-    borderColor: 'rgba(129,140,248,0.28)',
+    borderColor: METAL.goldBorder,
   },
   streakNumber: {
     fontSize: FONT.lg,
@@ -1044,12 +1012,12 @@ const styles = StyleSheet.create({
   },
   syncText: { fontSize: 10, color: '#60A5FA', fontWeight: '700' },
   configBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: TOUCH.minTarget,
+    height: TOUCH.minTarget,
+    borderRadius: TOUCH.minTarget / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
@@ -1140,14 +1108,14 @@ const styles = StyleSheet.create({
   goalBarFill: { height: '100%', borderRadius: RADIUS.full, minWidth: 5 },
 
   coachBox: {
-    backgroundColor: 'rgba(124,58,237,0.12)',
+    backgroundColor: METAL.goldWash,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.35)',
+    borderColor: METAL.goldBorder,
     borderRadius: RADIUS.md,
     padding: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  coachLabel: { fontSize: FONT.xs, color: '#D8B4FE', fontWeight: '800', letterSpacing: 1 },
+  coachLabel: { fontSize: FONT.xs, color: METAL.gold, fontWeight: '800', letterSpacing: 1 },
   coachText: { fontSize: FONT.sm, color: COLORS.textPrimary, marginTop: 4, lineHeight: 20, fontWeight: '600' },
 
   toolsBox: {
@@ -1245,7 +1213,7 @@ const styles = StyleSheet.create({
   },
   xpBarFill: {
     height: '100%',
-    backgroundColor: COLORS.purple,
+    backgroundColor: METAL.gold,
     borderRadius: RADIUS.full,
     minWidth: 4,
   },

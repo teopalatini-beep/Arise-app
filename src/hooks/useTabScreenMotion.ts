@@ -3,9 +3,26 @@ import { Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
 
-type TabKey = 'index' | 'programa' | 'progreso' | 'discovery' | 'diario' | 'config';
+type TabKey =
+  | 'index'
+  | 'coach'
+  | 'programa'
+  | 'progreso'
+  | 'mas'
+  | 'discovery'
+  | 'diario'
+  | 'config';
 
-const TAB_ORDER: TabKey[] = ['index', 'programa', 'progreso', 'discovery', 'diario', 'config'];
+const TAB_ORDER: TabKey[] = [
+  'index',
+  'coach',
+  'programa',
+  'progreso',
+  'mas',
+  'discovery',
+  'diario',
+  'config',
+];
 let lastFocusedTabIndex = 0;
 
 export function useTabScreenMotion(tabKey: TabKey) {
@@ -23,7 +40,7 @@ export function useTabScreenMotion(tabKey: TabKey) {
 
       const currentIndex = TAB_ORDER.indexOf(tabKey);
       const direction = currentIndex >= lastFocusedTabIndex ? 1 : -1;
-      lastFocusedTabIndex = currentIndex;
+      lastFocusedTabIndex = currentIndex >= 0 ? currentIndex : lastFocusedTabIndex;
 
       translateX.setValue(14 * direction);
       opacity.setValue(0.92);

@@ -2,8 +2,9 @@ import { useCallback, useRef } from 'react';
 import { Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
+import { MOTION } from '@/theme';
 
-export function usePressSpring(scaleTo = 0.96) {
+export function usePressSpring(scaleTo = MOTION.pressScale) {
   const { reducedMotion } = useReducedMotionSetting();
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -12,8 +13,8 @@ export function usePressSpring(scaleTo = 0.96) {
     Animated.spring(scale, {
       toValue: scaleTo,
       useNativeDriver: true,
-      speed: 28,
-      bounciness: 0,
+      damping: MOTION.spring.damping,
+      stiffness: MOTION.spring.stiffness,
     }).start();
   }, [reducedMotion, scale, scaleTo]);
 
@@ -22,8 +23,8 @@ export function usePressSpring(scaleTo = 0.96) {
     Animated.spring(scale, {
       toValue: 1,
       useNativeDriver: true,
-      speed: 22,
-      bounciness: 6,
+      damping: MOTION.spring.damping,
+      stiffness: MOTION.spring.stiffness + 20,
     }).start();
   }, [reducedMotion, scale]);
 

@@ -1,8 +1,8 @@
 import React from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, FONT, RADIUS, SPACING } from '../../theme';
+import { FONT, RADIUS, SEMANTIC, SPACING, SURFACES, TOUCH } from '../../theme';
 import { CATEGORY_INFO, MissionDef, TaskCategory } from '../../types';
 import { calcPoints } from '../../data/missions';
 
@@ -72,32 +72,43 @@ function MissionCardImpl({
 
       <View style={styles.body}>
         <View style={styles.headerRow}>
-          <Text style={styles.emoji}>{mission.emoji}</Text>
+          <View style={[styles.iconOrb, { backgroundColor: `${activeAccent}18` }]}>
+            <Ionicons
+              name={(catInfo.icon as any) ?? 'flash-outline'}
+              size={20}
+              color={activeAccent}
+              accessibilityElementsHidden
+            />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.name, done && { color: activeAccent }]}>{mission.name}</Text>
             <Text style={styles.desc}>{mission.description}</Text>
           </View>
           <View style={[styles.ptsBadge, done && { backgroundColor: activeAccent + '22', borderColor: activeAccent + '66' }]}>
-            <Text style={[styles.ptsText, { color: done ? activeAccent : COLORS.textMuted }]}>
+            <Text style={[styles.ptsText, { color: done ? activeAccent : SEMANTIC.onSurfaceMuted }]}>
               {pts}/{mission.maxPoints}pt
             </Text>
           </View>
         </View>
 
         {mission.type === 'binary' && (
-          <TouchableOpacity
-            style={[styles.binaryBtn, done && { backgroundColor: activeAccent, borderColor: activeAccent }]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.binaryBtn,
+              done && { backgroundColor: activeAccent, borderColor: activeAccent },
+              pressed && { opacity: 0.88 },
+            ]}
             onPress={handleBinary}
-            activeOpacity={0.8}
+            hitSlop={TOUCH.hitSlop}
             accessibilityRole="button"
             accessibilityLabel={`${mission.name}. ${done ? 'Completada' : 'Pendiente'}`}
             accessibilityHint="Toca para marcar o desmarcar esta mision"
           >
-            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={done ? '#fff' : COLORS.textMuted} />
-            <Text style={[styles.binaryText, done && { color: '#fff' }]}>
+            <Ionicons name={done ? 'checkmark-circle' : 'ellipse-outline'} size={18} color={done ? SEMANTIC.onPrimary : SEMANTIC.onSurfaceMuted} />
+            <Text style={[styles.binaryText, done && { color: SEMANTIC.onPrimary }]}>
               {done ? '¡Completado!' : 'Marcar como hecho'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
 
         {mission.type === 'stepped' && mission.steps && (
@@ -105,18 +116,22 @@ function MissionCardImpl({
             {mission.steps.map(step => {
               const active = currentUnits >= step.units;
               return (
-                <TouchableOpacity
+                <Pressable
                   key={step.units}
-                  style={[styles.stepBtn, active && { backgroundColor: activeAccent, borderColor: activeAccent }]}
+                  style={({ pressed }) => [
+                    styles.stepBtn,
+                    active && { backgroundColor: activeAccent, borderColor: activeAccent },
+                    pressed && { opacity: 0.88 },
+                  ]}
                   onPress={() => handleStepped(step.units)}
-                  activeOpacity={0.8}
+                  hitSlop={TOUCH.hitSlop}
                   accessibilityRole="button"
                   accessibilityLabel={`${mission.name}. Nivel ${step.label}`}
                   accessibilityHint={`Asigna ${step.points} puntos a esta mision`}
                 >
-                  <Text style={[styles.stepText, active && { color: '#fff' }]}>{step.label}</Text>
-                  <Text style={[styles.stepPts, active && { color: '#fff' }]}>+{step.points}pt</Text>
-                </TouchableOpacity>
+                  <Text style={[styles.stepText, active && { color: SEMANTIC.onPrimary }]}>{step.label}</Text>
+                  <Text style={[styles.stepPts, active && { color: SEMANTIC.onPrimary }]}>+{step.points}pt</Text>
+                </Pressable>
               );
             })}
           </View>
@@ -124,38 +139,40 @@ function MissionCardImpl({
 
         {mission.type === 'proportional' && (
           <View style={styles.counterRow}>
-            <TouchableOpacity
-              style={styles.counterBtn}
+            <Pressable
+              style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.8 }]}
               onPress={() => handleProportional(-1)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={TOUCH.hitSlop}
               accessibilityRole="button"
               accessibilityLabel={`Restar ${mission.unit ?? 'unidad'} en ${mission.name}`}
             >
               <Text style={styles.counterBtnText}>−</Text>
-            </TouchableOpacity>
+            </Pressable>
             <View style={styles.counterDisplay}>
               <Text style={[styles.counterValue, { color: activeAccent }]}>{currentUnits}</Text>
               <Text style={styles.counterUnit}>{mission.unit}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.counterBtn}
+            <Pressable
+              style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.8 }]}
               onPress={() => handleProportional(1)}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={TOUCH.hitSlop}
               accessibilityRole="button"
               accessibilityLabel={`Sumar ${mission.unit ?? 'unidad'} en ${mission.name}`}
             >
               <Text style={styles.counterBtnText}>＋</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         )}
 
         {TIMER_MISSIONS.has(mission.id) && onOpenTimer && (
-          <TouchableOpacity
-            style={[styles.timerBtn, { borderColor: activeAccent + '66' }]}
+          <Pressable
+            style={({ pressed }) => [
+              styles.timerBtn,
+              { borderColor: activeAccent + '66' },
+              pressed && { opacity: 0.88 },
+            ]}
             onPress={() => onOpenTimer(mission)}
-            activeOpacity={0.8}
+            hitSlop={TOUCH.hitSlop}
             accessibilityRole="button"
             accessibilityLabel={`${currentUnits > 0 ? 'Continuar' : 'Iniciar'} temporizador para ${mission.name}`}
           >
@@ -163,7 +180,7 @@ function MissionCardImpl({
             <Text style={[styles.timerBtnText, { color: activeAccent }]}>
               {currentUnits > 0 ? 'Continuar timer' : 'Iniciar timer'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
     </View>
@@ -175,37 +192,46 @@ export default MissionCard;
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: RADIUS.md,
-    backgroundColor: 'rgba(6,10,22,0.92)',
+    borderRadius: RADIUS.xxl,
+    backgroundColor: SURFACES.elevated,
     marginBottom: SPACING.sm,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassBorder,
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
-  colorBar: { width: 3, position: 'absolute', top: 0, bottom: 0, left: 0 },
+  colorBar: { width: 3, position: 'absolute', top: 14, bottom: 14, left: 0, borderRadius: 2 },
   glowLine: {
     position: 'absolute',
-    left: 8,
-    right: 8,
+    left: 12,
+    right: 12,
     top: 0,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
   },
-  body: { padding: SPACING.md, paddingLeft: SPACING.md + 4 },
+  body: { padding: SPACING.md, paddingLeft: SPACING.md + 6 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.sm },
-  emoji: { fontSize: 20, marginTop: 1 },
-  name: { fontSize: FONT.base, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 2 },
-  desc: { fontSize: FONT.xs, color: COLORS.textSecondary, lineHeight: 18 },
+  iconOrb: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassBorder,
+    marginTop: 1,
+  },
+  name: { fontSize: FONT.base, fontWeight: '800', color: SEMANTIC.onSurface, marginBottom: 2, letterSpacing: -0.2 },
+  desc: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceVariant, lineHeight: 18 },
   ptsBadge: {
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SEMANTIC.border,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: SURFACES.glassHover,
   },
   ptsText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
   binaryBtn: {
@@ -213,59 +239,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    minHeight: 44,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassHighlight,
+    minHeight: TOUCH.minTarget,
     paddingVertical: 11,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: SURFACES.glassHover,
   },
-  binaryText: { fontSize: FONT.sm, color: COLORS.textSecondary, fontWeight: '700' },
-  stepsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  binaryText: { fontSize: FONT.sm, color: SEMANTIC.onSurfaceVariant, fontWeight: '700' },
+  stepsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: TOUCH.minGap },
   stepBtn: {
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 10,
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassHighlight,
+    backgroundColor: SURFACES.glassHover,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     minWidth: 88,
-    minHeight: 44,
+    minHeight: TOUCH.minTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  stepText: { fontSize: 11, color: COLORS.textSecondary, fontWeight: '700' },
-  stepPts: { fontSize: 10, color: COLORS.textMuted, marginTop: 2, fontWeight: '700' },
+  stepText: { fontSize: 11, color: SEMANTIC.onSurfaceVariant, fontWeight: '700' },
+  stepPts: { fontSize: 10, color: SEMANTIC.onSurfaceMuted, marginTop: 2, fontWeight: '700' },
   counterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: RADIUS.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: SURFACES.glassHighlight,
     padding: 6,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: SURFACES.glassHover,
   },
   counterBtn: {
-    width: 44,
-    height: 44,
+    width: TOUCH.minTarget,
+    height: TOUCH.minTarget,
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: SURFACES.glassHighlight,
   },
-  counterBtnText: { color: COLORS.textPrimary, fontSize: 22, fontWeight: '700', lineHeight: 24 },
+  counterBtnText: { color: SEMANTIC.onSurface, fontSize: 22, fontWeight: '700', lineHeight: 24 },
   counterDisplay: { alignItems: 'center' },
   counterValue: { fontSize: FONT.lg, fontWeight: '900' },
-  counterUnit: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
+  counterUnit: { fontSize: 10, color: SEMANTIC.onSurfaceMuted, marginTop: 1 },
   timerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderWidth: 1,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: 10,
-    minHeight: 44,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 12,
+    minHeight: TOUCH.minTarget,
     paddingVertical: 9,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: SURFACES.glassHover,
     alignSelf: 'flex-start',
     marginTop: 8,
   },

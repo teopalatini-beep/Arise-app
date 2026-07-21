@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp, xpForLevel } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, FONT, RADIUS, SPACING } from '@/theme';
+import { COLORS, FONT, METAL, RADIUS, SPACING } from '@/theme';
+import { useRouter } from 'expo-router';
 import { BADGE_DEFINITIONS, RANK_COLORS, RANK_LABELS, BadgeId } from '@/types';
 import { getStageTheme } from '@/lib/progression';
 import { deleteUserData } from '@/lib/db';
@@ -34,6 +35,7 @@ import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
 import { useReducedMotionSetting } from '@/hooks/useReducedMotionSetting';
 
 export default function ConfigScreen() {
+  const router = useRouter();
   const { reducedMotion, screenAnimStyle } = useTabScreenMotion('config');
   const { userPref, systemReducedMotion, setReducedMotion } = useReducedMotionSetting();
   const { data, resetProgram, canUseGrace, loading } = useApp();
@@ -281,9 +283,21 @@ export default function ConfigScreen() {
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
+          <View style={styles.configTopBar}>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/mas" as any)}
+              style={styles.backBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Volver a Más"
+            >
+              <Ionicons name="chevron-back" size={22} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            <Text style={styles.configTopTitle}>Ajustes</Text>
+          </View>
+
           {/* Profile header */}
           <LinearGradient
-            colors={['rgba(72,149,239,0.2)', 'rgba(155,89,182,0.1)']}
+            colors={[METAL.goldWash, 'rgba(212,175,55,0.04)']}
             style={styles.profileCard}
           >
             <View style={styles.avatar}>
@@ -472,7 +486,7 @@ export default function ConfigScreen() {
 
                 {/* Noche */}
                 <View style={styles.notifRow}>
-                  <View style={[styles.notifIcon, { backgroundColor: '#7C3AED20' }]}>
+                  <View style={[styles.notifIcon, { backgroundColor: METAL.goldWash }]}>
                     <Text style={{ fontSize: 18 }}>🌙</Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -482,7 +496,7 @@ export default function ConfigScreen() {
                   <Switch
                     value={notif.night}
                     onValueChange={v => updateNotif({ night: v })}
-                    trackColor={{ true: '#7C3AED', false: COLORS.textMuted }}
+                    trackColor={{ true: METAL.gold, false: COLORS.textMuted }}
                     thumbColor="#fff"
                   />
                 </View>
@@ -619,9 +633,9 @@ export default function ConfigScreen() {
                 onPress={async () => {
                   const start = new Date(data.user.startDate!);
                   const milestones = [
-                    { name: '🌿 Fase 1 completa — 30 días', days: 30 },
-                    { name: '⚔️ Fase 2 completa — 60 días', days: 60 },
-                    { name: '👑 ARISE COMPLETO — 90 días', days: 90 },
+                    { name: 'Fase 1 completa — 30 días', days: 30 },
+                    { name: 'Fase 2 completa — 60 días', days: 60 },
+                    { name: 'ARISE COMPLETO — 90 días', days: 90 },
                   ];
                   let count = 0;
                   for (const m of milestones) {
@@ -782,10 +796,31 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: SPACING.md },
 
+  configTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
+  },
+  configTopTitle: {
+    fontSize: FONT.xxl,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
   profileCard: {
     flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.lg,
     padding: SPACING.md, gap: SPACING.md, marginBottom: SPACING.md,
-    marginTop: SPACING.sm, borderWidth: 1, borderColor: 'rgba(72,149,239,0.25)',
+    marginTop: SPACING.sm, borderWidth: 1, borderColor: METAL.goldBorder,
   },
   avatar: {
     width: 56, height: 56, borderRadius: 28,

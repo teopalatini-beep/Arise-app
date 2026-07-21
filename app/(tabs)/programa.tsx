@@ -12,9 +12,9 @@ import StaggerIn from '@components/ui/StaggerIn';
 import type { DayRecord } from '@/types';
 import { useTabScreenMotion } from '@/hooks/useTabScreenMotion';
 
-const COLS = 9; // 9 columnas × 10 filas = 90 días
+const COLS = 7; // celdas más grandes para touch ≈44pt en muchos dispositivos
 const SCREEN_W = Dimensions.get('window').width;
-const CELL = Math.floor((SCREEN_W - SPACING.md * 2 - (COLS - 1) * 4) / COLS);
+const CELL = Math.max(40, Math.floor((SCREEN_W - SPACING.md * 2 - (COLS - 1) * 4) / COLS));
 
 // ─── Day Detail Sheet ─────────────────────────────────────────────────────────
 function DayDetailSheet({ dayNumber, record, status, onClose }: {
@@ -118,7 +118,7 @@ function DayDetailSheet({ dayNumber, record, status, onClose }: {
             {/* Phase milestone hint */}
             {(dayNumber === 30 || dayNumber === 60 || dayNumber === 90) && status !== 'future' && (
               <View style={[sheetStyles.milestoneHint, { borderColor: COLORS.accent + '40' }]}>
-                <Text style={{ fontSize: 24 }}>{dayNumber === 90 ? '🏆' : '🔥'}</Text>
+                <Text style={{ fontSize: 24 }}>{dayNumber === 90 ? '🏆' : '⚡'}</Text>
                 <Text style={sheetStyles.milestoneHintText}>
                   {dayNumber === 30 && 'Cruzaste la Fase 1 → Construcción. La mayoría se rindió aquí.'}
                   {dayNumber === 60 && 'Cruzaste la Fase 2 → Elite. 30 días para la transformación completa.'}
@@ -156,15 +156,15 @@ function PhaseCelebrationModal({ day, onClose }: { day: 30 | 60; onClose: () => 
           colors={isPhase2 ? ['#1A2744', '#0D1628'] : ['#2A1A44', '#1A0D28']}
           style={celebStyles.card}
         >
-          <Text style={celebStyles.emoji}>{isPhase2 ? '🔥' : '⚡'}</Text>
+          <Ionicons name={isPhase2 ? 'flash' : 'star'} size={48} color={COLORS.gold} />
           <Text style={celebStyles.title}>{isPhase2 ? 'FASE 2 DESBLOQUEADA' : 'FASE 3 DESBLOQUEADA'}</Text>
           <Text style={celebStyles.subtitle}>{isPhase2 ? 'CONSTRUCCIÓN · Días 31-60' : 'ELITE · Días 61-90'}</Text>
           <Text style={celebStyles.message}>
             {isPhase2
               ? 'Pasaste la prueba inicial. La mayoría abandona en este punto — vos seguís. Ahora el trabajo se vuelve real.'
-              : 'Dos meses de fuego. Lo que construiste no se puede destruir. Los últimos 30 días son tu legado.'}
+              : 'Dos meses de entrenamiento constante. Lo que construiste no se puede destruir. Los últimos 30 días son tu legado.'}
           </Text>
-          <TouchableOpacity style={[celebStyles.btn, { backgroundColor: isPhase2 ? COLORS.warning : COLORS.danger }]} onPress={onClose}>
+          <TouchableOpacity style={[celebStyles.btn, { backgroundColor: COLORS.accent }]} onPress={onClose}>
             <Text style={celebStyles.btnText}>SEGUIR ADELANTE</Text>
           </TouchableOpacity>
         </LinearGradient>
@@ -175,17 +175,17 @@ function PhaseCelebrationModal({ day, onClose }: { day: 30 | 60; onClose: () => 
 
 // ─── Phase definitions ────────────────────────────────────────────────────────
 const PHASES = [
-  { id: 1, label: 'FASE 1 — DESPERTAR',   range: [1,  10], subtitle: 'Los primeros 10 días. El hábito empieza aquí.',      accent: '#10B981', boss: 10 },
-  { id: 2, label: 'FASE 2 — CONSTRUCCIÓN', range: [11, 30], subtitle: 'Días 11–30. El ciclo se asienta y el cuerpo cambia.',  accent: '#3B82F6', boss: 30 },
-  { id: 3, label: 'FASE 3 — MOMENTUM',     range: [31, 60], subtitle: 'Días 31–60. Se agrega ducha fría y trabajo profundo.', accent: '#F59E0B', boss: 60 },
-  { id: 4, label: 'FASE 4 — ÉLITE',        range: [61, 90], subtitle: 'Días 61–90. Territorio final. Pocos llegan aquí.',    accent: '#EF4444', boss: 90 },
+  { id: 1, label: 'Fase 1 — Despertar',   range: [1,  10], subtitle: 'Los primeros 10 días. El hábito empieza aquí.',      accent: '#10B981', boss: 10 },
+  { id: 2, label: 'Fase 2 — Construcción', range: [11, 30], subtitle: 'Días 11–30. El ciclo se asienta y el cuerpo cambia.',  accent: '#D4AF37', boss: 30 },
+  { id: 3, label: 'Fase 3 — Momentum',     range: [31, 60], subtitle: 'Días 31–60. Se agrega ducha fría y trabajo profundo.', accent: '#E8C547', boss: 60 },
+  { id: 4, label: 'Fase 4 — Elite',        range: [61, 90], subtitle: 'Días 61–90. La etapa final del programa.',    accent: '#F5E6A3', boss: 90 },
 ] as const;
 
-const BOSS_LABELS: Record<number, { emoji: string; title: string }> = {
-  10:  { emoji: '⚔️',  title: 'CHECKPOINT' },
-  30:  { emoji: '🔥',  title: 'BOSS FIGHT' },
-  60:  { emoji: '⚡',  title: 'BOSS FIGHT' },
-  90:  { emoji: '👑',  title: 'FINAL BOSS' },
+const MILESTONE_LABELS: Record<number, { title: string }> = {
+  10:  { title: 'Hito día 10' },
+  30:  { title: 'Hito día 30' },
+  60:  { title: 'Hito día 60' },
+  90:  { title: 'Día 90' },
 };
 
 type DayStatus = 'completed' | 'current' | 'missed' | 'future';
@@ -211,9 +211,13 @@ const DayNode = memo(function DayNode({
   }, [status]);
 
   if (isBoss) {
-    const bossInfo = BOSS_LABELS[day];
+    const milestone = MILESTONE_LABELS[day];
     const bossComplete = status === 'completed';
     const bossCurrent = status === 'current';
+    const statusIcon =
+      bossComplete ? 'checkmark-circle' :
+      status === 'missed' ? 'close-circle' :
+      bossCurrent ? 'flag' : 'lock-closed';
     return (
       <TouchableOpacity
         style={[
@@ -224,13 +228,19 @@ const DayNode = memo(function DayNode({
         ]}
         onPress={() => onPress(day)}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`${milestone.title}. ${bossComplete ? 'Completado' : status === 'missed' ? 'Fallado' : bossCurrent ? 'Actual' : 'Bloqueado'}`}
       >
-        <Text style={bossStyles.emoji}>{bossComplete ? bossInfo.emoji : status === 'missed' ? '💀' : '🔒'}</Text>
-        <Text style={[bossStyles.title, bossComplete && { color: phaseAccent }]}>{bossInfo.title}</Text>
-        <Text style={[bossStyles.day, bossComplete && { color: phaseAccent }]}>DÍA {day}</Text>
+        <Ionicons
+          name={statusIcon}
+          size={22}
+          color={bossComplete || bossCurrent ? phaseAccent : COLORS.textMuted}
+        />
+        <Text style={[bossStyles.title, bossComplete && { color: phaseAccent }]}>{milestone.title}</Text>
+        <Text style={[bossStyles.day, bossComplete && { color: phaseAccent }]}>Día {day}</Text>
         {bossComplete && (
           <View style={[bossStyles.clearedBadge, { backgroundColor: phaseAccent + '20', borderColor: phaseAccent + '60' }]}>
-            <Text style={[bossStyles.clearedText, { color: phaseAccent }]}>CLEARED</Text>
+            <Text style={[bossStyles.clearedText, { color: phaseAccent }]}>Completado</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -347,14 +357,14 @@ export default function ProgramaScreen() {
         <SafeAreaView style={styles.safe}>
           {loading ? (
             <ScreenLoadingState
-              title="Mapa de Campaña"
-              subtitle="Construyendo nodos, fases y checkpoints..."
-              icon="map-outline"
+              title="Programa 90 días"
+              subtitle="Cargando fases e hitos..."
+              icon="calendar-outline"
               accent={fallbackTheme.tabActive}
               reducedMotion={reducedMotion}
               hints={[
                 'Leyendo progreso de 90 dias',
-                'Marcando jefes y fases',
+                'Marcando hitos y fases',
                 'Preparando detalle por dia',
               ]}
             />
@@ -373,7 +383,7 @@ export default function ProgramaScreen() {
 
   const { user } = data;
   const stageTheme = getStageTheme(user);
-  const coachId = user.preferredCoachId ?? 'goku';
+  const coachId = user.preferredCoachId ?? 'arise';
 
   function getDayStatus(day: number): DayStatus {
     if (day > currentDay) return 'future';
@@ -390,22 +400,22 @@ export default function ProgramaScreen() {
 
   return (
     <LinearGradient colors={stageTheme.background} style={styles.container}>
-      <CoachParticles coachId={coachId} screen="programa" tappable reducedMotion={reducedMotion} />
+      <CoachParticles coachId={coachId} screen="programa" reducedMotion={reducedMotion} />
       <Animated.View style={[styles.motionLayer, screenAnimStyle]}>
         <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Mapa de Campaña</Text>
-            <Text style={styles.subtitle}>90 días · Tocá cualquier nodo para el detalle</Text>
+            <Text style={styles.title}>Programa 90 días</Text>
+            <Text style={styles.subtitle}>Tocá cualquier día para ver el detalle</Text>
           </View>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{completedDays}</Text>
-              <Text style={styles.statLabel}>Conquistados</Text>
+              <Text style={styles.statLabel}>Completados</Text>
             </View>
             <View style={[styles.statCard, styles.statCardCenter]}>
               <Text style={[styles.statNumber, { color: COLORS.accent }]}>{progressPercent}%</Text>
@@ -433,10 +443,10 @@ export default function ProgramaScreen() {
               onPress={() => setShowCelebration(currentDay as 30 | 60)}
               activeOpacity={0.85}
             >
-              <Text style={styles.milestoneBannerEmoji}>{currentDay === 30 ? '🔥' : '⚡'}</Text>
+              <Ionicons name={currentDay === 30 ? 'flash' : 'star'} size={22} color={COLORS.accent} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.milestoneBannerTitle}>
-                  {currentDay === 30 ? '¡Fase 3 desbloqueada!' : '¡Fase 4 desbloqueada!'}
+                  {currentDay === 30 ? 'Fase 3 desbloqueada' : 'Fase 4 desbloqueada'}
                 </Text>
                 <Text style={styles.milestoneBannerSub}>Tocá para ver el mensaje del coach</Text>
               </View>

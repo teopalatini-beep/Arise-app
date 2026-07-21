@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Defs, LinearGradient as SvgGradient, Stop, Rect, G, Text as SvgText, Line } from 'react-native-svg';
 import { useApp } from '@/context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { COLORS, FONT, RADIUS, SEMANTIC, SPACING, SURFACES, TOUCH } from '@/theme';
+import { COLORS, FONT, METAL, RADIUS, SEMANTIC, SPACING, SURFACES, TOUCH } from '@/theme';
 import { BADGE_DEFINITIONS, DayMetrics, RANK_COLORS, RANK_LABELS, BadgeId, CoachId } from '@/types';
 import { buildDynamicChallenges, getNextStageHint, getPowerStage, getStageTheme, StageTheme } from '@/lib/progression';
 import { buildWeeklyCoachReport, COACH_STORAGE_KEY } from '@/lib/coach';
@@ -20,7 +20,6 @@ import WeightChart from '@components/progreso/WeightChart';
 import XPRing from '@components/progreso/XPRing';
 import MetricsForm from '@components/progreso/MetricsForm';
 import StaggerIn from '@components/ui/StaggerIn';
-import HeroZone from '@components/ui/HeroZone';
 import ViewShot from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { trackMissionProgress } from '@/services/analytics';
@@ -424,6 +423,7 @@ export default function ProgresoScreen() {
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [sharingStory, setSharingStory] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const storyRef = useRef<ViewShot | null>(null);
 
   if (!data) {
@@ -701,12 +701,6 @@ export default function ProgresoScreen() {
               <XPRing xp={user.xp} level={user.level} xpForLevel={xpForLevel} />
             </View>
 
-            <HeroZone
-              trustBadge={`${completionRate}% efectividad · ${user.streak} días de racha`}
-              headline={{ line1: 'Tu avance', line2: 'en números' }}
-              subtitle="Tendencias, métricas y logros. Cada dato con su valor — no solo color."
-            />
-
             {/* Stats row */}
             <StaggerIn index={0} reducedMotion={reducedMotion}>
             <View style={styles.statsRow}>
@@ -729,7 +723,7 @@ export default function ProgresoScreen() {
               </View>
             )}
 
-            <Text style={styles.sectionTitle}>MODO ANIME ACTUAL</Text>
+            <Text style={styles.sectionTitle}>Etapa actual</Text>
             <StaggerIn index={1} reducedMotion={reducedMotion}>
             <View style={styles.card}>
               <LinearGradient colors={powerStage.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.powerPill}>
@@ -764,14 +758,36 @@ export default function ProgresoScreen() {
             />
             </StaggerIn>
 
-            <Text style={styles.sectionTitle}>LOGROS Y BADGES</Text>
+            <Pressable
+              style={styles.moreDetailsBtn}
+              onPress={() => setShowMoreDetails(v => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showMoreDetails }}
+            >
+              <Text style={styles.moreDetailsLabel}>
+                {showMoreDetails ? 'Ocultar detalles' : 'Más métricas y logros'}
+              </Text>
+              <Ionicons
+                name={showMoreDetails ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={METAL.gold}
+              />
+            </Pressable>
+
+            {showMoreDetails && (
+              <>
+            <Text style={styles.sectionTitle}>Logros</Text>
             <StaggerIn index={3} reducedMotion={reducedMotion}>
             <View style={styles.card}>
               <Text style={styles.badgeSummary}>{earnedBadges.length} desbloqueados · {Object.keys(BADGE_DEFINITIONS).length - earnedBadges.length} pendientes</Text>
               <View style={styles.badgesGrid}>
                 {recentBadges.map(b => (
                   <View key={b.id} style={[styles.badgeCard, { borderColor: `${RANK_COLORS[b.rank]}50` }]}>
-                    <Text style={styles.badgeEmoji}>{b.emoji}</Text>
+                    {b.emoji ? (
+                      <Text style={styles.badgeEmoji}>{b.emoji}</Text>
+                    ) : (
+                      <Ionicons name="ribbon-outline" size={22} color={RANK_COLORS[b.rank]} style={{ marginBottom: 4 }} />
+                    )}
                     <Text style={styles.badgeName} numberOfLines={1}>{b.name}</Text>
                     <Text style={[styles.badgeRank, { color: RANK_COLORS[b.rank] }]}>{RANK_LABELS[b.rank]}</Text>
                   </View>
@@ -780,7 +796,7 @@ export default function ProgresoScreen() {
             </View>
             </StaggerIn>
 
-            <Text style={styles.sectionTitle}>PRÓXIMOS DESBLOQUEOS</Text>
+            <Text style={styles.sectionTitle}>Próximos desbloqueos</Text>
             <View style={styles.card}>
               {lockedBadges.map(b => (
                 <View key={b.id} style={styles.lockedRow}>
@@ -793,7 +809,7 @@ export default function ProgresoScreen() {
               ))}
             </View>
 
-            <Text style={styles.sectionTitle}>DESAFÍOS QUE SUBEN LA DIFICULTAD</Text>
+            <Text style={styles.sectionTitle}>Desafíos</Text>
             <View style={styles.card}>
               {dynamicChallenges.map(ch => {
                 const ratio = Math.max(0, Math.min(1, ch.current / Math.max(ch.target, 1)));
@@ -809,7 +825,7 @@ export default function ProgresoScreen() {
               })}
             </View>
 
-            <Text style={styles.sectionTitle}>COACH ARISE · SEMANAL</Text>
+            <Text style={styles.sectionTitle}>Coach semanal</Text>
             <View style={styles.card}>
               <Text style={styles.coachTitle}>{weeklyReport.title}</Text>
               <Text style={styles.coachSummary}>{weeklyReport.summary}</Text>
@@ -833,7 +849,7 @@ export default function ProgresoScreen() {
               <Text style={styles.coachMessage}>{weeklyReport.message}</Text>
             </View>
 
-            <Text style={styles.sectionTitle}>COMPARTIR PROGRESO</Text>
+            <Text style={styles.sectionTitle}>Compartir progreso</Text>
             <View style={styles.shareRow}>
               <Pressable style={styles.shareButton} onPress={() => setShowStoryModal(true)}>
                 <LinearGradient colors={stageTheme.accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shareGradient}>
@@ -842,7 +858,7 @@ export default function ProgresoScreen() {
                 </LinearGradient>
               </Pressable>
               <Pressable style={styles.shareButton} onPress={handleShareProgress}>
-                <LinearGradient colors={['#3B82F6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shareGradient}>
+                <LinearGradient colors={[METAL.goldDim, METAL.gold]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.shareGradient}>
                   <Ionicons name="share-social-outline" size={18} color="#fff" />
                   <Text style={styles.shareText}>Texto</Text>
                 </LinearGradient>
@@ -850,7 +866,7 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Heatmap */}
-            <Text style={styles.sectionTitle}>MAPA DE 90 DÍAS</Text>
+            <Text style={styles.sectionTitle}>Mapa de 90 días</Text>
             <Text style={{ fontSize: FONT.xs, color: COLORS.textMuted, marginBottom: SPACING.sm, marginTop: -SPACING.sm }}>
               Tocá cualquier día para ver el resumen.
             </Text>
@@ -869,7 +885,7 @@ export default function ProgresoScreen() {
             {/* Goals progress bars */}
             {hasAnyGoals && (
               <>
-                <Text style={styles.sectionTitle}>OBJETIVOS PERSONALES</Text>
+                <Text style={styles.sectionTitle}>Objetivos personales</Text>
                 <View style={styles.card}>
                   {typeof user.goals?.targetStreak === 'number' && user.goals.targetStreak > 0 && (
                     <GoalBar
@@ -913,7 +929,7 @@ export default function ProgresoScreen() {
             )}
 
             {/* Weight chart */}
-            <Text style={styles.sectionTitle}>EVOLUCIÓN DE PESO</Text>
+            <Text style={styles.sectionTitle}>Evolución de peso</Text>
             <View style={styles.card}>
               <WeightChart
                 data={weightData}
@@ -931,7 +947,7 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Weekly training bars */}
-            <Text style={styles.sectionTitle}>ENTRENAMIENTO SEMANAL</Text>
+            <Text style={styles.sectionTitle}>Entrenamiento semanal</Text>
             <View style={styles.card}>
               <WeeklyBars days={days} field="trainingMinutes" color={COLORS.cuerpo} unit="min" />
               <Text style={styles.chartFooterCenter}>
@@ -940,7 +956,7 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Weekly reading bars */}
-            <Text style={styles.sectionTitle}>LECTURA SEMANAL</Text>
+            <Text style={styles.sectionTitle}>Lectura semanal</Text>
             <View style={styles.card}>
               <WeeklyBars days={days} field="readingPages" color={COLORS.mente} unit="págs" />
               <Text style={styles.chartFooterCenter}>
@@ -949,7 +965,7 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Weekly breathing bars */}
-            <Text style={styles.sectionTitle}>RESPIRACIÓN SEMANAL</Text>
+            <Text style={styles.sectionTitle}>Respiración semanal</Text>
             <View style={styles.card}>
               <WeeklyBars days={days} field="breathingMinutes" color={COLORS.bienestar} unit="min" />
               <Text style={styles.chartFooterCenter}>
@@ -958,7 +974,7 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Sleep chart */}
-            <Text style={styles.sectionTitle}>SUEÑO — EVOLUCIÓN</Text>
+            <Text style={styles.sectionTitle}>Sueño</Text>
             <View style={styles.card}>
               <LineChart data={sleepData} color="#7B68EE" label="Sueno" />
               {sleepData.length >= 2 && (
@@ -969,13 +985,13 @@ export default function ProgresoScreen() {
             </View>
 
             {/* Energy trend */}
-            <Text style={styles.sectionTitle}>ENERGÍA DIARIA</Text>
+            <Text style={styles.sectionTitle}>Energía diaria</Text>
             <View style={styles.card}>
               <EnergyTrendStrip data={energyData} />
             </View>
 
             {/* Totals */}
-            <Text style={styles.sectionTitle}>RESUMEN ACUMULADO</Text>
+            <Text style={styles.sectionTitle}>Resumen acumulado</Text>
             <View style={styles.totalsGrid}>
               <TotalBox icon="barbell" color={COLORS.cuerpo} label="Entrenamiento" value={`${Math.floor(totalTrainMin / 60)}h ${totalTrainMin % 60}m`} />
               <TotalBox icon="book" color={COLORS.mente} label="Páginas leídas" value={`${totalReadPages}`} />
@@ -986,19 +1002,20 @@ export default function ProgresoScreen() {
             {/* Weekly Review button */}
             {user.currentDay > 7 && (
               <>
-                <Text style={styles.sectionTitle}>SEMANA {currentWeek}</Text>
+                <Text style={styles.sectionTitle}>Semana {currentWeek}</Text>
                 <Pressable
                   style={weekStyles.reviewBtn}
                   onPress={() => setShowWeeklyReview(true)}
 
                 >
                   <LinearGradient
-                    colors={['rgba(232,70,10,0.15)', 'rgba(124,58,237,0.10)']}
+                    colors={['rgba(232,70,10,0.15)', 'rgba(212,175,55,0.12)']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={weekStyles.reviewBtnInner}
                   >
+                    <Ionicons name="stats-chart-outline" size={20} color={COLORS.accent} style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
-                      <Text style={weekStyles.reviewTitle}>📊 Revisión Semanal</Text>
+                      <Text style={weekStyles.reviewTitle}>Revisión semanal</Text>
                       <Text style={weekStyles.reviewSub}>
                         Sem. {currentWeek} · {weekCompleted}/{weekDays.length} días completados
                       </Text>
@@ -1006,6 +1023,8 @@ export default function ProgresoScreen() {
                     <Ionicons name="chevron-forward" size={18} color={COLORS.accent} />
                   </LinearGradient>
                 </Pressable>
+              </>
+            )}
               </>
             )}
 
@@ -1093,12 +1112,12 @@ function WeeklyReviewModal({ visible, onClose, stageTheme, weekNumber, weekDays,
   const totalRead = weekDays.reduce((s, d) => s + (d.metrics?.readingPages ?? 0), 0);
 
   const message = rate === 100
-    ? '🏆 Semana perfecta. Sos un guerrero de élite.'
+    ? 'Semana perfecta. Estándar de élite.'
     : rate >= 71
-    ? '⚡ Semana sólida. Seguí construyendo momentum.'
+    ? 'Semana sólida. Seguí construyendo momentum.'
     : rate >= 43
-    ? '⚡ Semana regular. La siguiente la terminás al 100%.'
-    : '⚔️ Semana difícil. Aprendé de ella y volvé más fuerte.';
+    ? 'Semana regular. La siguiente la terminás al 100%.'
+    : 'Semana difícil. Aprendé de ella y volvé más fuerte.';
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1268,6 +1287,25 @@ const styles = StyleSheet.create({
   title: { fontSize: FONT.xxl, fontWeight: '800', color: SEMANTIC.onSurface },
   subtitle: { fontSize: FONT.base, color: SEMANTIC.onSurfaceVariant, marginTop: 2 },
   sectionTitle: { fontSize: FONT.xs, color: SEMANTIC.onSurfaceMuted, fontWeight: '700', letterSpacing: 2, marginBottom: SPACING.sm, marginTop: SPACING.lg },
+  moreDetailsBtn: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: METAL.gold,
+    backgroundColor: SURFACES.glass,
+  },
+  moreDetailsLabel: {
+    fontSize: FONT.sm,
+    fontWeight: '700',
+    color: METAL.gold,
+  },
   statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm },
   newBadgeBanner: {
     backgroundColor: 'rgba(245,158,11,0.12)',

@@ -9,7 +9,8 @@ interface WeeklyReviewProps {
   weekNumber: number;
   stats: { completed: number; trainMin: number; readPages: number; breathMin: number };
   coachName: string;
-  coachEmoji: string;
+  coachEmoji?: string;
+  coachIcon?: React.ComponentProps<typeof Ionicons>['name'];
   wins: string[];
   focus: string[];
   coachMessage: string;
@@ -21,6 +22,7 @@ export default function WeeklyReview({
   stats,
   coachName,
   coachEmoji,
+  coachIcon = 'flash',
   wins,
   focus,
   coachMessage,
@@ -42,7 +44,7 @@ export default function WeeklyReview({
                 <Text style={styles.weekLabel}>SEMANA {weekNumber - 1} — REVIEW</Text>
                 <Text style={styles.headerTitle}>¿Cómo fue tu semana?</Text>
               </View>
-              <Text style={{ fontSize: 32 }}>📋</Text>
+              <Ionicons name="clipboard-outline" size={28} color={COLORS.accent} />
             </View>
 
             <View style={styles.statsRow}>
@@ -68,7 +70,11 @@ export default function WeeklyReview({
 
             <View style={styles.coachCard}>
               <View style={styles.coachHeader}>
-                <Text style={{ fontSize: 20 }}>{coachEmoji}</Text>
+                {coachEmoji ? (
+                  <Text style={{ fontSize: 20 }}>{coachEmoji}</Text>
+                ) : (
+                  <Ionicons name={coachIcon} size={20} color={COLORS.accent} />
+                )}
                 <Text style={styles.coachName}>{coachName} dice:</Text>
               </View>
               <Text style={styles.coachMsg}>{coachMessage}</Text>

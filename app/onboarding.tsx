@@ -67,7 +67,7 @@ export default function OnboardingScreen() {
   const transition = useRef(new Animated.Value(0)).current;
   const ariseCoach = getCoachById('arise');
   const arisePlaybook = getCoachPlaybook('arise');
-  const accent = '#818CF8';
+  const accent = '#D4AF37';
 
   const showBodyMetrics = focusAreas.includes('cuerpo');
   const showMindMetrics = focusAreas.includes('mente');
