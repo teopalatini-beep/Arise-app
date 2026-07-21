@@ -11,20 +11,20 @@ import {
   fetchDayRecords, upsertDayRecord,
   fetchMetrics, upsertMetrics,
   fetchJournal, upsertJournal,
+  completeDayRpc,
 } from '../lib/db';
+import { trackError } from '../services/errorTracking';
+import { trackFirstMissionActivated, trackRpcSyncExecution } from '../services/analytics';
 
 const STORAGE_KEY = 'arise_data_v1';
 const TODAY = () => format(new Date(), 'yyyy-MM-dd');
 const MONTH_REF = () => format(new Date(), 'yyyy-MM');
 
-function isNetworkError(error: unknown): boolean {
-  const msg = String((error as any)?.message ?? error ?? '').toLowerCase();
-  return msg.includes('network request failed') || msg.includes('fetch failed');
-}
-
+// Todos los errores de red/sync/RPC pasan por el wrapper de telemetría unificado
+// (errorTracking.ts) para que nada quede sordo en producción. El wrapper degrada
+// automáticamente los errores de red a 'warning' y los registra igual.
 function logUnexpectedError(scope: string, error: unknown) {
-  if (isNetworkError(error)) return;
-  console.warn(`[AppContext] ${scope}`, error);
+  trackError(error, `AppContext.${scope}`);
 }
 
 // ── Programa adaptativo ──────────────────────────────────────────────────────
@@ -45,7 +45,10 @@ export async function initProgram(): Promise<void> {
         targetWeight: ob.goals?.targetWeight,
       });
     }
-  } catch {}
+  } catch (e) {
+    // Onboarding corrupto/ilegible → se cae a defaults, pero el fallo queda registrado
+    trackError(e, { scope: 'AppContext.initProgram', severity: 'warning' });
+  }
 }
 
 export function getProgram() { return _cachedProgram; }
@@ -184,6 +187,7 @@ const AppContext = createContext<AppContextType | null>(null);
 
 const HARD_MODE_KEY = 'arise_hard_mode';
 const PINNED_KEY    = 'arise_pinned_missions';
+const FIRST_MISSION_KEY = 'arise_first_mission_activated'; // flag: se dispara una sola vez
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData | null>(null);
@@ -332,7 +336,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
           // Push local-ahead data to Supabase in background (no await — non-blocking)
-          if (needsRemoteSync) syncAllToSupabase(user.id, updated).catch(() => {});
+          if (needsRemoteSync) {
+            syncAllToSupabase(user.id, updated).catch((e) =>
+              trackError(e, 'AppContext.loadData.backgroundSync'),
+            );
+          }
 
           setLoading(false);
           return;
@@ -381,6 +389,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   async function syncAllToSupabase(userId: string, appData: AppData) {
     setSyncing(true);
+    const startedAt = Date.now();
     try {
       await upsertProfile(userId, appData.user);
       await Promise.all(appData.days.map(async (dr) => {
@@ -388,7 +397,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (dr.metrics) await upsertMetrics(userId, dr.dayNumber, dr.metrics);
         if (dr.journal) await upsertJournal(userId, dr.dayNumber, dr.journal);
       }));
+      // Salud de la RPC/sync: éxito + delta de tiempo + volumen sincronizado.
+      trackRpcSyncExecution({
+        endpoint: 'syncAllToSupabase',
+        success: true,
+        duration_ms: Date.now() - startedAt,
+        records_synced: appData.days.length,
+      });
     } catch (e) {
+      trackRpcSyncExecution({
+        endpoint: 'syncAllToSupabase',
+        success: false,
+        duration_ms: Date.now() - startedAt,
+        error_message: e instanceof Error ? e.message : String(e),
+      });
       logUnexpectedError('Sync error', e);
     } finally {
       setSyncing(false);
@@ -494,6 +516,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Persistencia para el momento de COMPLETAR un día. La progresión (XP/racha/día)
+  // la otorga el servidor vía RPC anti-cheat; el cliente hace update optimista local
+  // (offline-first) y luego reconcilia con la verdad autoritativa del server.
+  const persistWithRpcCompletion = useCallback(async (newData: AppData, record: DayRecord) => {
+    // 1. Update optimista local — la UI refleja el progreso al instante, aun offline.
+    setData(newData);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 2. La RPC es la autoridad: otorga XP/racha/día server-side y devuelve el perfil.
+      const authoritative = await completeDayRpc(record);
+      if (!authoritative) return; // offline/error → se conserva el estado optimista
+
+      // 3. Reconciliar SOLO las columnas de progresión con la verdad del server.
+      setData(prev => {
+        if (!prev) return prev;
+        const reconciled: AppData = {
+          ...prev,
+          user: {
+            ...prev.user,
+            xp: authoritative.xp,
+            level: authoritative.level,
+            streak: authoritative.streak,
+            maxStreak: authoritative.maxStreak,
+            currentDay: authoritative.currentDay,
+            programCompleted: authoritative.programCompleted,
+          },
+        };
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reconciled))
+          .catch((e) => trackError(e, 'AppContext.reconcile.save'));
+        return reconciled;
+      });
+    } catch (e) {
+      trackError(e, 'AppContext.persistWithRpcCompletion');
+    }
+  }, []);
+
   // ── Derived state ────────────────────────────────────────────────────────
   const todayDefinition = (() => {
     if (!data) return null;
@@ -591,6 +653,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const currentStates = ensureMissionStates(record, missions);
 
     const points = calcPoints(mission, units);
+
+    // Activación: primera misión activada de la vida del usuario (dispara 1 sola vez).
+    if (units > 0) {
+      AsyncStorage.getItem(FIRST_MISSION_KEY)
+        .then((flag) => {
+          if (flag) return;
+          AsyncStorage.setItem(FIRST_MISSION_KEY, '1');
+          trackFirstMissionActivated({
+            mission_id: missionId,
+            day_number: record.dayNumber,
+            units,
+            points,
+          });
+        })
+        .catch((e) => trackError(e, 'AppContext.firstMissionActivated'));
+    }
+
     const updatedStates: MissionState[] = currentStates.map(s =>
       s.missionId === missionId ? { ...s, units, points } : s
     );
@@ -609,9 +688,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     let user = { ...newData.user };
     const wasCompleted = record.completed;
+    const justCompleted = completed && !wasCompleted;
 
-    if (completed && !wasCompleted) {
-      // Day just got completed — award XP + advance streak
+    if (justCompleted) {
+      // Update optimista local (offline-first). El servidor re-otorga y reconcilia
+      // vía persistWithRpcCompletion; acá replicamos la misma matemática para la UI.
       const earned = xpForDay(user.currentDay);
       user.xp += earned;
       user.level = levelFromXP(user.xp);
@@ -628,8 +709,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ];
 
     const withBadges = applyBadges(newData);
-    persistWithRecord(withBadges, updatedRecord);
-  }, [data, hardMode, pinnedMissions, persistWithRecord]);
+    // Al completar → RPC anti-cheat (progresión server-side). Si no, persistencia normal.
+    if (justCompleted) {
+      persistWithRpcCompletion(withBadges, updatedRecord);
+    } else {
+      persistWithRecord(withBadges, updatedRecord);
+    }
+  }, [data, hardMode, pinnedMissions, persistWithRecord, persistWithRpcCompletion]);
 
   // ── Task operations ──────────────────────────────────────────────────────
   const completeTask = useCallback((taskId: string) => {
@@ -731,8 +817,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) upsertJournal(user.id, record.dayNumber, text);
-    });
+      if (user) {
+        upsertJournal(user.id, record.dayNumber, text).catch((e) =>
+          trackError(e, { scope: 'AppContext.saveJournal', extra: { dayNumber: record.dayNumber } }),
+        );
+      }
+    }).catch((e) => trackError(e, 'AppContext.saveJournal.getUser'));
   }, [data]);
 
   // ── Metrics ──────────────────────────────────────────────────────────────
@@ -749,8 +839,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) upsertMetrics(user.id, record.dayNumber, metrics);
-    });
+      if (user) {
+        upsertMetrics(user.id, record.dayNumber, metrics).catch((e) =>
+          trackError(e, { scope: 'AppContext.saveMetrics', extra: { dayNumber: record.dayNumber } }),
+        );
+      }
+    }).catch((e) => trackError(e, 'AppContext.saveMetrics.getUser'));
   }, [data]);
 
   // ── Grace day ────────────────────────────────────────────────────────────
