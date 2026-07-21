@@ -2,11 +2,8 @@ import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const FALLBACK_SUPABASE_URL = 'https://zjcrycpibpxqtunyynzc.supabase.co';
-const FALLBACK_SUPABASE_KEY = 'sb_publishable_WsL9GDxXNtnepCCgfKukzQ_YQqQQyQ3';
-
-const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? FALLBACK_SUPABASE_URL).trim();
-const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? FALLBACK_SUPABASE_KEY).trim();
+const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim();
+const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
 
 function hasValidSupabaseHost(url: string): boolean {
   try {
