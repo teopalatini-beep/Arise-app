@@ -1,126 +1,112 @@
 # ARISE — 90 Day Challenge
 
-> App de productividad y transformación personal, tematizada con estética anime/shonen (Naruto, Dragon Ball, Jujutsu Kaisen, Demon Slayer). Convertí tu rutina diaria en un sistema de niveles, rangos y logros.
+App de hábitos con estética shonen: un programa de **90 días** con misiones diarias, XP, rachas y progreso visible. Entrenamiento, lectura, meditación, deep work y más — gamificado para que levantarte sea el default.
 
-**Stack:** React Native · Expo (Router, SDK 54) · TypeScript · Supabase (Auth + Postgres + RLS)
+> “Arise — levantáte.”
 
 ---
 
-## El concepto
+## Qué estoy haciendo
 
-ARISE toma la lógica de progresión de un RPG/anime shonen — XP, niveles, rangos ninja (Genin → Chunin → Jonin → Kage), "formas de poder" al estilo Super Saiyan/Sharingan — y la aplica a un programa real de 90 días de hábitos: entrenamiento, lectura, meditación, trabajo enfocado, journaling.
+Estoy construyendo una app personal (Expo / React Native) de transformación en 90 días:
 
-La idea de fondo: la disciplina diaria se siente más como "subir de nivel" que como una lista de tareas. Cada día completado suma puntos y XP, las rachas desbloquean "auras" y transformaciones visuales, y fallar un día activa una misión de penitencia en vez de simplemente romper el progreso.
+1. **Hoy** — misiones del día con checkboxes y frase del momento
+2. **Programa** — grilla de 90 días en 4 fases, con hitos
+3. **Progreso** — métricas (peso, entrenamiento, lectura, meditación, etc.)
+4. **Diario** — reflexiones y notas
+5. **Discovery / coaches / Pomodoro** — herramientas extra para sostener el hábito
+6. **Sync** — auth y datos vía Supabase (cuando está configurado)
 
-## Funcionalidades implementadas
+No es un tracker genérico: es un **camino con narrativa**, niveles y consecuencias (racha, penitencia, día de gracia).
 
-- **Programa de 90 días en 4 fases** (Fundación → Construcción → Momentum → Elite), con misiones que escalan en dificultad (minutos de entrenamiento, páginas de lectura, meditación, ducha fría, visualización, trabajo profundo).
-- **Sistema de misiones con puntos**: misiones binarias, escalonadas (steps) y proporcionales, con puntaje diario objetivo (30 normal / 40 modo difícil).
-- **XP, niveles y "power stages"**: 4 etapas visuales que cambian colores/tema de la app según el progreso.
-- **Sistema de rachas y penitencia**: perder un día activa una misión de penitencia; incluye 1 día de gracia mensual que no rompe la racha.
-- **Coaches temáticos seleccionables**: cada uno con frases, overlays visuales y reportes semanales de progreso con tono propio.
-- **Insignias / badges** con rangos ninja por rachas, fases completadas, hitos de lectura/entrenamiento, etc.
-- **Grilla del programa**: vista de los 90 días con estado (completado/fallado/pendiente) e hitos.
-- **Progreso y diario**: métricas diarias (peso, entrenamiento, lectura, meditación, ánimo) con historial, más notas y reflexiones diarias.
-- **Discovery**: biblioteca curada de ejercicios y libros recomendados, organizados por fase.
-- **Timer Pomodoro** integrado para bloques de trabajo enfocado.
-- **Integración con calendario nativo** (expo-calendar) y **notificaciones locales** programables.
-- **Autenticación y sync en la nube** vía Supabase: registro/login/reset de contraseña, datos persistidos por usuario con Row Level Security.
-- **Onboarding adaptativo**: cuestionario inicial que genera un perfil y recomendaciones personalizadas.
+---
+
+## Por qué lo estoy haciendo
+
+Las apps de hábitos suelen ser listas frías. A los tres días se abandonan.
+
+Quería algo que:
+
+- tenga un **arco claro de 90 días** (no “streak infinito” vacío)
+- haga el progreso **visible y jugable** (XP, fases, misiones)
+- combine **cuerpo + mente + foco** en un solo programa
+- se sienta motivador sin volverse spam de notificaciones vacías
+
+---
+
+## Beneficios
+
+| Beneficio | En la práctica |
+|---|---|
+| **Estructura** | 90 días / 4 fases, no improvisar cada mañana |
+| **Gamificación útil** | XP y niveles atados a misiones reales |
+| **Todo en un lugar** | Hoy + métricas + diario |
+| **Multiplataforma** | Expo: iOS, Android y web |
+| **Sync opcional** | Supabase para no perder el progreso |
+
+---
+
+## Qué hace (y qué no)
+
+**Sí hace**
+- Programa de 90 días con misiones diarias
+- Tracking de métricas y diario
+- Rachas, XP y configuración del challenge
+- Correr en Expo Go / web / builds nativos
+
+**No hace**
+- Coaching médico o nutricional profesional
+- Garantizar resultados: es un sistema de constancia, no magia
+- Funcionar online-only: parte del estado puede vivir en el dispositivo
+
+---
+
+## Stack
+
+- Expo / React Native + TypeScript
+- Expo Router (tabs)
+- AsyncStorage / estado local
+- Supabase (auth + sync, opcional)
+
+---
+
+## Setup rápido
+
+```bash
+git clone https://github.com/teopalatini-beep/Arise-app.git
+cd Arise-app   # o la carpeta local New-app
+npm install
+cp .env.example .env
+# Completá EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY si usás sync
+npm start
+```
+
+| Comando | Qué hace |
+|---|---|
+| `npm start` | Expo Dev Tools / QR |
+| `npm run web` | Corre en el navegador |
+| `npm run ios` | Simulador / device iOS |
+| `npm run android` | Emulador / device Android |
+
+En el celular: instalá **Expo Go**, escaneá el QR.
+
+Los `.env` **nunca** se suben a git.
+
+---
+
+## Estructura (orientativa)
+
+```
+app/                 → pantallas (tabs, auth, discovery…)
+src/
+  data/              → programa, misiones
+  services/          → métricas, journal, analytics
+  theme/             → design system
+supabase/            → schema / config
+```
+
+---
 
 ## Estado del proyecto
 
-Proyecto personal en desarrollo activo (WIP), originalmente pensado para uso propio y pulido luego con vistas a una eventual publicación en tiendas (incluye configuración de EAS Build/Submit y política de privacidad). No es un producto comercial ni tiene usuarios externos.
-
----
-
-## Instalación paso a paso
-
-### 1. Instalá Node.js
-Descargá e instalá desde [nodejs.org](https://nodejs.org) (versión LTS recomendada).
-
-### 2. Instalá las dependencias
-```bash
-cd arise-app
-npm install
-```
-
-### 3. Correlo en tu computadora (web)
-```bash
-npx expo start --web
-```
-Se abre automáticamente en el navegador.
-
-### 4. Correlo en tu celular
-1. Instalá **Expo Go** desde la App Store (iOS) o Google Play
-2. Corré:
-   ```bash
-   npx expo start
-   ```
-3. Escaneá el código QR que aparece en la terminal con la cámara (iOS) o con Expo Go (Android)
-
----
-
-## Estructura del proyecto
-
-```
-arise-app/
-├── app/                      → rutas (Expo Router)
-│   ├── welcome.tsx / login.tsx / onboarding.tsx
-│   └── (tabs)/                → Hoy · Programa · Progreso · Diario · Discovery · Config
-├── src/
-│   ├── context/                → AppContext (estado global + AsyncStorage/Supabase), AuthContext
-│   ├── data/                   → definición de las 90 misiones/día y estructura del programa
-│   ├── lib/                    → progresión/XP, coaches, calendario, notificaciones, frases, db, cliente Supabase
-│   ├── components/              → PomodoroTimer, CoachParticles (efectos visuales)
-│   └── theme/                   → tokens de color y tipografía
-└── supabase/
-    ├── schema.sql               → tablas + políticas RLS
-    └── migrations/
-```
-
-**Backend:** Supabase (Postgres) con autenticación propia y tablas `profiles`, `day_records`, `metrics`, `journal`, todas protegidas con Row Level Security por `auth.uid()` — cada usuario solo accede a sus propios datos.
-
----
-
-## Sistema de penalización
-
-- **Si fallás un día** → Aparece una misión de penitencia (entrenamiento doble + meditación + carta de compromiso)
-- **Si completás la penitencia** → Continuás desde donde estabas (racha reset a 0)
-- **Día de gracia** → 1 por mes. No perdés el progreso, solo la racha.
-
----
-
-## Backend (cuentas + nube)
-
-La app usa **Supabase** para:
-- Autenticación (registro/login/reset contraseña)
-- Guardado en la nube por usuario
-- Recuperar todo el progreso al iniciar sesión desde cualquier dispositivo
-
-### Configuración rápida del backend
-
-1. Abrí tu proyecto en Supabase.
-2. Andá a **SQL Editor**.
-3. Ejecutá el script `supabase/schema.sql`.
-4. Creá un archivo `.env` (podés copiar `.env.example`) y completá:
-   - `EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co`
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY=<tu_anon_key>`
-5. Verificá que existan tablas: `profiles`, `day_records`, `metrics`, `journal`.
-
-Con eso, cada usuario tendrá su información persistida y privada (RLS por `auth.uid()`).
-
-### EAS secrets (builds de producción)
-
-Para no depender del `.env` local en builds remotos, cargá estas variables en EAS:
-
-```bash
-eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL --value "https://<project-ref>.supabase.co"
-eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "<tu_anon_key>"
-```
-
-También podés repetirlo para `preview` o `development` cambiando `--environment`.
-
----
-
-*Construida con Expo + TypeScript + Supabase.*
+App en uso y evolución activa (UI, misiones, progreso). El README describe el producto; el programa concreto vive en `src/data/`.
