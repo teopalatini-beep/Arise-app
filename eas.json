@@ -15,6 +15,11 @@
     "preview": {
       "distribution": "internal",
       "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://3a7b3d326e48ccb08fb60addecf99718@o4511680725188608.ingest.us.sentry.io/4511680730300416",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_m9RRy3zZL7efU3fjjsh93DGs84VvCayHxYcRBAF9GPXe",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
+      },
       "ios": {
         "simulator": false
       },
@@ -25,6 +30,11 @@
     "production": {
       "autoIncrement": true,
       "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://3a7b3d326e48ccb08fb60addecf99718@o4511680725188608.ingest.us.sentry.io/4511680730300416",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_m9RRy3zZL7efU3fjjsh93DGs84VvCayHxYcRBAF9GPXe",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com"
+      },
       "ios": {
         "credentialsSource": "remote"
       },
